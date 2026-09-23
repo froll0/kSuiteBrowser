@@ -1,5 +1,5 @@
 import { INTERNAL } from '../../shared/ipc';
-import type { AboutInfo, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, Settings, TokenStatus } from '../../shared/types';
+import type { AboutInfo, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, VaultStatus } from '../../shared/types';
 
 interface InternalBridge {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -34,6 +34,23 @@ export const internal = {
   downloadDir: () => call<string>(INTERNAL.downloadDirInfo),
   about: () => call<AboutInfo>(INTERNAL.about),
   httpsContinue: (url: string) => call<void>(INTERNAL.httpsContinue, url),
+  passwordStatus: () => call<VaultStatus>(INTERNAL.pwStatus),
+  passwords: {
+    status: () => call<VaultStatus>(INTERNAL.pwStatus),
+    unlock: (primary: string) => call<ApiResult<void>>(INTERNAL.pwUnlock, primary),
+    lock: () => call<void>(INTERNAL.pwLock),
+    list: () => call<ApiResult<SavedLogin[]>>(INTERNAL.pwList),
+    never: () => call<ApiResult<string[]>>(INTERNAL.pwNever),
+    add: (entry: { url: string; username: string; password: string }) => call<ApiResult<SavedLogin>>(INTERNAL.pwAdd, entry),
+    update: (id: string, patch: { username?: string; password?: string }) => call<ApiResult<void>>(INTERNAL.pwUpdate, id, patch),
+    remove: (id: string) => call<ApiResult<void>>(INTERNAL.pwRemove, id),
+    removeNever: (origin: string) => call<ApiResult<void>>(INTERNAL.pwRemoveNever, origin),
+    setPrimary: (next: string, current?: string) => call<ApiResult<void>>(INTERNAL.pwSetPrimary, next, current),
+    removePrimary: (current: string) => call<ApiResult<void>>(INTERNAL.pwRemovePrimary, current),
+    importCsv: (csv: string) => call<ApiResult<number>>(INTERNAL.pwImport, csv),
+    exportCsv: (primary?: string) => call<ApiResult<string>>(INTERNAL.pwExport, primary),
+    generate: () => call<string>(INTERNAL.pwGenerate),
+  },
   history: {
     search: (query: string, before?: number) => call<HistoryVisit[]>(INTERNAL.historySearch, query, before),
     remove: (ids: string[]) => call<void>(INTERNAL.historyRemove, ids),

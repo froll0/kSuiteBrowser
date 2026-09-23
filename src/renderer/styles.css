@@ -228,3 +228,12 @@ progress { width: 100%; }
 .file-icon.dir { color: var(--accent); }
 .drive-uploaded { color: var(--success); }
 .drive-error { color: var(--danger); }
+
+/* Save password / unlock bar */
+#infobar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border-top: 1px solid var(--border); }
+#infobar[hidden] { display: none; }
+#infobar .key { font-size: 16px; }
+#infobar .msg { font-weight: 500; }
+#infobar input { width: 220px; }
+#infobar .spacer { flex: 1; }
+#infobar .error { color: var(--danger); font-size: 12px; background: none; padding: 0; }

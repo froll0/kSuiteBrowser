@@ -137,6 +137,23 @@ function zoomSelect(): HTMLElement {
   return select;
 }
 
+async function passwordsSection(): Promise<HTMLElement> {
+  const status = await internal.passwordStatus();
+  const state =
+    status.state === 'needs-setup'
+      ? 'Il portachiavi di sistema non è disponibile: imposta una password principale per poter salvare le password.'
+      : status.hasPrimary
+        ? 'Protette dalla password principale.'
+        : 'Cifrate con il portachiavi del sistema operativo.';
+  return section(
+    'passwords',
+    'Password',
+    row('Offri di salvare le password', 'Dopo un accesso compare una barra per salvare nome utente e password.', toggle('offerToSavePasswords', 'Offri di salvare le password')),
+    row('Compila automaticamente', 'Se per un sito c’è un solo accesso salvato, il modulo viene compilato all’apertura (solo su pagine HTTPS). Altrimenti clicca nel campo per scegliere.', toggle('autofillPasswords', 'Compila automaticamente')),
+    row('Password salvate', state, h('a', { href: 'ksuite://passwords/', class: 'button-link' }, 'Gestisci password')),
+  );
+}
+
 function privacySection(): HTMLElement {
   const selection: BrowsingDataSelection = { history: true, cookies: true, cache: true, downloads: false, permissions: false };
   const check = (key: keyof BrowsingDataSelection, label: string) => {
@@ -318,7 +335,7 @@ async function render(): Promise<void> {
   if (settings.theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
   const scroll = content.scrollTop || document.scrollingElement?.scrollTop || 0;
-  const sections = [await generalSection(), appearanceSection(), privacySection(), permissionsSection(), await ksuiteSection(), await aboutSection()];
+  const sections = [await generalSection(), appearanceSection(), await passwordsSection(), privacySection(), permissionsSection(), await ksuiteSection(), await aboutSection()];
   content.replaceChildren(...sections);
   applyFilter();
   if (document.scrollingElement) document.scrollingElement.scrollTop = scroll;

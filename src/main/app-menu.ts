@@ -22,6 +22,7 @@ export interface AppMenuActions {
   bookmarkPage(): void;
   openHistory(): void;
   openBookmarks(): void;
+  openPasswords(): void;
   clearData(): void;
   devTools(): void;
 }
@@ -42,6 +43,7 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { label: 'Invia pagina via Mail…', accelerator: 'CmdOrCtrl+Shift+M', click: a.mailPage },
         { type: 'separator' },
         { label: 'Impostazioni', accelerator: 'CmdOrCtrl+,', click: a.openSettings },
+        { label: 'Password', click: a.openPasswords },
         { label: 'Cancella dati di navigazione…', accelerator: 'CmdOrCtrl+Shift+Delete', click: a.clearData },
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit', label: 'Esci' },

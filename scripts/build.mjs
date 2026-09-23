@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const watch = process.argv.includes('--watch');
-const PAGES = ['settings', 'history', 'bookmarks', 'https-only'];
+const PAGES = ['settings', 'history', 'bookmarks', 'passwords', 'https-only'];
 
 const common = { bundle: true, sourcemap: true, logLevel: 'info' };
 const node = { ...common, platform: 'node', format: 'cjs', target: 'node22', external: ['electron'] };
@@ -17,6 +17,7 @@ const targets = [
   { ...node, entryPoints: ['src/preload/page.ts'], outfile: 'dist/preload/page.js' },
   { ...web, entryPoints: ['src/renderer/app.ts'], outfile: 'dist/renderer/app.js' },
   { ...node, entryPoints: ['src/preload/suggest.ts'], outfile: 'dist/preload/suggest.js' },
+  { ...node, entryPoints: ['src/preload/passwords.ts'], outfile: 'dist/preload/passwords.js' },
   { ...web, entryPoints: ['src/renderer/suggest.ts'], outfile: 'dist/renderer/suggest.js' },
   ...PAGES.map((page) => ({ ...web, entryPoints: [`src/pages/${page}/${page}.ts`], outfile: `dist/pages/${page}/${page}.js` })),
 ];

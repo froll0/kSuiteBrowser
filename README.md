@@ -29,6 +29,15 @@ quindi funzionano senza sorprese.
 - Scorciatoie: `Ctrl+T`, `Ctrl+N`, `Ctrl+Shift+N` (finestra privata), `Ctrl+W`, `Ctrl+L`, `Ctrl+R`/`F5`, `Alt+←/→`, `Ctrl+Tab`, `Ctrl+,` (impostazioni), `Ctrl+Shift+Canc` (cancella dati), `F12` (su Mac: `⌘` al posto di `Ctrl`, cronologia con `⌘+Y`)
 - Download con cartella configurabile o "chiedi dove salvare"
 
+**Gestore password** (`ksuite://passwords`, menu File › Password)
+- Dopo un accesso compare una barra per **salvare o aggiornare** la password (con "Mai per questo sito")
+- **Compilazione automatica** quando per un sito c'è un solo accesso (solo su HTTPS); altrimenti clic nel campo e scelta dal menu, che il sito non può imitare perché è nativo
+- **Password sicure suggerite** nei moduli di registrazione (20 caratteri casuali)
+- Pagina di gestione: ricerca, mostra/copia, modifica, eliminazione, avvisi per password **riutilizzate** o **deboli**, siti esclusi
+- **Importazione CSV** da Chrome, Edge, Firefox, Safari, Bitwarden, 1Password; **esportazione CSV** (richiede la password principale)
+- **Password principale** opzionale: blocca le password finché non la inserisci, con blocco automatico dopo 30 minuti di inattività
+- Mai attivo nelle finestre private (nessun salvataggio né compilazione automatica)
+
 **Impostazioni** (`ksuite://settings`, `Ctrl+,`)
 - Generale: avvio, pagina iniziale, motore di ricerca, download
 - Aspetto: tema chiaro/scuro/sistema, barra laterale kSuite
@@ -71,6 +80,16 @@ In alternativa puoi passarlo con la variabile d'ambiente `KSUITE_API_TOKEN`.
 
 Se il tuo account ha più kDrive puoi sceglierlo nelle impostazioni (oppure indicare l'ID che trovi
 nell'URL dell'app web: `.../kdrive/app/drive/<ID>`).
+
+## Come sono protette le password
+
+- Le password stanno in `passwords.json` nel profilo, cifrate con **AES-256-GCM** (una modifica al file ne impedisce la lettura).
+- La chiave di cifratura è casuale e viene protetta dal **portachiavi del sistema** (Portachiavi di macOS, DPAPI di Windows,
+  Secret Service/KWallet su Linux) oppure, se la imposti, dalla **password principale** (derivata con scrypt).
+- Su Linux senza portachiavi Electron userebbe una chiave fissa uguale per tutti: in quel caso il browser la considera
+  assente e chiede di impostare una password principale prima di salvare qualsiasi password.
+- Le pagine web non possono leggere le password salvate di altri siti: l'origine di ogni richiesta è stabilita dal browser,
+  non dalla pagina, e la compilazione avviene solo nel frame dello stesso sito.
 
 ## Sviluppo
 

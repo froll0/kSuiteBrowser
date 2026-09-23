@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC } from '../shared/ipc';
 import type {
-  Bookmark, FindResult, Suggestion,
+  Bookmark, FindResult, PasswordPrompt, Suggestion,
   ApiResult, CalendarEvent, DriveFile, DriveListing, DownloadItemState, MailOverview,
   NewEvent, OutgoingMail, Profile, Rect, Settings, TabState, TokenStatus,
 } from '../shared/types';
@@ -44,6 +44,10 @@ const api = {
     stop: (tabId: number) => invoke<void>(IPC.findStop, tabId),
   },
   zoomReset: (tabId: number) => invoke<void>(IPC.zoomReset, tabId),
+  passwords: {
+    answer: (id: string, action: 'save' | 'never' | 'dismiss', username?: string) => invoke<void>(IPC.passwordAnswer, id, action, username),
+    unlock: (primary: string) => invoke<ApiResult<void>>(IPC.passwordUnlock, primary),
+  },
   bookmarks: {
     list: () => invoke<Bookmark[]>(IPC.bookmarksList),
     toggle: (tabId: number) => invoke<void>(IPC.bookmarkToggle, tabId),
@@ -86,6 +90,8 @@ const api = {
     onFind: (fn: () => void) => on(IPC.evFind, fn),
     onFindNext: (fn: (opts: { backwards: boolean }) => void) => on(IPC.evFindNext, fn),
     onFindResult: (fn: (result: FindResult) => void) => on(IPC.evFindResult, fn),
+    onPasswordPrompt: (fn: (prompt: PasswordPrompt) => void) => on(IPC.evPasswordPrompt, fn),
+    onPasswordUnlock: (fn: (info: { reason: string }) => void) => on(IPC.evPasswordUnlock, fn),
     onComposeMail: (fn: (mail: OutgoingMail) => void) => on(IPC.evComposeMail, fn),
     onToast: (fn: (toast: { kind: 'info' | 'success' | 'error'; message: string }) => void) => on(IPC.evToast, fn),
   },

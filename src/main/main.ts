@@ -11,6 +11,7 @@ import { buildSuggestions } from '../shared/suggest';
 import type {
   AboutInfo, ApiResult, BookmarkFolder, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion,
 } from '../shared/types';
+import { generatePassword } from '../shared/password-gen';
 import { resolveOmniboxInput } from '../shared/url';
 import { stepZoom, withSiteZoom, zoomFor } from '../shared/zoom';
 import { buildAppMenu } from './app-menu';
@@ -18,6 +19,8 @@ import { TrackerBlocker } from './blocker';
 import { clearBrowsingData } from './browsing-data';
 import { DownloadManager } from './downloads';
 import { isInternalUrl, registerInternalScheme, serveInternalPages } from './internal-pages';
+import { PasswordManager } from './passwords/manager';
+import { originOf } from './passwords/vault';
 import { configurePermissions, memoryOnly, persistentMemory } from './permissions';
 import { PrivacyGuard } from './privacy';
 import { KSuiteServices } from './services';
@@ -32,6 +35,7 @@ const PATHS = {
   chromePreload: join(__dirname, '../preload/preload.js'),
   pagePreload: join(__dirname, '../preload/page.js'),
   adblockPreload: join(__dirname, '../preload/adblock.js'),
+  passwordsPreload: join(__dirname, '../preload/passwords.js'),
   chromeHtml: join(__dirname, '../renderer/index.html'),
   suggestHtml: join(__dirname, '../renderer/suggest.html'),
   suggestPreload: join(__dirname, '../preload/suggest.js'),
@@ -43,6 +47,7 @@ let services: KSuiteServices;
 let downloads: DownloadManager;
 let history: HistoryStore;
 let bookmarks: BookmarksStore;
+let passwords: PasswordManager;
 const blocker = new TrackerBlocker();
 const guards = new Map<Session, PrivacyGuard>();
 const windows = new Set<BrowserWindowController>();
@@ -97,6 +102,14 @@ function start(): void {
   downloads = new DownloadManager(settings, services, (items) => broadcast(IPC.evDownloads, items));
   history = new HistoryStore(join(app.getPath('userData'), 'history.json'));
   bookmarks = new BookmarksStore(join(app.getPath('userData'), 'bookmarks.json'));
+  passwords = new PasswordManager(app.getPath('userData'), settings, (_frame, sender) => {
+    for (const w of windows) {
+      const tabId = w.tabs.idOf(sender);
+      if (tabId !== null) return { window: w, tabId };
+    }
+    return null;
+  });
+  passwords.register();
   bookmarks.onChange((list) => {
     broadcast(IPC.evBookmarks, list);
     sendToInternalPages(INTERNAL.evBookmarks, list);
@@ -131,6 +144,7 @@ function setupSession(ses: Session, isPrivate: boolean): void {
   configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings), () => lastFocused?.win ?? null);
   serveInternalPages(ses, PATHS.pages);
   ses.registerPreloadScript({ type: 'frame', id: 'ksuite-adblock', filePath: PATHS.adblockPreload });
+  ses.registerPreloadScript({ type: 'frame', id: 'ksuite-passwords', filePath: PATHS.passwordsPreload });
 }
 
 const windowContext: WindowContext = {
@@ -383,6 +397,7 @@ function buildMenu(): Menu {
     },
     openHistory: () => current()?.openInternal('ksuite://history/'),
     openBookmarks: () => current()?.openInternal('ksuite://bookmarks/'),
+    openPasswords: () => current()?.openInternal('ksuite://passwords/'),
     clearData: () => current()?.openSettings('privacy'),
     devTools: () => current()?.activeContents()?.toggleDevTools(),
   });
@@ -493,6 +508,8 @@ function registerChromeIpc(): void {
   });
   handle(IPC.bookmarkMenu, (w, id: string) => bookmarkContextMenu(w, id));
   handle(IPC.bookmarksMenu, (w) => allBookmarksMenu(w));
+  handle(IPC.passwordAnswer, (w, id: string, action: 'save' | 'never' | 'dismiss', username?: string) => passwords.answer(w, String(id), action, username));
+  handle(IPC.passwordUnlock, (w, primary: string) => wrap(() => passwords.unlock(w, String(primary ?? ''))));
 
   handle(IPC.settingsGet, () => settings.get());
   handle(IPC.settingsSet, (_w, patch: Partial<Settings>) => settings.update(patch));
@@ -615,6 +632,37 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.bookmarksImport, ['bookmarks'], (_e, items: Array<{ title: string; url: string; folder: BookmarkFolder }>) =>
     bookmarks.import(Array.isArray(items) ? items.slice(0, 20000) : []),
   );
+  const P = ['passwords'];
+  const vault = () => passwords.vault;
+  handleInternal(INTERNAL.pwStatus, [...P, 'settings'], () => vault().status());
+  handleInternal(INTERNAL.pwUnlock, P, (_e, primary: string) => wrap(async () => {
+    await vault().unlock(String(primary ?? ''));
+    passwords.touch();
+  }));
+  handleInternal(INTERNAL.pwLock, P, () => vault().lock());
+  handleInternal(INTERNAL.pwList, P, () => wrap(() => {
+    passwords.touch();
+    return vault().list();
+  }));
+  handleInternal(INTERNAL.pwNever, P, () => wrap(() => vault().never()));
+  handleInternal(INTERNAL.pwAdd, P, (_e, entry: { url: string; username: string; password: string }) => wrap(() => {
+    const origin = originOf(String(entry?.url ?? '')) ?? originOf(`https://${String(entry?.url ?? '')}`);
+    if (!origin) throw new Error('Indirizzo del sito non valido.');
+    if (!entry.password) throw new Error('La password è vuota.');
+    return vault().save(origin, String(entry.username ?? ''), String(entry.password));
+  }));
+  handleInternal(INTERNAL.pwUpdate, P, (_e, id: string, patch: { username?: string; password?: string; origin?: string }) => wrap(() => vault().update(String(id), patch ?? {})));
+  handleInternal(INTERNAL.pwRemove, P, (_e, id: string) => wrap(() => vault().remove(String(id))));
+  handleInternal(INTERNAL.pwRemoveNever, P, (_e, origin: string) => wrap(() => vault().setNever(String(origin), false)));
+  handleInternal(INTERNAL.pwSetPrimary, P, (_e, next: string, current?: string) => wrap(() => vault().setPrimary(String(next ?? ''), String(current ?? ''))));
+  handleInternal(INTERNAL.pwRemovePrimary, P, (_e, current: string) => wrap(() => vault().removePrimary(String(current ?? ''))));
+  handleInternal(INTERNAL.pwImport, P, (_e, csv: string) => wrap(() => vault().importCsv(String(csv ?? '').slice(0, 20_000_000))));
+  handleInternal(INTERNAL.pwExport, P, (_e, primary?: string) => wrap(async () => {
+    // Exporting writes every password in clear text: ask for the primary password again.
+    if (!(await vault().checkPrimary(String(primary ?? '')))) throw new Error('Password principale errata.');
+    return vault().exportCsv();
+  }));
+  handleInternal(INTERNAL.pwGenerate, P, () => generatePassword());
   handleInternal(INTERNAL.httpsContinue, ['https-only'], (event, url: string) => {
     const parsed = new URL(url);
     if (parsed.protocol !== 'http:') throw new Error('URL non valido');

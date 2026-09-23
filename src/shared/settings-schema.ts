@@ -18,6 +18,8 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultZoom: 100,
   siteZoom: {},
 
+  offerToSavePasswords: true,
+  autofillPasswords: true,
   saveHistory: true,
   trackingProtection: 'standard',
   blockThirdPartyCookies: true,
@@ -89,6 +91,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     defaultZoom: (ZOOM_STEPS as readonly number[]).includes(s.defaultZoom as number) ? (s.defaultZoom as number) : d.defaultZoom,
     siteZoom: siteZoom(s.siteZoom),
 
+    offerToSavePasswords: bool(s.offerToSavePasswords, d.offerToSavePasswords),
+    autofillPasswords: bool(s.autofillPasswords, d.autofillPasswords),
     saveHistory: bool(s.saveHistory, d.saveHistory),
     trackingProtection: oneOf(s.trackingProtection, ['off', 'standard', 'strict'] as const, d.trackingProtection),
     blockThirdPartyCookies: bool(s.blockThirdPartyCookies, d.blockThirdPartyCookies),

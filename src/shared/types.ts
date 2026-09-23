@@ -44,6 +44,34 @@ export interface Suggestion {
   url: string;
 }
 
+export interface SavedLogin {
+  id: string;
+  /** scheme://host[:port] the login belongs to. */
+  origin: string;
+  username: string;
+  password: string;
+  createdAt: number;
+  updatedAt: number;
+  lastUsedAt: number | null;
+  timesUsed: number;
+}
+
+export interface VaultStatus {
+  /** needs-setup: no OS keychain and no primary password yet, so nothing can be stored safely. */
+  state: 'unlocked' | 'locked' | 'needs-setup';
+  hasPrimary: boolean;
+  keychainAvailable: boolean;
+  count: number | null;
+}
+
+export interface PasswordPrompt {
+  id: string;
+  tabId: number;
+  origin: string;
+  username: string;
+  kind: 'save' | 'update';
+}
+
 export interface FindResult {
   tabId: number;
   active: number;
@@ -80,6 +108,11 @@ export interface Settings {
   defaultZoom: number;
   /** Zoom chosen by the user per host, in percent. */
   siteZoom: Record<string, number>;
+
+  // Password
+  offerToSavePasswords: boolean;
+  /** Fill the login form when a page has exactly one saved login. */
+  autofillPasswords: boolean;
 
   // Privacy e sicurezza
   /** Record visited pages (never in private windows). */

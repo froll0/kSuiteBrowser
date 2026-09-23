@@ -2,6 +2,7 @@ import { app, safeStorage } from 'electron';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { sanitizeSettings } from '../shared/settings-schema';
+import { keychainAvailable } from './keychain';
 import type { Settings, TokenStatus } from '../shared/types';
 
 interface StoredFile {
@@ -51,6 +52,7 @@ export class SettingsStore {
     const env = process.env.KSUITE_API_TOKEN?.trim();
     if (env) return env;
     if (this.stored.tokenCipher && safeStorage.isEncryptionAvailable()) {
+      // Also reads tokens written before the basic_text check existed.
       try {
         return safeStorage.decryptString(Buffer.from(this.stored.tokenCipher, 'base64'));
       } catch {
@@ -64,7 +66,7 @@ export class SettingsStore {
     const clean = token.trim();
     delete this.stored.tokenCipher;
     delete this.stored.tokenPlain;
-    if (safeStorage.isEncryptionAvailable()) {
+    if (keychainAvailable()) {
       this.stored.tokenCipher = safeStorage.encryptString(clean).toString('base64');
     } else {
       this.stored.tokenPlain = clean;

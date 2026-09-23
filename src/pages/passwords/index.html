@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Password</title>
+  <link rel="stylesheet" href="page.css" />
+  <link rel="stylesheet" href="passwords.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Password</h1>
+      <input id="search" type="search" placeholder="Cerca per sito o nome utente" aria-label="Cerca nelle password" />
+    </header>
+    <p id="status" class="status" role="status"></p>
+    <div id="content"></div>
+  </div>
+  <input id="import-file" type="file" accept=".csv,text/csv" hidden />
+  <script src="passwords.js"></script>
+</body>
+</html>

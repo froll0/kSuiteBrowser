@@ -267,6 +267,57 @@ zoomBtn.addEventListener('click', () => {
   if (t) void ks.zoomReset(t.id);
 });
 
+// ---------- Passwords ----------
+
+const infobar = $('infobar');
+
+function hideInfobar(): void {
+  infobar.hidden = true;
+  infobar.replaceChildren();
+}
+
+ks.events.onPasswordPrompt((prompt) => {
+  let host = prompt.origin;
+  try {
+    host = new URL(prompt.origin).host;
+  } catch {
+    /* keep origin */
+  }
+  const user = h('input', { type: 'text', value: prompt.username, placeholder: 'Nome utente', 'aria-label': 'Nome utente' });
+  const answer = (action: 'save' | 'never' | 'dismiss') => {
+    void ks.passwords.answer(prompt.id, action, user.value);
+    hideInfobar();
+  };
+  infobar.replaceChildren(
+    h('span', { class: 'key', 'aria-hidden': 'true' }, '🔑'),
+    h('span', { class: 'msg' }, prompt.kind === 'update' ? `Aggiornare la password salvata per ${host}?` : `Salvare la password per ${host}?`),
+    user,
+    h('span', { class: 'spacer' }),
+    h('button', { class: 'primary', onclick: () => answer('save') }, prompt.kind === 'update' ? 'Aggiorna' : 'Salva'),
+    h('button', { onclick: () => answer('dismiss') }, 'Non ora'),
+  );
+  if (prompt.kind === 'save') infobar.append(h('button', { onclick: () => answer('never') }, 'Mai per questo sito'));
+  infobar.hidden = false;
+});
+
+ks.events.onPasswordUnlock(() => {
+  const input = h('input', { type: 'password', placeholder: 'Password principale', 'aria-label': 'Password principale', autocomplete: 'off' });
+  const error = h('span', { class: 'error', role: 'alert' });
+  const form = h('form', { class: 'row' }, input, h('button', { class: 'primary', type: 'submit' }, 'Sblocca'), h('button', { type: 'button', onclick: hideInfobar }, 'Annulla'), error);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await ks.passwords.unlock(input.value);
+    if (res.ok) hideInfobar();
+    else {
+      error.textContent = res.error;
+      input.select();
+    }
+  });
+  infobar.replaceChildren(h('span', { class: 'key', 'aria-hidden': 'true' }, '🔒'), h('span', { class: 'msg' }, 'Le password salvate sono bloccate.'), form);
+  infobar.hidden = false;
+  input.focus();
+});
+
 // ---------- Find in page ----------
 
 let lastQuery = '';

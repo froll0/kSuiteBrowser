@@ -28,6 +28,8 @@ export const IPC = {
   bookmarkOpen: 'ui:bookmark-open',
   bookmarkMenu: 'ui:bookmark-menu',
   bookmarksMenu: 'ui:bookmarks-menu',
+  passwordAnswer: 'ui:password-answer',
+  passwordUnlock: 'ui:password-unlock',
 
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
@@ -60,6 +62,8 @@ export const IPC = {
   evFind: 'ev:find',
   evFindNext: 'ev:find-next',
   evFindResult: 'ev:find-result',
+  evPasswordPrompt: 'ev:password-prompt',
+  evPasswordUnlock: 'ev:password-unlock',
 } as const;
 
 /** Channels of the internal pages (ksuite://…), see src/preload/page.ts. */
@@ -84,6 +88,20 @@ export const INTERNAL = {
   bookmarksShift: 'internal:bookmarks:shift',
   bookmarksImport: 'internal:bookmarks:import',
   bookmarksAdd: 'internal:bookmarks:add',
+  pwStatus: 'internal:pw:status',
+  pwUnlock: 'internal:pw:unlock',
+  pwLock: 'internal:pw:lock',
+  pwList: 'internal:pw:list',
+  pwNever: 'internal:pw:never',
+  pwAdd: 'internal:pw:add',
+  pwUpdate: 'internal:pw:update',
+  pwRemove: 'internal:pw:remove',
+  pwRemoveNever: 'internal:pw:remove-never',
+  pwSetPrimary: 'internal:pw:set-primary',
+  pwRemovePrimary: 'internal:pw:remove-primary',
+  pwImport: 'internal:pw:import',
+  pwExport: 'internal:pw:export',
+  pwGenerate: 'internal:pw:generate',
   evSettings: 'internal:ev:settings',
   evBookmarks: 'internal:ev:bookmarks',
 } as const;

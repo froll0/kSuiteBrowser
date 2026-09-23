@@ -45,7 +45,8 @@ const PATHS = {
   chromeHtml: join(__dirname, '../renderer/index.html'),
   suggestHtml: join(__dirname, '../renderer/suggest.html'),
   suggestPreload: join(__dirname, '../preload/suggest.js'),
-  appIcon: join(__dirname, '../icon.png'),
+  // Windows wants a multi-size .ico for crisp taskbar and title bar icons.
+  appIcon: join(__dirname, process.platform === 'win32' ? '../icon.ico' : '../icon.png'),
   pages: join(__dirname, '../pages'),
 };
 
@@ -110,6 +111,9 @@ function urlsFromArgv(argv: string[]): string[] {
 // ---------- Startup ----------
 
 function start(): void {
+  // In development the app runs inside the Electron binary: give the Dock our icon instead of Electron's.
+  if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(join(__dirname, '../icon.png'));
+
   settings = new SettingsStore();
   services = new KSuiteServices(settings);
   downloads = new DownloadManager(settings, services, (items) => broadcast(IPC.evDownloads, items));
@@ -823,9 +827,11 @@ function registerInternalIpc(): void {
     if (origin) settings.update({ hiddenTopSites: [...settings.get().hiddenTopSites, origin] });
   });
   handleInternal(INTERNAL.newtabRestore, ['newtab', 'settings'], () => settings.update({ hiddenTopSites: [] }));
-  handleInternal(INTERNAL.newtabFocusOmnibox, ['newtab'], (event) => {
-    const w = [...windows].find((x) => x.tabs.idOf(event.sender) !== null);
-    w?.focusChrome(IPC.evFocusAddress);
+  handleInternal(INTERNAL.newtabSuggest, ['newtab'], (event, input: string) => {
+    const s = settings.get();
+    // Private windows: no history suggestions, bookmarks only.
+    const useHistory = event.sender.session.isPersistent() && s.saveHistory;
+    return buildSuggestions(String(input ?? '').slice(0, 500), s.searchEngine, useHistory ? history.summaries() : [], bookmarks.list());
   });
   handleInternal(INTERNAL.httpsContinue, ['https-only'], (event, url: string) => {
     const parsed = new URL(url);

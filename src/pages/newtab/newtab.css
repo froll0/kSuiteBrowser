@@ -9,7 +9,24 @@ h1 { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; margin: 0; }
   border-radius: 999px; border: 1px solid var(--border); background: var(--surface);
   font-size: 15px; box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
 }
+#search { cursor: text; }
 #search:hover { box-shadow: 0 3px 14px rgba(15, 23, 42, 0.1); }
+#search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 3px 14px rgba(15, 23, 42, 0.08); }
+#search[aria-expanded="true"] { border-radius: 25px 25px 0 0; }
+#suggestions {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 10;
+  list-style: none; margin: 0; padding: 6px;
+  background: var(--surface); border: 1px solid var(--accent); border-top: 1px solid var(--border);
+  border-radius: 0 0 22px 22px; box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+#suggestions[hidden] { display: none; }
+#suggestions li { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 14px; border-radius: 12px; cursor: default; }
+#suggestions li:hover { background: var(--hover); }
+#suggestions li.selected { background: var(--accent-soft); }
+#suggestions .icon { width: 16px; height: 16px; flex: none; color: var(--muted); border-radius: 3px; }
+#suggestions .title { flex: 0 1 auto; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#suggestions .kind { color: var(--accent); flex: none; }
+#suggestions .url { flex: 1 1 0; min-width: 0; color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .search-icon { position: absolute; left: 19px; top: 50%; transform: translateY(-50%); color: var(--muted); }
 #top-sites { display: grid; grid-template-columns: repeat(4, 118px); gap: 10px; justify-content: center; }
 .tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 16px 8px 12px; border-radius: 16px; color: var(--text); text-decoration: none; transition: background .12s; }

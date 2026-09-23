@@ -53,14 +53,16 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "build/icon.ico"
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png"
     },
     "linux": {
       "target": [
@@ -68,7 +70,13 @@
         "deb"
       ],
       "category": "Network",
-      "maintainer": "kSuite Browser"
+      "maintainer": "kSuite Browser",
+      "icon": "build/icon.png",
+      "desktop": {
+        "entry": {
+          "StartupWMClass": "ksuite-browser"
+        }
+      }
     },
     "artifactName": "kSuite-Browser-${version}-${os}-${arch}.${ext}",
     "publish": [

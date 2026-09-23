@@ -10,9 +10,11 @@
   <main class="newtab">
     <div class="brand"><span id="logo"></span><h1 id="greeting"></h1></div>
     <p id="private-note" hidden>Cronologia, cookie, dati dei siti e password non vengono salvati: tutto sparisce quando chiudi questa finestra. I siti possono comunque vedere il tuo indirizzo IP.</p>
-    <form id="search-form" role="search">
+    <form id="search-form" role="search" autocomplete="off">
       <span class="search-icon" data-icon="search" data-size="18"></span>
-      <input id="search" type="text" autocomplete="off" aria-label="Cerca o inserisci un indirizzo" />
+      <input id="search" type="text" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list"
+             aria-expanded="false" aria-controls="suggestions" aria-label="Cerca o inserisci un indirizzo" />
+      <ul id="suggestions" role="listbox" aria-label="Suggerimenti" hidden></ul>
     </form>
     <section id="top-sites" aria-label="Siti più visitati"></section>
     <p id="restore" hidden><button class="link" id="restore-btn" data-icon="refresh" data-size="14">Ripristina i siti rimossi</button></p>

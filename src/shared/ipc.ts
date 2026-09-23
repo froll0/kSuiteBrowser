@@ -120,7 +120,7 @@ export const INTERNAL = {
   newtabData: 'internal:newtab:data',
   newtabHide: 'internal:newtab:hide',
   newtabRestore: 'internal:newtab:restore',
-  newtabFocusOmnibox: 'internal:newtab:focus-omnibox',
+  newtabSuggest: 'internal:newtab:suggest',
   evSettings: 'internal:ev:settings',
   evBookmarks: 'internal:ev:bookmarks',
   evUpdate: 'internal:ev:update',

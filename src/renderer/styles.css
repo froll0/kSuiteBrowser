@@ -223,8 +223,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   -webkit-app-region: drag;
 }
 #titlebar { position: relative; }
-#titlebar .drag-spacer { flex: 0 0 56px; align-self: stretch; }
+/* Free space in the title bar moves the window (and double-click maximizes):
+   only tabs and buttons opt out, the empty strip after the tabs stays draggable. */
+#titlebar .drag-spacer { flex: 0 0 120px; align-self: stretch; }
 #private-badge {
+  -webkit-app-region: no-drag;
   display: none; align-self: center; align-items: center; gap: 5px;
   height: 24px; padding: 0 10px 0 8px; border-radius: var(--r-pill);
   background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 600;
@@ -234,9 +237,8 @@ body.private #private-badge { display: inline-flex; }
 #tabstrip {
   display: flex; align-items: flex-end; gap: 4px;
   min-width: 0; flex: 1 1 auto; height: 100%;
-  padding-bottom: 0;
+  padding-top: 8px;
   overflow: hidden;
-  -webkit-app-region: no-drag;
 }
 .tab {
   position: relative;
@@ -246,9 +248,11 @@ body.private #private-badge { display: inline-flex; }
   border-radius: var(--r-md) var(--r-md) 0 0;
   color: var(--text-2);
   transition: background .12s;
+  -webkit-app-region: no-drag;
 }
 .tab:hover { background: var(--hover); }
-.tab.active { background: var(--surface); color: var(--text); box-shadow: 0 -1px 0 var(--border) inset, var(--shadow-tab); }
+.tab.active { background: var(--surface); color: var(--text); box-shadow: 0 -1px 3px rgba(15, 23, 42, 0.07); }
+body.private .tab.active, :root[data-theme="dark"] .tab.active { box-shadow: none; }
 .tab.active::before, .tab.active::after {
   /* Curved corners joining the active tab to the toolbar. */
   content: ''; position: absolute; bottom: 0; width: 10px; height: 10px; background: transparent; pointer-events: none;

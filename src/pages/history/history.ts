@@ -1,7 +1,9 @@
 import { h } from '../../renderer/dom';
 import { faviconUrl } from '../../shared/top-sites';
 import type { HistoryVisit } from '../../shared/types';
+import { hydrateIcons } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
+import { emptyState, iconButton } from '../shared/ui';
 import { followTheme } from '../shared/theme';
 
 followTheme();
@@ -41,23 +43,18 @@ function entry(v: HistoryVisit): HTMLElement {
     h('img', { class: 'site-icon', src: faviconUrl(v.url), alt: '' }),
     h('div', { class: 'main' }, h('a', { href: v.url, title: v.url }, v.title || v.url), h('span', { class: 'host' }, host)),
     h('div', { class: 'actions' },
-      h('button', {
-        class: 'icon',
-        title: 'Rimuovi dalla cronologia',
-        'aria-label': `Rimuovi ${v.title || v.url} dalla cronologia`,
-        onclick: async () => {
-          await internal.history.remove([v.id]);
-          visits = visits.filter((x) => x.id !== v.id);
-          render();
-        },
-      }, '✕'),
+      iconButton('close', `Rimuovi ${v.title || v.url} dalla cronologia`, async () => {
+        await internal.history.remove([v.id]);
+        visits = visits.filter((x) => x.id !== v.id);
+        render();
+      }),
     ),
   );
 }
 
 function render(): void {
   if (visits.length === 0) {
-    list.replaceChildren(h('div', { class: 'group' }, h('p', { class: 'empty' }, search.value ? 'Nessuna pagina trovata.' : 'La cronologia è vuota.')));
+    list.replaceChildren(h('div', { class: 'group' }, emptyState(search.value ? 'search' : 'history', search.value ? 'Nessuna pagina trovata.' : 'La cronologia è vuota.')));
     return;
   }
   const groups = new Map<string, HistoryVisit[]>();
@@ -94,5 +91,6 @@ document.getElementById('clear')!.addEventListener('click', async () => {
   void load();
 });
 
+hydrateIcons();
 void load();
 search.focus();

@@ -1,4 +1,5 @@
 import type { Suggestion } from '../shared/types';
+import { icon } from './icons';
 
 interface SuggestBridge {
   onItems(fn: (data: { items: Suggestion[]; selected: number; theme: string }) => void): void;
@@ -7,7 +8,6 @@ interface SuggestBridge {
 
 const bridge = (window as unknown as { suggest: SuggestBridge }).suggest;
 const list = document.getElementById('list')!;
-const ICONS: Record<Suggestion['kind'], string> = { search: '🔍', url: '🌐', history: '🕘', bookmark: '★' };
 
 bridge.onItems(({ items, selected, theme }) => {
   if (theme === 'system') delete document.documentElement.dataset.theme;
@@ -20,21 +20,27 @@ bridge.onItems(({ items, selected, theme }) => {
       li.setAttribute('role', 'option');
       li.setAttribute('aria-selected', String(i === selected));
       if (i === selected) li.className = 'selected';
-      let icon: HTMLElement;
+      let el: HTMLElement;
       if (item.kind === 'history' || item.kind === 'bookmark') {
-        icon = document.createElement('img');
-        icon.className = 'icon';
-        (icon as HTMLImageElement).src = `ksuite://favicon/?url=${encodeURIComponent(item.url)}`;
-        (icon as HTMLImageElement).alt = '';
+        el = document.createElement('img');
+        el.className = 'icon';
+        (el as HTMLImageElement).src = `ksuite://favicon/?url=${encodeURIComponent(item.url)}`;
+        (el as HTMLImageElement).alt = '';
       } else {
-        icon = document.createElement('span');
-        icon.className = 'icon';
-        icon.textContent = ICONS[item.kind];
+        el = document.createElement('span');
+        el.className = 'icon';
+        el.append(icon(item.kind === 'search' ? 'search' : 'globe', 16));
       }
       const title = document.createElement('span');
       title.className = 'title';
       title.textContent = item.title;
-      li.append(icon, title);
+      li.append(el, title);
+      if (item.kind === 'bookmark') {
+        const star = document.createElement('span');
+        star.className = 'kind';
+        star.append(icon('star', 13));
+        li.append(star);
+      }
       if (item.kind === 'history' || item.kind === 'bookmark') {
         const url = document.createElement('span');
         url.className = 'url';

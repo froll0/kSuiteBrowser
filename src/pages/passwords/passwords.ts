@@ -2,7 +2,9 @@ import { h } from '../../renderer/dom';
 import { isWeakPassword } from '../../shared/password-gen';
 import { faviconUrl } from '../../shared/top-sites';
 import type { SavedLogin, VaultStatus } from '../../shared/types';
+import { hydrateIcons } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
+import { emptyState, iconButton, withIcon } from '../shared/ui';
 import { followTheme } from '../shared/theme';
 
 followTheme();
@@ -146,21 +148,16 @@ function loginRow(login: SavedLogin, reused: Set<string>): HTMLElement {
     isWeakPassword(login.password) ? h('span', { class: 'badge warn', title: 'Password corta o facile da indovinare' }, 'debole') : null,
     h('span', { class: 'secret', 'aria-label': shown ? 'Password' : 'Password nascosta' }, shown ? login.password : '••••••••••'),
     h('div', { class: 'actions' },
-      h('button', { class: 'icon', title: shown ? 'Nascondi' : 'Mostra', 'aria-label': `${shown ? 'Nascondi' : 'Mostra'} la password di ${host}`, onclick: () => { shown ? revealed.delete(login.id) : revealed.add(login.id); render(); } }, shown ? '🙈' : '👁'),
-      h('button', { class: 'icon', title: 'Copia nome utente', 'aria-label': `Copia il nome utente di ${host}`, onclick: () => void copy(login.username, 'Nome utente') }, '👤'),
-      h('button', { class: 'icon', title: 'Copia password', 'aria-label': `Copia la password di ${host}`, onclick: () => void copy(login.password, 'Password') }, '⧉'),
-      h('button', { class: 'icon', title: 'Modifica', 'aria-label': `Modifica l’accesso a ${host}`, onclick: () => { editing = login.id; render(); } }, '✎'),
-      h('button', {
-        class: 'icon',
-        title: 'Elimina',
-        'aria-label': `Elimina l’accesso a ${host}`,
-        onclick: async () => {
+      iconButton(shown ? 'eyeOff' : 'eye', `${shown ? 'Nascondi' : 'Mostra'} la password di ${host}`, () => { shown ? revealed.delete(login.id) : revealed.add(login.id); render(); }),
+      iconButton('user', `Copia il nome utente di ${host}`, () => void copy(login.username, 'Nome utente')),
+      iconButton('copy', `Copia la password di ${host}`, () => void copy(login.password, 'Password')),
+      iconButton('pencil', `Modifica l’accesso a ${host}`, () => { editing = login.id; render(); }),
+      iconButton('trash', `Elimina l’accesso a ${host}`, async () => {
           if (!confirm(`Eliminare l’accesso di ${login.username || 'questo account'} a ${host}?`)) return;
-          await pw.remove(login.id);
-          say('Accesso eliminato.');
-          void load();
-        },
-      }, '✕'),
+        await pw.remove(login.id);
+        say('Accesso eliminato.');
+        void load();
+      }),
     ),
   );
 }
@@ -199,10 +196,10 @@ function unlockedView(): Node[] {
 
   const nodes: Node[] = [
     h('div', { class: 'toolbar' },
-      h('button', { class: 'primary', onclick: () => { adding = true; editing = null; render(); } }, 'Aggiungi'),
-      h('button', { onclick: () => fileInput.click() }, 'Importa CSV…'),
-      h('button', { disabled: logins.length === 0, onclick: () => { exporting = true; render(); } }, 'Esporta CSV'),
-      status.hasPrimary ? h('button', { onclick: async () => { await pw.lock(); revealed.clear(); void load(); } }, 'Blocca ora') : null,
+      withIcon(h('button', { class: 'primary', onclick: () => { adding = true; editing = null; render(); } }, 'Aggiungi'), 'plus'),
+      withIcon(h('button', { onclick: () => fileInput.click() }, 'Importa CSV…'), 'upload'),
+      withIcon(h('button', { disabled: logins.length === 0, onclick: () => { exporting = true; render(); } }, 'Esporta CSV'), 'download'),
+      status.hasPrimary ? withIcon(h('button', { onclick: async () => { await pw.lock(); revealed.clear(); void load(); } }, 'Blocca ora'), 'lock') : null,
     ),
     h('p', { class: 'summary' },
       h('span', {}, h('strong', {}, String(logins.length)), ' password salvate'),
@@ -215,7 +212,7 @@ function unlockedView(): Node[] {
   nodes.push(
     h('section', { class: 'group' },
       h('h2', {}, q ? `Risultati (${visible.length})` : 'Password salvate'),
-      ...(visible.length ? visible.map((l) => loginRow(l, reused)) : [h('p', { class: 'empty' }, q ? 'Nessun risultato.' : 'Nessuna password salvata. Accedi a un sito e scegli “Salva” nella barra che compare.')]),
+      ...(visible.length ? visible.map((l) => loginRow(l, reused)) : [emptyState(q ? 'search' : 'key', q ? 'Nessun risultato.' : 'Nessuna password salvata. Accedi a un sito e scegli “Salva” nella barra che compare.')]),
     ),
   );
   if (never.length) {
@@ -282,6 +279,7 @@ async function load(): Promise<void> {
   render();
 }
 
+hydrateIcons();
 search.addEventListener('input', render);
 fileInput.addEventListener('change', async () => {
   const file = fileInput.files?.[0];

@@ -2,7 +2,9 @@ import { h } from '../../renderer/dom';
 import { exportBookmarksHtml, parseBookmarksHtml } from '../../shared/bookmark-html';
 import { faviconUrl } from '../../shared/top-sites';
 import type { Bookmark, BookmarkFolder } from '../../shared/types';
+import { hydrateIcons } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
+import { emptyState, iconButton } from '../shared/ui';
 import { followTheme } from '../shared/theme';
 
 followTheme();
@@ -68,10 +70,10 @@ function row(b: Bookmark, index: number, count: number, filtered: boolean): HTML
     /^https?:/i.test(b.url) ? h('img', { class: 'site-icon', src: faviconUrl(b.url), alt: '' }) : h('span', { class: 'letter', 'aria-hidden': 'true' }, host.slice(0, 1).toUpperCase()),
     h('div', { class: 'main' }, h('a', { href: b.url, title: b.url }, b.title), h('span', { class: 'host' }, host)),
     h('div', { class: 'actions' },
-      filtered ? null : h('button', { class: 'icon', title: 'Sposta su', 'aria-label': `Sposta su ${b.title}`, disabled: index === 0, onclick: () => void internal.bookmarks.shift(b.id, -1) }, '↑'),
-      filtered ? null : h('button', { class: 'icon', title: 'Sposta giù', 'aria-label': `Sposta giù ${b.title}`, disabled: index === count - 1, onclick: () => void internal.bookmarks.shift(b.id, 1) }, '↓'),
-      h('button', { class: 'icon', title: 'Modifica', 'aria-label': `Modifica ${b.title}`, onclick: () => { editing = b.id; render(); } }, '✎'),
-      h('button', { class: 'icon', title: 'Elimina', 'aria-label': `Elimina ${b.title}`, onclick: async () => { await internal.bookmarks.remove(b.id); say(`“${b.title}” eliminato.`); } }, '✕'),
+      filtered ? null : iconButton('arrowUp', `Sposta su ${b.title}`, () => void internal.bookmarks.shift(b.id, -1), { disabled: index === 0 }),
+      filtered ? null : iconButton('arrowDown', `Sposta giù ${b.title}`, () => void internal.bookmarks.shift(b.id, 1), { disabled: index === count - 1 }),
+      iconButton('pencil', `Modifica ${b.title}`, () => { editing = b.id; render(); }),
+      iconButton('trash', `Elimina ${b.title}`, async () => { await internal.bookmarks.remove(b.id); say(`“${b.title}” eliminato.`); }),
     ),
   );
 }
@@ -88,7 +90,7 @@ function render(): void {
       const items = bookmarks.filter((b) => b.folder === f.id && matches(b));
       return h('section', { class: 'group' },
         h('h2', {}, `${f.label} (${items.length})`),
-        ...(items.length ? items.map((b, i) => row(b, i, items.length, Boolean(q))) : [h('p', { class: 'empty' }, q ? 'Nessun risultato.' : 'Nessun preferito.')]),
+        ...(items.length ? items.map((b, i) => row(b, i, items.length, Boolean(q))) : [emptyState(q ? 'search' : 'star', q ? 'Nessun risultato.' : 'Nessun preferito in questa cartella.')]),
       );
     }),
   );
@@ -125,6 +127,7 @@ document.getElementById('export')!.addEventListener('click', () => {
   say('File esportato nella cartella dei download.');
 });
 
+hydrateIcons();
 void internal.bookmarks.list().then((b) => {
   bookmarks = b;
   render();

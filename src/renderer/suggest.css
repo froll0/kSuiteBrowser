@@ -1,11 +1,25 @@
-:root { --surface: #fff; --text: #1d2330; --muted: #6b7384; --hover: #eef1f5; --selected: #e3f1ff; --border: #d9dee6; }
-:root[data-theme="dark"] { --surface: #1f232b; --text: #e6e9ef; --muted: #9aa3b2; --hover: #2a2f39; --selected: #1c3a57; --border: #353b47; }
-html, body { margin: 0; background: transparent; overflow: hidden; font: 13px/1.3 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; user-select: none; }
-ul { list-style: none; margin: 0; padding: 4px 0; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.18); box-sizing: border-box; height: calc(100vh - 2px); }
-li { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 14px; cursor: default; }
+@font-face {
+  font-family: 'Inter Variable';
+  font-weight: 100 900;
+  src: url('fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+}
+:root { --surface: #fff; --text: #15181d; --muted: #6a7280; --hover: #f1f3f6; --selected: rgba(10, 116, 240, 0.1); --accent: #0a74f0; --border: #dde1e7; }
+:root[data-theme="dark"] { --surface: #1f2126; --text: #e8eaee; --muted: #979fab; --hover: #2a2d33; --selected: rgba(76, 157, 255, 0.18); --accent: #4c9dff; --border: #33373e; }
+html, body { margin: 0; background: transparent; overflow: hidden; font: 13.5px/1.3 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; user-select: none; -webkit-font-smoothing: antialiased; }
+ul {
+  list-style: none; margin: 0; padding: 4px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+  box-sizing: border-box; height: calc(100vh - 2px);
+}
+li { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 12px; border-radius: 9px; }
 li:hover { background: var(--hover); }
 li.selected { background: var(--selected); }
-.icon { width: 16px; height: 16px; text-align: center; color: var(--muted); flex: none; }
+.icon { width: 16px; height: 16px; flex: none; color: var(--muted); display: grid; place-items: center; }
 img.icon { border-radius: 3px; }
-.title { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+li.selected .icon { color: var(--accent); }
+.title { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.kind { color: var(--accent); display: grid; place-items: center; }
 .url { flex: 1 1 0; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+svg.i { display: block; }

@@ -1,5 +1,5 @@
 body { display: grid; place-items: center; min-height: 100vh; }
 main { max-width: 560px; padding: 32px 24px; }
-.icon { font-size: 40px; }
+.warn-icon { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 18px; background: var(--danger-soft); color: var(--danger); }
 h1 { font-size: 22px; line-height: 1.3; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0 8px; }

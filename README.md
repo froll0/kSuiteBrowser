@@ -4,6 +4,8 @@ Browser desktop (Windows, macOS, Linux) con le funzioni di **Infomaniak kSuite**
 navighi il web come in un normale browser e hai kDrive, Mail, Calendar, kChat, kMeet ed Euria
 a portata di clic, più un pannello nativo che usa le API ufficiali di Infomaniak.
 
+![kSuite Browser, tema scuro](docs/screenshot-dark.png)
+
 ## Perché Electron + TypeScript
 
 | Opzione | Pro | Contro per un *browser* |
@@ -183,3 +185,10 @@ Sono gli stessi endpoint usati dai connettori MCP ufficiali di Infomaniak.
 
 - Il caricamento diretto su kDrive è limitato a 1 GB per file (per file più grandi usa l'app web).
 - Il pannello Mail usa la casella principale associata al token.
+
+## Crediti
+
+- Icone: [Lucide](https://lucide.dev) (licenza ISC).
+- Font: [Inter](https://rsms.me/inter/) di Rasmus Andersson (SIL Open Font License 1.1, testo in `src/renderer/fonts/LICENSE-Inter.txt`).
+- Le icone delle app kSuite nella barra laterale sono pittogrammi generici: i loghi e i marchi Infomaniak appartengono ai rispettivi titolari.
+- L'icona dell'app è in `build/icon.svg`; `npm run icon` rigenera `build/icon.png`.

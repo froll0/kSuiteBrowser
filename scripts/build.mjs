@@ -25,6 +25,11 @@ const targets = [
 function copyStatic() {
   for (const dir of ['dist/renderer', 'dist/preload', ...PAGES.map((p) => `dist/pages/${p}`)]) mkdirSync(dir, { recursive: true });
   for (const file of ['index.html', 'styles.css', 'suggest.html', 'suggest.css']) cpSync(`src/renderer/${file}`, `dist/renderer/${file}`);
+  cpSync('src/renderer/fonts', 'dist/renderer/fonts', { recursive: true });
+  cpSync('build/icon-256.png', 'dist/icon.png');
+  // Shared assets of the internal pages (ksuite://assets/…): font and logo.
+  mkdirSync('dist/pages/assets', { recursive: true });
+  cpSync('src/renderer/fonts', 'dist/pages/assets/fonts', { recursive: true });
   for (const page of PAGES) {
     cpSync(`src/pages/${page}/index.html`, `dist/pages/${page}/index.html`);
     cpSync(`src/pages/${page}/${page}.css`, `dist/pages/${page}/${page}.css`);

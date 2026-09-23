@@ -1,4 +1,4 @@
-import { BrowserWindow, shell, type Session, type WebContents } from 'electron';
+import { BrowserWindow, nativeTheme, shell, type Session, type WebContents } from 'electron';
 import { IPC } from '../shared/ipc';
 import type { DriveFile } from '../shared/types';
 import { attachContextMenu } from './context-menu';
@@ -20,7 +20,7 @@ export interface WindowContext {
   /** Applies the zoom saved for the page's site (or the default zoom). */
   applyZoom(contents: WebContents): void;
   stepZoom(controller: BrowserWindowController, contents: WebContents, direction: 'in' | 'out'): void;
-  paths: { chromePreload: string; pagePreload: string; chromeHtml: string; suggestHtml: string; suggestPreload: string };
+  paths: { chromePreload: string; pagePreload: string; chromeHtml: string; suggestHtml: string; suggestPreload: string; appIcon: string };
   onTabsChanged(controller: BrowserWindowController): void;
   /** Window currently holding a tab's page (tabs can move between windows). */
   ownerOf(contents: WebContents): BrowserWindowController | null;
@@ -29,6 +29,20 @@ export interface WindowContext {
 }
 
 export const SETTINGS_URL = 'ksuite://settings/';
+export const TITLEBAR_HEIGHT = 42;
+
+/** Chrome colours matching src/renderer/styles.css (title bar, window buttons, page background). */
+function chromeColors(isPrivate: boolean): { titlebar: string; symbol: string; surface: string } {
+  if (isPrivate) return { titlebar: '#1f1830', symbol: '#d8d0ea', surface: '#2a2140' };
+  return nativeTheme.shouldUseDarkColors
+    ? { titlebar: '#111317', symbol: '#c3c8d0', surface: '#1b1d22' }
+    : { titlebar: '#e6eaf0', symbol: '#3d4450', surface: '#ffffff' };
+}
+
+function titleBarOverlay(isPrivate: boolean): Electron.TitleBarOverlayOptions {
+  const c = chromeColors(isPrivate);
+  return { color: c.titlebar, symbolColor: c.symbol, height: TITLEBAR_HEIGHT };
+}
 export const NEWTAB_URL = 'ksuite://newtab/';
 
 /** One browser window: the UI around it, its tabs and its session (persistent, or in-memory when private). */
@@ -53,8 +67,13 @@ export class BrowserWindowController {
       minWidth: 720,
       minHeight: 480,
       title: isPrivate ? 'kSuite Browser — Finestra privata' : 'kSuite Browser',
-      backgroundColor: isPrivate ? '#2b2140' : '#f4f6f9',
+      backgroundColor: chromeColors(isPrivate).surface,
       autoHideMenuBar: true,
+      icon: ctx.paths.appIcon,
+      // Tabs live in the title bar; the system draws its window buttons over it.
+      ...(process.platform === 'darwin'
+        ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 14, y: 14 } }
+        : { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay(isPrivate) }),
       webPreferences: {
         preload: ctx.paths.chromePreload,
         contextIsolation: true,
@@ -111,6 +130,13 @@ export class BrowserWindowController {
       this.tabs.destroy();
       ctx.onClosed(this);
     });
+  }
+
+  /** Keeps the system window buttons in the colours of the current theme. */
+  applyTitleBarTheme(): void {
+    if (process.platform === 'darwin' || this.win.isDestroyed()) return;
+    this.win.setTitleBarOverlay(titleBarOverlay(this.isPrivate));
+    this.win.setBackgroundColor(chromeColors(this.isPrivate).surface);
   }
 
   send(channel: string, payload?: unknown): void {

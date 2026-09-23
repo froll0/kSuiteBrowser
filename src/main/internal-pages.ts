@@ -5,7 +5,7 @@ import { extname, join, normalize, sep } from 'node:path';
 export const INTERNAL_SCHEME = 'ksuite';
 
 /** Internal pages: ksuite://settings, ksuite://history, … Each host maps to a folder in dist/pages. */
-export const INTERNAL_PAGES = ['newtab', 'settings', 'history', 'bookmarks', 'passwords', 'https-only'] as const;
+export const INTERNAL_PAGES = ['newtab', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'assets'] as const;
 const PAGES = new Set<string>(INTERNAL_PAGES);
 
 const MIME: Record<string, string> = {
@@ -15,6 +15,7 @@ const MIME: Record<string, string> = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.map': 'application/json',
+  '.woff2': 'font/woff2',
 };
 
 /** Must run before the app is ready. */
@@ -49,7 +50,7 @@ export function serveInternalPages(session: Session, pagesDir: string, favicon: 
       return new Response(body, {
         headers: {
           'Content-Type': MIME[extname(file)] ?? 'application/octet-stream',
-          'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https: ksuite:; frame-ancestors 'none'",
+          'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https: ksuite:; font-src 'self' ksuite:; frame-ancestors 'none'",
           'X-Frame-Options': 'DENY',
           'Cache-Control': 'no-store',
         },

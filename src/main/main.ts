@@ -45,6 +45,7 @@ const PATHS = {
   chromeHtml: join(__dirname, '../renderer/index.html'),
   suggestHtml: join(__dirname, '../renderer/suggest.html'),
   suggestPreload: join(__dirname, '../preload/suggest.js'),
+  appIcon: join(__dirname, '../icon.png'),
   pages: join(__dirname, '../pages'),
 };
 
@@ -146,6 +147,9 @@ function start(): void {
   });
 
   nativeTheme.themeSource = settings.get().theme;
+  nativeTheme.on('updated', () => {
+    for (const w of windows) w.applyTitleBarTheme();
+  });
   void blocker.setLevel(settings.get().trackingProtection);
   settings.onChange(onSettingsChanged);
 
@@ -578,7 +582,7 @@ function registerChromeIpc(): void {
     const w = [...windows].find((c) => c.suggestions.contents === event.sender);
     if (w && Number.isInteger(index)) w.suggestions.choose(index);
   });
-  handle(IPC.windowInfo, (w) => ({ isPrivate: w.isPrivate, windowId: w.win.id }));
+  handle(IPC.windowInfo, (w) => ({ isPrivate: w.isPrivate, windowId: w.win.id, platform: process.platform }));
   handle(IPC.tabsMove, (w, id: number, index: number) => w.tabs.move(id, Number(index)));
   handle(IPC.tabsMenu, (w, id: number) => tabContextMenu(w, id));
   handle(IPC.tabsMute, (w, id: number) => {
@@ -707,7 +711,7 @@ function handleInternal<A extends unknown[], R>(channel: string, hosts: string[]
 function registerInternalIpc(): void {
   const S = ['settings'];
   // Every internal page reads the settings (theme); only the settings page changes them.
-  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'history', 'bookmarks', 'passwords'], () => settings.get());
+  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'history', 'bookmarks', 'passwords', 'https-only'], () => settings.get());
   handleInternal(INTERNAL.settingsSet, S, (_e, patch: Partial<Settings>) => settings.update(patch));
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
   handleInternal(INTERNAL.tokenSet, S, (_e, token: string) =>
@@ -803,10 +807,12 @@ function registerInternalIpc(): void {
     return vault().exportCsv();
   }));
   handleInternal(INTERNAL.pwGenerate, P, () => generatePassword());
-  handleInternal(INTERNAL.newtabData, ['newtab'], () => {
+  handleInternal(INTERNAL.newtabData, ['newtab'], (event) => {
     const s = settings.get();
+    const isPrivate = !event.sender.session.isPersistent();
     return {
-      topSites: s.saveHistory && s.showTopSites ? topSites(history.summaries(), s.hiddenTopSites) : [],
+      isPrivate,
+      topSites: !isPrivate && s.saveHistory && s.showTopSites ? topSites(history.summaries(), s.hiddenTopSites) : [],
       searchEngine: s.searchEngine,
       showTopSites: s.showTopSites,
       hiddenCount: s.hiddenTopSites.length,

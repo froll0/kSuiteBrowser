@@ -3,6 +3,7 @@ import { ASKABLE_PERMISSIONS, REMINDER_MINUTES } from '../../shared/settings-sch
 import type { AskablePermission, BrowsingDataSelection, Settings, UpdateStatus } from '../../shared/types';
 import { SEARCH_ENGINES } from '../../shared/url';
 import { ZOOM_STEPS } from '../../shared/zoom';
+import { hydrateIcons, logoMark } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 
 const TOKEN_PAGE = 'https://manager.infomaniak.com/v3/ng/accounts/token/list';
@@ -449,6 +450,8 @@ function scrollToHash(): void {
   target?.scrollIntoView({ block: 'start' });
 }
 
+hydrateIcons();
+document.getElementById('logo')?.append(logoMark(28));
 filter.addEventListener('input', applyFilter);
 window.addEventListener('hashchange', scrollToHash);
 

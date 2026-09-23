@@ -45,6 +45,8 @@ export interface NewTabData {
   searchEngine: SearchEngineId;
   showTopSites: boolean;
   hiddenCount: number;
+  /** Shown in a private window: nothing is suggested from history. */
+  isPrivate: boolean;
 }
 
 export interface HistoryVisit {

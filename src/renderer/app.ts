@@ -3,6 +3,7 @@ import { faviconUrl } from '../shared/top-sites';
 import type { Bookmark, Settings, Suggestion, TabState } from '../shared/types';
 import { ks } from './bridge';
 import { h } from './dom';
+import { hydrateIcons, icon, logoMark, type IconName } from './icons';
 import { Panel } from './panel';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -10,7 +11,9 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const tabstrip = $('tabstrip');
 const omnibox = $<HTMLInputElement>('omnibox');
 const content = $('content');
-const sidebar = $('sidebar');
+const sidebarApps = $('sidebar-apps');
+const siteInfo = $<HTMLButtonElement>('site-info');
+const downloadsBtn = $<HTMLButtonElement>('btn-downloads');
 const toastEl = $('toast');
 const backBtn = $<HTMLButtonElement>('btn-back');
 const forwardBtn = $<HTMLButtonElement>('btn-forward');
@@ -24,6 +27,8 @@ const findInput = $<HTMLInputElement>('find-input');
 const findCount = $('find-count');
 const findCase = $<HTMLInputElement>('find-case');
 
+hydrateIcons();
+
 let tabs: TabState[] = [];
 let unread: number | null = null;
 let currentSettings: Settings | null = null;
@@ -35,10 +40,11 @@ const activeTab = () => tabs.find((t) => t.active);
 // ---------- Toasts ----------
 
 let toastTimer: number | undefined;
+const TOAST_ICONS: Record<'info' | 'success' | 'error', IconName> = { info: 'info', success: 'check', error: 'alert' };
 function toast(kind: 'info' | 'success' | 'error', message: string): void {
   toastEl.hidden = false;
   toastEl.className = `toast-${kind}`;
-  toastEl.textContent = message;
+  toastEl.replaceChildren(icon(TOAST_ICONS[kind], 16), h('span', {}, message));
   toastEl.title = message;
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => (toastEl.hidden = true), kind === 'error' ? 8000 : 4000);
@@ -72,16 +78,33 @@ ks.events.onUnread((count) => {
 const TAB_MIME = 'application/x-ksuite-tab';
 let windowId = 0;
 
-function tabIcon(t: TabState): HTMLElement {
-  if (t.url.startsWith('ksuite://')) return h('span', { class: 'favicon internal', 'aria-hidden': 'true' }, 'k');
+function placeholderIcon(): HTMLElement {
+  const span = h('span', { class: 'favicon placeholder' });
+  span.append(icon('globe', 16));
+  return span;
+}
+
+function tabIcon(t: TabState): Element {
+  if (t.loading) return h('span', { class: 'spinner', role: 'progressbar', 'aria-label': 'Caricamento' });
+  if (t.url.startsWith('ksuite://')) {
+    const span = h('span', { class: 'favicon internal' });
+    span.append(logoMark(16));
+    return span;
+  }
   const src = t.favicon ?? (/^https?:/i.test(t.url) ? faviconUrl(t.url) : null);
-  if (!src) return h('span', { class: 'favicon placeholder' });
+  if (!src) return placeholderIcon();
   const img = h('img', { class: 'favicon', src, alt: '' });
   img.addEventListener('error', () => {
     if (/^https?:/i.test(t.url) && img.src !== faviconUrl(t.url)) img.src = faviconUrl(t.url);
-    else img.replaceWith(h('span', { class: 'favicon placeholder' }));
+    else img.replaceWith(placeholderIcon());
   });
   return img;
+}
+
+function iconButton(name: IconName, attrs: Record<string, string | EventListener>, size = 14): HTMLButtonElement {
+  const button = h('button', attrs);
+  button.append(icon(name, size));
+  return button;
 }
 
 /** Insertion index for a drop at clientX: before the first tab whose middle is to the right. */
@@ -102,12 +125,12 @@ function renderTabs(): void {
   tabstrip.replaceChildren(
     ...tabs.map((t) => {
       const audio = t.audible || t.muted
-        ? h('button', {
+        ? iconButton(t.muted ? 'volumeOff' : 'volume', {
             class: 'tab-audio',
             title: t.muted ? 'Riattiva audio' : 'Disattiva audio',
             'aria-label': t.muted ? 'Riattiva audio della scheda' : 'Disattiva audio della scheda',
             onclick: (e: Event) => { e.stopPropagation(); void ks.tabs.mute(t.id); },
-          }, t.muted ? '🔇' : '🔊')
+          })
         : null;
       const el = h(
         'div',
@@ -122,7 +145,7 @@ function renderTabs(): void {
         tabIcon(t),
         t.pinned ? null : h('span', { class: 'tab-title' }, t.title),
         audio,
-        t.pinned ? null : h('button', { class: 'tab-close', 'aria-label': 'Chiudi scheda', onclick: (e: Event) => { e.stopPropagation(); void ks.tabs.close(t.id); } }, '×'),
+        t.pinned ? null : iconButton('close', { class: 'tab-close', title: 'Chiudi scheda (Ctrl+W)', 'aria-label': 'Chiudi scheda', onclick: (e: Event) => { e.stopPropagation(); void ks.tabs.close(t.id); } }),
       );
       el.addEventListener('click', () => void ks.tabs.activate(t.id));
       el.addEventListener('auxclick', (e) => {
@@ -151,7 +174,7 @@ function renderTabs(): void {
       });
       return el;
     }),
-    h('button', { class: 'new-tab', title: 'Nuova scheda (Ctrl+T)', 'aria-label': 'Nuova scheda', onclick: () => void ks.tabs.create() }, '+'),
+    iconButton('plus', { class: 'icon-btn small new-tab', title: 'Nuova scheda (Ctrl+T)', 'aria-label': 'Nuova scheda', onclick: () => void ks.tabs.create() }, 18),
   );
 }
 
@@ -188,15 +211,16 @@ function renderToolbar(): void {
   const tab = activeTab();
   backBtn.disabled = !tab?.canGoBack;
   forwardBtn.disabled = !tab?.canGoForward;
-  reloadBtn.innerHTML = tab?.loading ? '&#10005;' : '&#8635;';
+  reloadBtn.replaceChildren(icon(tab?.loading ? 'close' : 'reload', 18));
   reloadBtn.title = tab?.loading ? 'Interrompi' : 'Ricarica (Ctrl+R)';
+  reloadBtn.setAttribute('aria-label', tab?.loading ? 'Interrompi' : 'Ricarica');
+  renderSiteInfo(tab);
   if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' && !tab.url.startsWith('ksuite://newtab') ? tab.url : '';
   renderShield(tab);
 
-  const bookmarkable = Boolean(tab && /^(https?|file|ksuite):/i.test(tab.url));
+  const bookmarkable = Boolean(tab && /^(https?|file|ksuite):/i.test(tab.url) && !tab.url.startsWith('ksuite://newtab'));
   starBtn.disabled = !bookmarkable;
   starBtn.classList.toggle('on', Boolean(tab?.bookmarked));
-  starBtn.textContent = tab?.bookmarked ? '★' : '☆';
   starBtn.title = tab?.bookmarked ? 'Modifica preferito (Ctrl+D)' : 'Aggiungi ai preferiti (Ctrl+D)';
 
   const defaultZoom = currentSettings?.defaultZoom ?? 100;
@@ -206,10 +230,37 @@ function renderToolbar(): void {
   document.title = tab ? `${tab.title} — ${suffix}` : suffix;
 }
 
+/** Lock, "not secure" warning or kSuite mark at the start of the address bar. */
+function renderSiteInfo(tab: TabState | undefined): void {
+  const url = tab?.url ?? '';
+  siteInfo.className = 'site-info';
+  if (!tab || !url || url.startsWith('ksuite://newtab') || url === 'about:blank') {
+    siteInfo.replaceChildren(icon('search', 16));
+    siteInfo.title = 'Cerca o inserisci un indirizzo';
+  } else if (url.startsWith('ksuite://')) {
+    siteInfo.classList.add('internal');
+    siteInfo.replaceChildren(logoMark(16), h('span', {}, 'kSuite Browser'));
+    siteInfo.title = 'Pagina del browser';
+  } else if (url.startsWith('https://')) {
+    siteInfo.replaceChildren(icon('lock', 15));
+    siteInfo.title = 'Connessione sicura — clic per le protezioni del sito';
+  } else if (url.startsWith('http://')) {
+    siteInfo.classList.add('insecure');
+    siteInfo.replaceChildren(icon('warning', 15), h('span', {}, 'Non sicuro'));
+    siteInfo.title = 'La connessione a questo sito non è cifrata';
+  } else {
+    siteInfo.replaceChildren(icon('info', 15));
+    siteInfo.title = url;
+  }
+}
+
 function renderShield(tab: TabState | undefined): void {
   const web = Boolean(tab && /^https?:/i.test(tab.url));
   shieldBtn.disabled = !web;
-  shieldBtn.classList.toggle('off', web && !tab!.protectionActive);
+  const off = web && !tab!.protectionActive;
+  shieldBtn.classList.toggle('off', off);
+  shieldBtn.querySelector('svg')?.remove();
+  shieldBtn.prepend(icon(off ? 'shieldOff' : 'shieldCheck', 18));
   const count = shieldBtn.querySelector('.count')!;
   count.textContent = web && tab!.blocked > 0 ? (tab!.blocked > 999 ? '999+' : String(tab!.blocked)) : '';
   shieldBtn.title = !web
@@ -221,18 +272,17 @@ function renderShield(tab: TabState | undefined): void {
 
 function renderSidebar(): void {
   const activeApp = activeTab()?.appId;
-  sidebar.replaceChildren(
+  sidebarApps.replaceChildren(
     ...KSUITE_APPS.map((app) => {
-      const button = h(
+      const tile = h('span', { class: `tile app-${app.id}` });
+      tile.append(icon(app.icon, 19));
+      const label = app.id === 'mail' && unread ? `${app.name} — ${unread} non lette` : app.name;
+      return h(
         'button',
-        { class: `app${activeApp === app.id ? ' active' : ''}`, title: app.name, 'aria-label': app.name, onclick: () => void ks.openApp(app.id) },
-        h('span', { class: 'glyph' }, app.glyph),
-        app.id === 'mail' && unread ? h('span', { class: 'badge' }, unread > 99 ? '99+' : String(unread)) : null,
-        h('span', { class: 'app-name' }, app.name),
+        { class: `app${activeApp === app.id ? ' active' : ''}`, title: label, 'aria-label': label, onclick: () => void ks.openApp(app.id) },
+        tile,
+        app.id === 'mail' && unread ? h('span', { class: 'badge', 'aria-hidden': 'true' }, unread > 99 ? '99+' : String(unread)) : null,
       );
-      // Set through CSSOM: the CSP forbids inline style attributes.
-      button.style.setProperty('--app-color', app.color);
-      return button;
     }),
   );
 }
@@ -323,21 +373,17 @@ omnibox.addEventListener('keydown', (e) => {
 function renderBookmarksBar(): void {
   const bar = bookmarks.filter((b) => b.folder === 'bar');
   if (bar.length === 0) {
-    bookmarkItems.replaceChildren(h('span', { class: 'bookmarks-hint' }, 'Premi ☆ nella barra degli indirizzi (o Ctrl+D) per aggiungere qui una pagina.'));
+    const hint = h('span', { class: 'bookmarks-hint' }, 'Premi la stella nella barra degli indirizzi (o Ctrl+D) per aggiungere qui una pagina.');
+    hint.prepend(icon('star', 14));
+    bookmarkItems.replaceChildren(hint);
     return;
   }
   bookmarkItems.replaceChildren(
     ...bar.map((b) => {
-      let host = '';
-      try {
-        host = new URL(b.url).hostname.replace(/^www\./, '');
-      } catch {
-        /* ignore */
-      }
       const el = h(
         'button',
         { class: 'bookmark', title: `${b.title}\n${b.url}` },
-        /^https?:/i.test(b.url) ? h('img', { class: 'bm-icon', src: faviconUrl(b.url), alt: '' }) : h('span', { class: 'letter' }, (host || b.title || '?').slice(0, 1).toUpperCase()),
+        /^https?:/i.test(b.url) ? h('img', { class: 'bm-icon', src: faviconUrl(b.url), alt: '' }) : b.url.startsWith('ksuite://') ? logoMark(16) : icon('globe', 16),
         h('span', { class: 'label' }, b.title),
       );
       el.addEventListener('click', () => void ks.bookmarks.open(b.id, 'current'));
@@ -371,6 +417,12 @@ zoomBtn.addEventListener('click', () => {
 
 const infobar = $('infobar');
 
+function barIcon(name: IconName): Element {
+  const span = h('span', { class: 'bar-icon' });
+  span.append(icon(name, 18));
+  return span;
+}
+
 function hideInfobar(): void {
   infobar.hidden = true;
   infobar.replaceChildren();
@@ -389,7 +441,7 @@ ks.events.onPasswordPrompt((prompt) => {
     hideInfobar();
   };
   infobar.replaceChildren(
-    h('span', { class: 'key', 'aria-hidden': 'true' }, '🔑'),
+    barIcon('key'),
     h('span', { class: 'msg' }, prompt.kind === 'update' ? `Aggiornare la password salvata per ${host}?` : `Salvare la password per ${host}?`),
     user,
     h('span', { class: 'spacer' }),
@@ -413,7 +465,7 @@ ks.events.onPasswordUnlock(() => {
       input.select();
     }
   });
-  infobar.replaceChildren(h('span', { class: 'key', 'aria-hidden': 'true' }, '🔒'), h('span', { class: 'msg' }, 'Le password salvate sono bloccate.'), form);
+  infobar.replaceChildren(barIcon('lock'), h('span', { class: 'msg' }, 'Le password salvate sono bloccate.'), form);
   infobar.hidden = false;
   input.focus();
 });
@@ -428,7 +480,7 @@ ks.events.onUpdate((status) => {
   if ((!ready && !notifyOnly) || !status.version || announcedUpdate === `${status.state}:${status.version}`) return;
   announcedUpdate = `${status.state}:${status.version}`;
   infobar.replaceChildren(
-    h('span', { class: 'key', 'aria-hidden': 'true' }, '⬆'),
+    barIcon('download'),
     h('span', { class: 'msg' }, ready ? `kSuite Browser ${status.version} è pronto: verrà installato al prossimo riavvio.` : `È disponibile kSuite Browser ${status.version}.`),
     h('span', { class: 'spacer' }),
     ready
@@ -504,6 +556,21 @@ reloadBtn.addEventListener('click', () => {
   void (t.loading ? ks.tabs.stop(t.id) : ks.tabs.reload(t.id));
 });
 $('btn-panel').addEventListener('click', togglePanel);
+$('panel-close').addEventListener('click', () => void setPanelOpen(false));
+$('btn-settings').addEventListener('click', () => void ks.openSettingsPage());
+siteInfo.addEventListener('click', () => {
+  const t = activeTab();
+  if (!t) return;
+  if (/^https?:/i.test(t.url)) void ks.showShieldMenu(t.id);
+  else omnibox.focus();
+});
+downloadsBtn.addEventListener('click', () => {
+  if (document.body.classList.contains('panel-open') && panel.current() === 'downloads') void setPanelOpen(false);
+  else void setPanelOpen(true).then(() => panel.show('downloads'));
+});
+ks.events.onDownloads((items) => {
+  downloadsBtn.querySelector<HTMLElement>('.dot')!.hidden = !items.some((d) => d.state === 'progressing' || d.drive === 'uploading');
+});
 shieldBtn.addEventListener('click', () => {
   const t = activeTab();
   if (t) void ks.showShieldMenu(t.id);
@@ -563,6 +630,7 @@ async function boot(): Promise<void> {
   ]);
   tabs = initialTabs;
   windowId = info.windowId;
+  document.body.classList.add(`platform-${info.platform}`);
   currentSettings = settings;
   bookmarks = bookmarkList;
   document.body.classList.toggle('bookmarks-bar', settings.showBookmarksBar);

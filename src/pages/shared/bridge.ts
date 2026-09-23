@@ -34,6 +34,7 @@ export const internal = {
   downloadDir: () => call<string>(INTERNAL.downloadDirInfo),
   about: () => call<AboutInfo>(INTERNAL.about),
   httpsContinue: (url: string) => call<void>(INTERNAL.httpsContinue, url),
+  testNotification: () => call<boolean>(INTERNAL.testNotification),
   passwordStatus: () => call<VaultStatus>(INTERNAL.pwStatus),
   passwords: {
     status: () => call<VaultStatus>(INTERNAL.pwStatus),

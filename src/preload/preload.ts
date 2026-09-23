@@ -97,6 +97,7 @@ const api = {
     onFindResult: (fn: (result: FindResult) => void) => on(IPC.evFindResult, fn),
     onPasswordPrompt: (fn: (prompt: PasswordPrompt) => void) => on(IPC.evPasswordPrompt, fn),
     onPasswordUnlock: (fn: (info: { reason: string }) => void) => on(IPC.evPasswordUnlock, fn),
+    onUnread: (fn: (count: number | null) => void) => on(IPC.evUnread, fn),
     onComposeMail: (fn: (mail: OutgoingMail) => void) => on(IPC.evComposeMail, fn),
     onToast: (fn: (toast: { kind: 'info' | 'success' | 'error'; message: string }) => void) => on(IPC.evToast, fn),
   },

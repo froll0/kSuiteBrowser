@@ -61,6 +61,12 @@ async function setPanelOpen(open: boolean): Promise<void> {
 
 const togglePanel = () => void setPanelOpen(!document.body.classList.contains('panel-open'));
 
+// The main process checks the inbox every few minutes, even with the panel closed.
+ks.events.onUnread((count) => {
+  unread = count;
+  renderSidebar();
+});
+
 // ---------- Tabs ----------
 
 const TAB_MIME = 'application/x-ksuite-tab';
@@ -475,15 +481,6 @@ reloadBtn.addEventListener('click', () => {
   const t = activeTab();
   if (!t) return;
   void (t.loading ? ks.tabs.stop(t.id) : ks.tabs.reload(t.id));
-});
-$('btn-save-pdf').addEventListener('click', async () => {
-  const res = await ks.api.savePageToDrive();
-  if (!res.ok) toast('error', res.error);
-});
-$('btn-mail-page').addEventListener('click', () => {
-  const t = activeTab();
-  if (!t) return;
-  void setPanelOpen(true).then(() => panel.compose({ to: '', subject: t.title, body: `${t.title}\n${t.url}` }));
 });
 $('btn-panel').addEventListener('click', togglePanel);
 shieldBtn.addEventListener('click', () => {

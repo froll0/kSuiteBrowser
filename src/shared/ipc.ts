@@ -69,6 +69,7 @@ export const IPC = {
   evFindResult: 'ev:find-result',
   evPasswordPrompt: 'ev:password-prompt',
   evPasswordUnlock: 'ev:password-unlock',
+  evUnread: 'ev:unread',
 } as const;
 
 /** Channels of the internal pages (ksuite://…), see src/preload/page.ts. */
@@ -107,6 +108,7 @@ export const INTERNAL = {
   pwImport: 'internal:pw:import',
   pwExport: 'internal:pw:export',
   pwGenerate: 'internal:pw:generate',
+  testNotification: 'internal:notifications:test',
   newtabData: 'internal:newtab:data',
   newtabHide: 'internal:newtab:hide',
   newtabRestore: 'internal:newtab:restore',

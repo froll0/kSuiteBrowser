@@ -20,6 +20,7 @@ import { TrackerBlocker } from './blocker';
 import { clearBrowsingData } from './browsing-data';
 import { DownloadManager } from './downloads';
 import { isInternalUrl, registerInternalScheme, serveInternalPages } from './internal-pages';
+import { NotificationCenter } from './notifications';
 import { PasswordManager } from './passwords/manager';
 import { originOf } from './passwords/vault';
 import { configurePermissions, memoryOnly, persistentMemory } from './permissions';
@@ -32,6 +33,8 @@ import { HistoryStore } from './stores/history';
 import { BrowserWindowController, NEWTAB_URL, type WindowContext } from './window';
 
 registerInternalScheme();
+// Windows shows notifications only for apps with an explicit identity.
+if (process.platform === 'win32') app.setAppUserModelId('com.ksuitebrowser.app');
 
 const PATHS = {
   chromePreload: join(__dirname, '../preload/preload.js'),
@@ -51,6 +54,7 @@ let history: HistoryStore;
 let bookmarks: BookmarksStore;
 let passwords: PasswordManager;
 let favicons: FaviconStore;
+let notifications: NotificationCenter;
 
 type SavedTab = { url: string; pinned?: boolean };
 const blocker = new TrackerBlocker();
@@ -117,6 +121,17 @@ function start(): void {
     return null;
   });
   passwords.register();
+  notifications = new NotificationCenter(settings, services, {
+    openApp: (appId) => {
+      const appDef = KSUITE_APPS.find((a) => a.id === appId);
+      if (!appDef) return;
+      const target = normalWindow() ?? openWindow(false, []);
+      target.tabs.openApp(appDef.id, appDef.url);
+      target.focus();
+    },
+    onUnread: (count) => broadcast(IPC.evUnread, count),
+  });
+  notifications.start();
   bookmarks.onChange((list) => {
     broadcast(IPC.evBookmarks, list);
     sendToInternalPages(INTERNAL.evBookmarks, list);
@@ -687,6 +702,7 @@ function registerInternalIpc(): void {
       settings.setToken(token);
       services.resetCache();
       const profile = await services.profile();
+      notifications.reset();
       broadcast(IPC.evSettings, settings.get());
       return profile;
     }),
@@ -694,9 +710,11 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.tokenClear, S, () => {
     settings.clearToken();
     services.resetCache();
+    notifications.reset();
     broadcast(IPC.evSettings, settings.get());
   });
   handleInternal(INTERNAL.drives, S, () => wrap(() => services.drives()));
+  handleInternal(INTERNAL.testNotification, S, () => notifications.test());
   handleInternal(INTERNAL.clearData, S, (event, selection: BrowsingDataSelection) =>
     wrap(async () => {
       await clearBrowsingData(event.sender.session, selection);

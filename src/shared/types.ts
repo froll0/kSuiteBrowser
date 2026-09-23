@@ -129,6 +129,12 @@ export interface Settings {
   /** Zoom chosen by the user per host, in percent. */
   siteZoom: Record<string, number>;
 
+  // Notifiche
+  notifyMail: boolean;
+  notifyEvents: boolean;
+  /** Minutes before an event starts when the reminder shows up. */
+  eventReminderMinutes: number;
+
   // Password
   offerToSavePasswords: boolean;
   /** Fill the login form when a page has exactly one saved login. */

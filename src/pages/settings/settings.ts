@@ -1,5 +1,5 @@
 import { h } from '../../renderer/dom';
-import { ASKABLE_PERMISSIONS } from '../../shared/settings-schema';
+import { ASKABLE_PERMISSIONS, REMINDER_MINUTES } from '../../shared/settings-schema';
 import type { AskablePermission, BrowsingDataSelection, Settings } from '../../shared/types';
 import { SEARCH_ENGINES } from '../../shared/url';
 import { ZOOM_STEPS } from '../../shared/zoom';
@@ -143,6 +143,29 @@ function zoomSelect(): HTMLElement {
   const select = h('select', { 'aria-label': 'Zoom predefinito' }, ...ZOOM_STEPS.map((z) => h('option', { value: String(z), selected: settings.defaultZoom === z }, `${z}%`)));
   select.addEventListener('change', () => void update({ defaultZoom: Number(select.value) }));
   return select;
+}
+
+async function notificationsSection(): Promise<HTMLElement> {
+  const status = await internal.tokenStatus();
+  const lead = h('select', { 'aria-label': 'Anticipo del promemoria' }, ...REMINDER_MINUTES.map((m) => h('option', { value: String(m), selected: settings.eventReminderMinutes === m }, m === 60 ? '1 ora prima' : `${m} minuti prima`)));
+  lead.addEventListener('change', () => void update({ eventReminderMinutes: Number(lead.value) }));
+  const message = h('span', { class: 'message', role: 'status' });
+  const test = h('button', {
+    onclick: async () => {
+      const ok = await internal.testNotification();
+      message.textContent = ok ? 'Notifica inviata: se non la vedi, controlla le impostazioni di notifica del sistema operativo.' : 'Il sistema operativo non supporta le notifiche.';
+      message.className = `message ${ok ? 'ok' : 'error'}`;
+    },
+  }, 'Prova');
+  return section(
+    'notifications',
+    'Notifiche',
+    status.configured ? null : row('Collega l’account kSuite', h('span', {}, 'Le notifiche usano il token API. ', h('a', { href: '#ksuite' }, 'Configuralo qui.')), null),
+    row('Nuove email', 'Controlla la posta in arrivo ogni 2 minuti e ti avvisa dei nuovi messaggi. Clic sulla notifica per aprire Mail.', toggle('notifyMail', 'Notifiche per le nuove email')),
+    row('Promemoria degli eventi', 'Avvisa prima dell’inizio degli eventi di Calendar (non per quelli di tutto il giorno).', toggle('notifyEvents', 'Promemoria degli eventi')),
+    row('Anticipo del promemoria', null, lead),
+    row('Prova le notifiche', message, test),
+  );
 }
 
 async function passwordsSection(): Promise<HTMLElement> {
@@ -343,7 +366,7 @@ async function render(): Promise<void> {
   if (settings.theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
   const scroll = content.scrollTop || document.scrollingElement?.scrollTop || 0;
-  const sections = [await generalSection(), appearanceSection(), await passwordsSection(), privacySection(), permissionsSection(), await ksuiteSection(), await aboutSection()];
+  const sections = [await generalSection(), appearanceSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await ksuiteSection(), await aboutSection()];
   content.replaceChildren(...sections);
   applyFilter();
   if (document.scrollingElement) document.scrollingElement.scrollTop = scroll;

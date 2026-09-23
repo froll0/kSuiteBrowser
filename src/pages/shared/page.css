@@ -58,6 +58,7 @@ input[type=text], input[type=url], input[type=password], select {
 input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 code { font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 .muted { color: var(--muted); }
+a { color: var(--accent); }
 .small { font-size: 12px; }
 
 /* List pages (history, bookmarks) */

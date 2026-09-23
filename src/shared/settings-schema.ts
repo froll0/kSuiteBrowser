@@ -2,6 +2,8 @@ import type { AskablePermission, PermissionDefault, Settings, SitePermission } f
 import { SEARCH_ENGINES } from './url';
 import { ZOOM_STEPS } from './zoom';
 
+export const REMINDER_MINUTES = [5, 10, 15, 30, 60] as const;
+
 export const ASKABLE_PERMISSIONS: readonly AskablePermission[] = ['media', 'notifications', 'geolocation'];
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -21,6 +23,9 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultZoom: 100,
   siteZoom: {},
 
+  notifyMail: true,
+  notifyEvents: true,
+  eventReminderMinutes: 10,
   offerToSavePasswords: true,
   autofillPasswords: true,
   saveHistory: true,
@@ -97,6 +102,9 @@ export function sanitizeSettings(raw: unknown): Settings {
     defaultZoom: (ZOOM_STEPS as readonly number[]).includes(s.defaultZoom as number) ? (s.defaultZoom as number) : d.defaultZoom,
     siteZoom: siteZoom(s.siteZoom),
 
+    notifyMail: bool(s.notifyMail, d.notifyMail),
+    notifyEvents: bool(s.notifyEvents, d.notifyEvents),
+    eventReminderMinutes: (REMINDER_MINUTES as readonly number[]).includes(s.eventReminderMinutes as number) ? (s.eventReminderMinutes as number) : d.eventReminderMinutes,
     offerToSavePasswords: bool(s.offerToSavePasswords, d.offerToSavePasswords),
     autofillPasswords: bool(s.autofillPasswords, d.autofillPasswords),
     saveHistory: bool(s.saveHistory, d.saveHistory),

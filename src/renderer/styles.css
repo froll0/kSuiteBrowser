@@ -96,7 +96,6 @@ body.private .tab { color: #b9b0cc; }
 body.private .tab.active, body.private #toolbar { background: #3a2d55; color: #fff; }
 body.private #omnibox { background: #2b2140; color: #fff; }
 body.private #toolbar button.icon, body.private .new-tab, body.private .tab-close { color: #fff; }
-body.private .action { background: #3a2d55; color: #fff; border-color: #5a4a7a; }
 body.no-sidebar #sidebar { display: none; }
 #tabstrip { flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: 2px; padding: 6px 8px 0; overflow-x: auto; scrollbar-width: none; }
 .tab {
@@ -147,14 +146,13 @@ body:not(.bookmarks-bar) #bookmarks-bar { display: none; }
 .find-case { display: flex; flex-direction: row; align-items: center; gap: 4px; font-size: 12px; }
 .find-case input { width: auto; }
 #find-close { margin-left: auto; }
-.action { white-space: nowrap; font-size: 12px; }
 .shield { position: relative; width: auto !important; min-width: 30px; padding: 0 4px !important; border-radius: 15px !important; display: inline-flex; align-items: center; gap: 2px; }
 .shield .glyph { font-size: 15px; }
 .shield .count { font-size: 11px; font-weight: 600; color: var(--success); }
 .shield.off .glyph { opacity: .4; }
 .settings-link { margin-left: auto; }
 #toast {
-  position: absolute; right: 120px; top: 50%; transform: translateY(-50%);
+  position: absolute; right: 80px; top: 50%; transform: translateY(-50%);
   max-width: 420px; padding: 5px 12px; border-radius: 14px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   background: var(--text); color: var(--bg); z-index: 5; cursor: pointer;

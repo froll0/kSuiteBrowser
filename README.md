@@ -63,15 +63,17 @@ quindi funzionano senza sorprese.
 
 **Integrazione kSuite**
 - Barra laterale con tutte le app della suite (ogni app resta in una scheda dedicata, login persistente)
-- Badge con le email non lette
+- Badge con le email non lette, aggiornato ogni 2 minuti anche a pannello chiuso
+- **Notifiche di sistema** per le nuove email e **promemoria degli eventi** di Calendar (anticipo configurabile);
+  un clic sulla notifica apre Mail o Calendar. Si configurano in Impostazioni › Notifiche
 - Pannello laterale (`Ctrl+Shift+K`):
   - **Home**: profilo, email non lette, eventi di oggi, ultime email
   - **kDrive**: sfoglia cartelle, cerca, scarica, carica file, scegli la cartella di destinazione
   - **Mail**: posta in arrivo e invio email
   - **Agenda**: eventi dei prossimi 7 giorni e creazione rapida di eventi
   - **Download**: con opzione "carica automaticamente su kDrive"
-- **Salva la pagina come PDF su kDrive** (`Ctrl+Shift+S`)
-- **Invia la pagina via Mail** (`Ctrl+Shift+M`)
+- **Salva la pagina come PDF su kDrive** (`Ctrl+Shift+S`, menu File o tasto destro sulla pagina)
+- **Invia la pagina via Mail** (`Ctrl+Shift+M`, menu File o tasto destro sulla pagina)
 - Menu contestuale: *Salva immagine/link su kDrive*, *Invia link via Mail*
 
 ## Configurare l'accesso alle API

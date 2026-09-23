@@ -28,12 +28,16 @@ export async function listCalendars(client: InfomaniakClient): Promise<RawCalend
 
 export async function upcomingEvents(client: InfomaniakClient, from: Date, to: Date): Promise<CalendarEvent[]> {
   const calendars = await listCalendars(client);
-  const lists = await Promise.all(
+  // Some calendars (subscriptions, shared ones) can refuse the query: skip them unless all fail.
+  const results = await Promise.allSettled(
     calendars.map(async (cal) => {
       const params = new URLSearchParams({ calendar_id: String(cal.id), from: toApiDate(from), to: toApiDate(to) });
       return (await client.get<RawEvent[]>(`${API_BASE}/1/calendar/pim/event?${params}`)) ?? [];
     }),
   );
+  const lists = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+  const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+  if (lists.length === 0 && firstFailure) throw firstFailure.reason;
   const seen = new Set<string>();
   const events: CalendarEvent[] = [];
   for (const e of lists.flat()) {

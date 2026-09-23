@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { upcomingEvents, toApiDate } from '../src/api/calendar';
 import { InfomaniakApiError, InfomaniakClient, type FetchLike } from '../src/api/client';
-import { listDirectory, uploadFile } from '../src/api/drive';
+import { listDirectory, listDrives, uploadFile } from '../src/api/drive';
 import { findFolderByRole, getMailOverview, sendMail, textToHtml } from '../src/api/mail';
 import { getProfile } from '../src/api/profile';
 
@@ -37,21 +37,52 @@ describe('InfomaniakClient', () => {
     await expect(client.get('https://api.infomaniak.com/2/profile')).rejects.toBeInstanceOf(InfomaniakApiError);
     await expect(client.get('https://api.infomaniak.com/2/profile')).rejects.toThrow(/Token non valido/);
   });
+
+  it('names the endpoint and the rejected fields on validation errors', async () => {
+    const body = {
+      result: 'error',
+      error: {
+        code: 'validation_failed',
+        description: 'Validation failed',
+        errors: [{ code: 'validation_rule_in', description: 'The selected order by is invalid.', context: { attribute: 'order_by' } }],
+      },
+    };
+    const client = new InfomaniakClient('t', async () => new Response(JSON.stringify(body), { status: 422 }));
+    await expect(client.get('https://api.infomaniak.com/3/drive/1/files/1/files?order_by=x')).rejects.toThrow(
+      'Errore API 422 [validation_failed] su api.infomaniak.com/3/drive/1/files/1/files: Validation failed — order_by: The selected order by is invalid.',
+    );
+  });
 });
 
 describe('kDrive', () => {
-  it('lists a directory with cursor pagination', async () => {
+  it('lists drives from the init endpoint', async () => {
+    const { client, calls } = fakeApi({
+      'GET api.infomaniak.com/2/drive/init': () => ({ data: { drives: [{ id: 12, name: 'My kSuite' }] } }),
+    });
+    expect(await listDrives(client)).toEqual([{ id: 12, name: 'My kSuite' }]);
+    expect(calls[0].url.searchParams.get('with')).toBe('drives');
+  });
+
+  it('lists a directory with cursor pagination, folders first', async () => {
     const { client, calls } = fakeApi({
       'GET api.infomaniak.com/3/drive/12/files/5/files': () => ({
-        data: [{ id: 9, name: 'Doc.pdf', type: 'file', size: 2048, last_modified_at: 1700000000, mime_type: 'application/pdf', parent_id: 5 }],
+        data: [
+          { id: 9, name: 'Doc.pdf', type: 'file', size: 2048, last_modified_at: 1700000000, mime_type: 'application/pdf', parent_id: 5 },
+          { id: 10, name: 'Foto', type: 'dir', parent_id: 5 },
+        ],
         cursor: 'abc',
         has_more: true,
       }),
     });
     const listing = await listDirectory(client, 12, 5, 'prev');
-    expect(listing.files[0]).toMatchObject({ id: 9, name: 'Doc.pdf', size: 2048, parentId: 5 });
+    expect(listing.files.map((f) => f.name)).toEqual(['Foto', 'Doc.pdf']);
+    expect(listing.files[1]).toMatchObject({ id: 9, size: 2048, parentId: 5 });
     expect(listing).toMatchObject({ cursor: 'abc', hasMore: true });
-    expect(calls[0].url.searchParams.get('cursor')).toBe('prev');
+    const params = calls[0].url.searchParams;
+    expect(params.get('cursor')).toBe('prev');
+    expect(params.get('order_by')).toBe('name');
+    expect(params.get('order_for[name]')).toBe('asc');
+    expect(params.has('order')).toBe(false);
   });
 
   it('uploads bytes with size, folder and rename-on-conflict', async () => {
@@ -126,5 +157,17 @@ describe('Calendar', () => {
     });
     const events = await upcomingEvents(client, new Date('2026-09-23'), new Date('2026-09-30'));
     expect(events.map((e) => e.title)).toEqual(['Prima', 'Dopo']);
+  });
+
+  it('skips calendars that refuse the query', async () => {
+    const { client } = fakeApi({
+      'GET api.infomaniak.com/1/calendar/pim/calendar': () => ({ data: { calendars: [{ id: 1 }, { id: 2 }] } }),
+      'GET api.infomaniak.com/1/calendar/pim/event': (url) => {
+        if (url.searchParams.get('calendar_id') === '2') throw new Error('refused');
+        return { data: [{ id: 'a', title: 'Ok', start: '2026-09-23T09:00:00+02:00', end: '2026-09-23T10:00:00+02:00' }] };
+      },
+    });
+    const events = await upcomingEvents(client, new Date('2026-09-23'), new Date('2026-09-30'));
+    expect(events.map((e) => e.title)).toEqual(['Ok']);
   });
 });

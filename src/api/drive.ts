@@ -26,9 +26,12 @@ export function mapFile(f: RawFile): DriveFile {
   };
 }
 
+/** Drives of the user, as the kDrive apps load them (`/2/drive` alone requires an account_id). */
 export async function listDrives(client: InfomaniakClient): Promise<Drive[]> {
-  const drives = await client.get<Array<{ id: number; name: string }>>(`${API_BASE}/2/drive`);
-  return (drives ?? []).map((d) => ({ id: d.id, name: d.name }));
+  const data = await client.get<{ drives?: Array<{ id: number; name: string; in_maintenance?: boolean }> }>(
+    `${API_BASE}/2/drive/init?with=drives`,
+  );
+  return (data?.drives ?? []).map((d) => ({ id: d.id, name: d.name }));
 }
 
 export async function listDirectory(
@@ -37,10 +40,16 @@ export async function listDirectory(
   directoryId: number,
   cursor?: string | null,
 ): Promise<DriveListing> {
-  const params = new URLSearchParams({ limit: '100', order_by: 'type', order: 'asc' });
+  // Sorting syntax of the kDrive API: order_by=<field>&order_for[<field>]=<asc|desc>.
+  const params = new URLSearchParams({ limit: '100', order_by: 'name', 'order_for[name]': 'asc' });
   if (cursor) params.set('cursor', cursor);
   const env = await client.request<RawFile[]>(`${API_BASE}/3/drive/${driveId}/files/${directoryId}/files?${params}`);
-  return { files: (env.data ?? []).map(mapFile), cursor: env.cursor ?? null, hasMore: Boolean(env.has_more) };
+  return { files: foldersFirst((env.data ?? []).map(mapFile)), cursor: env.cursor ?? null, hasMore: Boolean(env.has_more) };
+}
+
+/** Stable sort that keeps the API order (by name) but lists folders before files. */
+export function foldersFirst(files: DriveFile[]): DriveFile[] {
+  return [...files].sort((a, b) => Number(b.type === 'dir') - Number(a.type === 'dir'));
 }
 
 export async function getFile(client: InfomaniakClient, driveId: number, fileId: number): Promise<DriveFile> {

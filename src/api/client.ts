@@ -14,10 +14,16 @@ export class InfomaniakApiError extends Error {
   }
 }
 
+interface ApiErrorDetail {
+  code?: string;
+  description?: string;
+  context?: Record<string, unknown>;
+}
+
 interface Envelope<T> {
   result?: 'success' | 'error' | string;
   data?: T;
-  error?: { code?: string; description?: string };
+  error?: ApiErrorDetail & { errors?: ApiErrorDetail[] };
   cursor?: string | null;
   has_more?: boolean;
 }
@@ -47,11 +53,7 @@ export class InfomaniakClient {
       body = null;
     }
 
-    if (!res.ok || body?.result === 'error') {
-      const code = body?.error?.code ?? null;
-      const description = body?.error?.description ?? (text.slice(0, 200) || res.statusText);
-      throw new InfomaniakApiError(describeError(res.status, code, description), res.status, code);
-    }
+    if (!res.ok || body?.result === 'error') throw apiError(url, res, text);
     return body ?? {};
   }
 
@@ -70,25 +72,41 @@ export class InfomaniakClient {
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${this.token}`);
     const res = await this.fetchImpl(url, { ...init, headers });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      let code: string | null = null;
-      let description = text.slice(0, 200) || res.statusText;
-      try {
-        const body = JSON.parse(text) as Envelope<unknown>;
-        code = body.error?.code ?? null;
-        description = body.error?.description ?? description;
-      } catch {
-        /* not JSON */
-      }
-      throw new InfomaniakApiError(describeError(res.status, code, description), res.status, code);
-    }
+    if (!res.ok) throw apiError(url, res, await res.text().catch(() => ''));
     return res;
   }
 }
 
-function describeError(status: number, code: string | null, description: string): string {
+/** Builds a readable error naming the endpoint and, for 422s, the fields the API rejected. */
+export function apiError(url: string, res: Pick<Response, 'status' | 'statusText'>, text: string): InfomaniakApiError {
+  let error: Envelope<unknown>['error'];
+  try {
+    error = (JSON.parse(text) as Envelope<unknown>).error;
+  } catch {
+    error = undefined;
+  }
+  const code = error?.code ?? null;
+  const details = (error?.errors ?? [])
+    .map((e) => {
+      const attribute = e.context?.attribute;
+      return [attribute ? `${String(attribute)}:` : '', e.description ?? e.code ?? ''].filter(Boolean).join(' ');
+    })
+    .filter(Boolean);
+  const description = [error?.description ?? (text.slice(0, 200) || res.statusText), ...details].join(' — ');
+  return new InfomaniakApiError(describeError(res.status, code, description, endpointOf(url)), res.status, code);
+}
+
+function endpointOf(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.host}${u.pathname}`;
+  } catch {
+    return url;
+  }
+}
+
+function describeError(status: number, code: string | null, description: string, endpoint: string): string {
   if (status === 401) return 'Token non valido o scaduto (401). Controlla il token API nelle impostazioni.';
-  if (status === 403) return `Accesso negato (403): il token non ha lo scope necessario. ${description}`;
-  return `Errore API ${status}${code ? ` [${code}]` : ''}: ${description}`;
+  if (status === 403) return `Accesso negato (403) su ${endpoint}: il token non ha lo scope necessario. ${description}`;
+  return `Errore API ${status}${code ? ` [${code}]` : ''} su ${endpoint}: ${description}`;
 }

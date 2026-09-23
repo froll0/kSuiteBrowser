@@ -1,9 +1,8 @@
-import type { ApiResult, DownloadItemState, DriveFile, OutgoingMail, Settings } from '../shared/types';
-import { SEARCH_ENGINES, type SearchEngineId } from '../shared/url';
+import type { ApiResult, DownloadItemState, DriveFile, OutgoingMail } from '../shared/types';
 import { ks } from './bridge';
 import { formatBytes, formatDateTime, h } from './dom';
 
-export type PanelView = 'home' | 'drive' | 'mail' | 'calendar' | 'downloads' | 'settings';
+export type PanelView = 'home' | 'drive' | 'mail' | 'calendar' | 'downloads';
 
 const VIEWS: Array<{ id: PanelView; label: string }> = [
   { id: 'home', label: 'Home' },
@@ -11,10 +10,7 @@ const VIEWS: Array<{ id: PanelView; label: string }> = [
   { id: 'mail', label: 'Mail' },
   { id: 'calendar', label: 'Agenda' },
   { id: 'downloads', label: 'Download' },
-  { id: 'settings', label: 'Impostazioni' },
 ];
-
-const TOKEN_PAGE = 'https://manager.infomaniak.com/v3/ng/accounts/token/list';
 
 type Notify = (kind: 'info' | 'success' | 'error', message: string) => void;
 
@@ -60,10 +56,11 @@ export class Panel {
       ...VIEWS.map((v) =>
         h('button', { role: 'tab', 'aria-selected': String(v.id === this.view), class: v.id === this.view ? 'active' : '', onclick: () => this.show(v.id) }, v.label),
       ),
+      h('button', { class: 'settings-link', title: 'Impostazioni kSuite', onclick: () => void ks.openSettingsPage('ksuite') }, '⚙'),
     );
 
     const status = await ks.token.status();
-    if (!status.configured && this.view !== 'settings' && this.view !== 'downloads') {
+    if (!status.configured && this.view !== 'downloads') {
       this.mount(seq, this.noTokenView());
       return;
     }
@@ -90,8 +87,6 @@ export class Panel {
         return this.calendarView();
       case 'downloads':
         return this.downloadsView();
-      case 'settings':
-        return this.settingsView();
     }
   }
 
@@ -101,7 +96,7 @@ export class Panel {
       { class: 'panel-view' },
       h('h2', {}, 'Collega il tuo account kSuite'),
       h('p', {}, 'Le app della suite funzionano già dalla barra laterale. Per le funzioni integrate (kDrive, Mail, Agenda nel pannello) serve un token API personale.'),
-      h('button', { class: 'primary', onclick: () => this.show('settings') }, 'Configura il token'),
+      h('button', { class: 'primary', onclick: () => void ks.openSettingsPage('ksuite') }, 'Configura il token'),
     );
   }
 
@@ -377,6 +372,7 @@ export class Panel {
 
     const nodes: Node[] = [
       h('label', { class: 'check' }, toggle, ` Carica automaticamente i download su kDrive (${settings.driveUploadFolderName})`),
+      h('button', { class: 'link', onclick: () => void ks.openSettingsPage('general') }, 'Cartella dei download…'),
     ];
     if (this.downloads.length === 0) nodes.push(h('p', { class: 'muted' }, 'Nessun download in questa sessione.'));
     nodes.push(
@@ -397,79 +393,6 @@ export class Panel {
       )),
     );
     return nodes;
-  }
-
-  // ---------- Settings ----------
-
-  private async settingsView(): Promise<Node[]> {
-    const [status, settings] = await Promise.all([ks.token.status(), ks.settings.get()]);
-    const nodes: Node[] = [h('h3', {}, 'Account kSuite')];
-
-    if (status.fromEnv) {
-      nodes.push(h('p', {}, 'Il token è fornito dalla variabile d’ambiente KSUITE_API_TOKEN.'));
-    } else {
-      const tokenInput = h('input', { type: 'password', placeholder: status.configured ? '•••••••• (token salvato)' : 'Incolla qui il token API', autocomplete: 'off' });
-      const saveBtn = h('button', { class: 'primary', type: 'submit' }, 'Salva e verifica');
-      const form = h('form', { class: 'compose' }, tokenInput, h('div', { class: 'actions' }, saveBtn,
-        status.configured ? h('button', { type: 'button', onclick: async () => { await ks.token.clear(); this.onUnreadChange(null); this.notify('info', 'Token rimosso'); void this.render(); } }, 'Rimuovi token') : null));
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        saveBtn.disabled = true;
-        const res = await ks.token.set(tokenInput.value);
-        saveBtn.disabled = false;
-        if (res.ok) {
-          this.notify('success', `Connesso come ${res.data.displayName}`);
-          this.show('home');
-        } else {
-          this.notify('error', res.error);
-        }
-      });
-      nodes.push(
-        h('ol', { class: 'steps' },
-          h('li', {}, 'Apri la ', h('button', { class: 'link', onclick: () => void ks.tabs.create(TOKEN_PAGE) }, 'pagina dei token API'), ' del Manager Infomaniak.'),
-          h('li', {}, 'Crea un token con gli scope: ', h('code', {}, 'user_info'), ', ', h('code', {}, 'drive'), ', ', h('code', {}, 'workspace:mail'), ', ', h('code', {}, 'workspace:calendar'), '.'),
-          h('li', {}, 'Incollalo qui sotto.'),
-        ),
-        form,
-      );
-      if (status.configured && !status.encrypted) {
-        nodes.push(h('p', { class: 'warning' }, 'Attenzione: il portachiavi di sistema non è disponibile, il token è salvato in chiaro nel profilo utente.'));
-      }
-    }
-
-    if (status.configured) {
-      nodes.push(h('h3', {}, 'kDrive'));
-      const drives = await ks.api.drives();
-      if (drives.ok) {
-        const select = h('select', {},
-          h('option', { value: '' }, 'Automatico (primo kDrive)'),
-          ...drives.data.map((d) => h('option', { value: String(d.id), selected: settings.driveId === d.id }, `${d.name} (#${d.id})`)),
-        );
-        select.addEventListener('change', async () => {
-          await ks.settings.set({ driveId: select.value ? Number(select.value) : null, driveUploadFolderId: 1, driveUploadFolderName: 'kDrive' });
-          this.driveStack = [{ id: 1, name: 'kDrive' }];
-          this.notify('success', 'kDrive aggiornato');
-        });
-        nodes.push(select);
-      } else {
-        nodes.push(errorBox(drives.error), this.manualDriveId(settings));
-      }
-      nodes.push(h('p', { class: 'muted small' }, `Cartella di destinazione per "Salva su kDrive": ${settings.driveUploadFolderName}`));
-    }
-
-    nodes.push(h('h3', {}, 'Navigazione'));
-    const engine = h('select', {}, ...Object.entries(SEARCH_ENGINES).map(([id, e]) => h('option', { value: id, selected: settings.searchEngine === id }, e.name)));
-    engine.addEventListener('change', () => void ks.settings.set({ searchEngine: engine.value as SearchEngineId }));
-    const home = h('input', { type: 'url', value: settings.homePage });
-    home.addEventListener('change', () => void ks.settings.set({ homePage: home.value.trim() }));
-    nodes.push(h('label', {}, 'Motore di ricerca', engine), h('label', {}, 'Pagina iniziale', home));
-    return nodes;
-  }
-
-  private manualDriveId(settings: Settings): HTMLElement {
-    const input = h('input', { type: 'number', min: 1, placeholder: 'ID kDrive (dall’URL dell’app web)', value: settings.driveId ?? '' });
-    input.addEventListener('change', () => void ks.settings.set({ driveId: input.value ? Number(input.value) : null }));
-    return h('label', {}, 'ID kDrive manuale', input);
   }
 }
 

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC } from '../shared/ipc';
 import type {
-  ApiResult, CalendarEvent, Drive, DriveFile, DriveListing, DownloadItemState, MailOverview,
+  ApiResult, CalendarEvent, DriveFile, DriveListing, DownloadItemState, MailOverview,
   NewEvent, OutgoingMail, Profile, Rect, Settings, TabState, TokenStatus,
 } from '../shared/types';
 
@@ -29,18 +29,18 @@ const api = {
   openApp: (appId: string) => invoke<void>(IPC.openApp, appId),
   setContentBounds: (rect: Rect) => invoke<void>(IPC.setContentBounds, rect),
   showAppMenu: () => invoke<void>(IPC.showAppMenu),
+  showShieldMenu: (tabId: number) => invoke<void>(IPC.showShieldMenu, tabId),
+  openSettingsPage: (section?: string) => invoke<void>(IPC.openSettingsPage, section),
+  windowInfo: () => invoke<{ isPrivate: boolean }>(IPC.windowInfo),
   settings: {
     get: () => invoke<Settings>(IPC.settingsGet),
     set: (patch: Partial<Settings>) => invoke<Settings>(IPC.settingsSet, patch),
   },
   token: {
     status: () => invoke<TokenStatus>(IPC.tokenStatus),
-    set: (token: string) => invoke<ApiResult<Profile>>(IPC.tokenSet, token),
-    clear: () => invoke<void>(IPC.tokenClear),
   },
   api: {
     profile: () => invoke<ApiResult<Profile>>(IPC.apiProfile),
-    drives: () => invoke<ApiResult<Drive[]>>(IPC.apiDrives),
     driveList: (dirId: number, cursor?: string | null) =>
       invoke<ApiResult<DriveListing & { driveId: number }>>(IPC.apiDriveList, dirId, cursor),
     driveSearch: (query: string) => invoke<ApiResult<DriveFile[]>>(IPC.apiDriveSearch, query),
@@ -62,7 +62,7 @@ const api = {
     onDownloads: (fn: (items: DownloadItemState[]) => void) => on(IPC.evDownloads, fn),
     onFocusAddress: (fn: () => void) => on(IPC.evFocusAddress, fn),
     onTogglePanel: (fn: () => void) => on(IPC.evTogglePanel, fn),
-    onOpenSettings: (fn: () => void) => on(IPC.evOpenSettings, fn),
+    onSettings: (fn: (settings: Settings) => void) => on(IPC.evSettings, fn),
     onComposeMail: (fn: (mail: OutgoingMail) => void) => on(IPC.evComposeMail, fn),
     onToast: (fn: (toast: { kind: 'info' | 'success' | 'error'; message: string }) => void) => on(IPC.evToast, fn),
   },

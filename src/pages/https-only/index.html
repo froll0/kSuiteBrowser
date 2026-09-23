@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Connessione non sicura</title>
+  <link rel="stylesheet" href="page.css" />
+  <link rel="stylesheet" href="https-only.css" />
+</head>
+<body>
+  <main>
+    <div class="icon" aria-hidden="true">&#128274;</div>
+    <h1>Questo sito non supporta una connessione sicura</h1>
+    <p>La modalità solo HTTPS ha provato a caricare <strong id="host"></strong> in modo cifrato, senza riuscirci.</p>
+    <p class="muted">Se continui, i dati scambiati con il sito (password, moduli, pagine visitate) potrebbero essere letti o modificati da altri sulla rete.</p>
+    <div class="actions">
+      <button id="back" class="primary">Torna indietro</button>
+      <button id="continue">Continua con HTTP</button>
+    </div>
+    <p class="muted small">Il sito verrà aggiunto alle eccezioni. Puoi rimuoverlo in Impostazioni › Privacy e sicurezza.</p>
+  </main>
+  <script src="https-only.js"></script>
+</body>
+</html>

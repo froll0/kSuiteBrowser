@@ -1,18 +1,8 @@
 import { app, safeStorage } from 'electron';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { sanitizeSettings } from '../shared/settings-schema';
 import type { Settings, TokenStatus } from '../shared/types';
-import { SEARCH_ENGINES } from '../shared/url';
-
-const DEFAULTS: Settings = {
-  searchEngine: 'duckduckgo',
-  homePage: 'https://ksuite.infomaniak.com/',
-  driveId: null,
-  driveUploadFolderId: 1,
-  driveUploadFolderName: 'kDrive',
-  uploadDownloadsToDrive: false,
-  panelOpen: true,
-};
 
 interface StoredFile {
   settings?: Partial<Settings>;
@@ -26,6 +16,9 @@ interface StoredFile {
 export class SettingsStore {
   private readonly file = join(app.getPath('userData'), 'settings.json');
   private stored: StoredFile;
+  /** Read on every network request by the privacy filters, so keep it ready. */
+  private current: Settings;
+  private readonly listeners = new Set<(settings: Settings, previous: Settings) => void>();
 
   constructor() {
     try {
@@ -33,16 +26,25 @@ export class SettingsStore {
     } catch {
       this.stored = {};
     }
+    this.current = sanitizeSettings(this.stored.settings);
   }
 
   get(): Settings {
-    return sanitize({ ...DEFAULTS, ...this.stored.settings });
+    return this.current;
   }
 
   update(patch: Partial<Settings>): Settings {
-    this.stored.settings = sanitize({ ...this.get(), ...patch });
+    const previous = this.current;
+    this.current = sanitizeSettings({ ...previous, ...patch });
+    this.stored.settings = this.current;
     this.save();
-    return this.get();
+    for (const listener of this.listeners) listener(this.current, previous);
+    return this.current;
+  }
+
+  onChange(listener: (settings: Settings, previous: Settings) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   getToken(): string | null {
@@ -88,16 +90,4 @@ export class SettingsStore {
     mkdirSync(dirname(this.file), { recursive: true });
     writeFileSync(this.file, JSON.stringify(this.stored, null, 2), { encoding: 'utf8', mode: 0o600 });
   }
-}
-
-function sanitize(s: Settings): Settings {
-  return {
-    searchEngine: s.searchEngine in SEARCH_ENGINES ? s.searchEngine : DEFAULTS.searchEngine,
-    homePage: typeof s.homePage === 'string' && s.homePage ? s.homePage : DEFAULTS.homePage,
-    driveId: Number.isInteger(s.driveId) && (s.driveId as number) > 0 ? s.driveId : null,
-    driveUploadFolderId: Number.isInteger(s.driveUploadFolderId) && s.driveUploadFolderId > 0 ? s.driveUploadFolderId : 1,
-    driveUploadFolderName: typeof s.driveUploadFolderName === 'string' ? s.driveUploadFolderName : DEFAULTS.driveUploadFolderName,
-    uploadDownloadsToDrive: Boolean(s.uploadDownloadsToDrive),
-    panelOpen: s.panelOpen !== false,
-  };
 }

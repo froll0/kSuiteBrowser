@@ -1,41 +1,70 @@
 import { desktopCapturer, dialog, type BrowserWindow, type Session } from 'electron';
 import { isTrustedSuiteHost } from '../shared/ksuite-apps';
+import { ASKABLE_PERMISSIONS } from '../shared/settings-schema';
+import type { AskablePermission } from '../shared/types';
+import type { SettingsStore } from './settings';
 
 const ALWAYS_ALLOWED = new Set(['fullscreen', 'clipboard-sanitized-write', 'pointerLock']);
-const ASKABLE: Record<string, string> = {
+const DESCRIPTIONS: Record<string, string> = {
   media: 'usare fotocamera e microfono',
   notifications: 'mostrare notifiche',
   geolocation: 'conoscere la tua posizione',
   'clipboard-read': 'leggere gli appunti',
-  'display-capture': 'condividere lo schermo',
 };
+
+/** Where site decisions are remembered: the settings file, or memory only for private windows. */
+export interface PermissionMemory {
+  get(host: string, permission: string): boolean | undefined;
+  set(host: string, permission: string, allowed: boolean): void;
+}
+
+export function persistentMemory(settings: SettingsStore): PermissionMemory {
+  return {
+    get: (host, permission) => settings.get().sitePermissions.find((p) => p.host === host && p.permission === permission)?.allowed,
+    set: (host, permission, allowed) => {
+      const others = settings.get().sitePermissions.filter((p) => !(p.host === host && p.permission === permission));
+      settings.update({ sitePermissions: [...others, { host, permission, allowed }] });
+    },
+  };
+}
+
+export function memoryOnly(): PermissionMemory {
+  const map = new Map<string, boolean>();
+  return {
+    get: (host, permission) => map.get(`${host}|${permission}`),
+    set: (host, permission, allowed) => void map.set(`${host}|${permission}`, allowed),
+  };
+}
 
 function hostOf(url: string): string {
   try {
-    return new URL(url).hostname;
+    return new URL(url).hostname.toLowerCase();
   } catch {
     return '';
   }
 }
 
+const isAskable = (p: string): p is AskablePermission => (ASKABLE_PERMISSIONS as readonly string[]).includes(p);
+
 /**
- * kSuite apps (kMeet, kChat, Mail…) get camera, microphone, notifications and screen sharing directly;
- * any other site has to ask the user first.
+ * kSuite apps (kMeet, kChat, Mail…) get camera, microphone and notifications directly.
+ * Other sites follow the remembered decision, then the default chosen in the settings (ask or block).
  */
-export function configurePermissions(session: Session, getWindow: () => BrowserWindow | null): void {
-  const decisions = new Map<string, boolean>();
+export function configurePermissions(session: Session, settings: SettingsStore, memory: PermissionMemory, getWindow: () => BrowserWindow | null): void {
+  const decide = (host: string, permission: string): boolean | 'ask' => {
+    if (ALWAYS_ALLOWED.has(permission)) return true;
+    if (!DESCRIPTIONS[permission]) return false;
+    if (isTrustedSuiteHost(host)) return true;
+    const remembered = memory.get(host, permission);
+    if (remembered !== undefined) return remembered;
+    if (isAskable(permission) && settings.get().permissionDefaults[permission] === 'block') return false;
+    return 'ask';
+  };
 
   session.setPermissionRequestHandler((contents, permission, callback, details) => {
-    if (ALWAYS_ALLOWED.has(permission)) return callback(true);
-    const description = ASKABLE[permission];
-    if (!description) return callback(false);
-
     const host = hostOf(details.requestingUrl || contents.getURL());
-    if (isTrustedSuiteHost(host)) return callback(true);
-
-    const key = `${host}|${permission}`;
-    const remembered = decisions.get(key);
-    if (remembered !== undefined) return callback(remembered);
+    const decision = decide(host, permission);
+    if (decision !== 'ask') return callback(decision);
 
     const win = getWindow();
     const options = {
@@ -43,14 +72,22 @@ export function configurePermissions(session: Session, getWindow: () => BrowserW
       buttons: ['Consenti', 'Blocca'],
       defaultId: 1,
       cancelId: 1,
-      message: `${host || 'Questo sito'} vuole ${description}.`,
+      message: `${host || 'Questo sito'} vuole ${DESCRIPTIONS[permission]}.`,
+      checkboxLabel: 'Ricorda la scelta per questo sito',
+      checkboxChecked: true,
     };
     const prompt = win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options);
-    void prompt.then(({ response }) => {
+    void prompt.then(({ response, checkboxChecked }) => {
       const allowed = response === 0;
-      decisions.set(key, allowed);
+      if (checkboxChecked && host) memory.set(host, permission, allowed);
       callback(allowed);
     });
+  });
+
+  // Synchronous checks (e.g. Notification.permission): only a remembered or trusted "allow" counts.
+  session.setPermissionCheckHandler((_contents, permission, requestingOrigin) => {
+    if (!isAskable(permission)) return true;
+    return decide(hostOf(requestingOrigin), permission) === true;
   });
 
   session.setDisplayMediaRequestHandler(

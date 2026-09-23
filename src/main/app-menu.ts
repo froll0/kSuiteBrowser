@@ -2,6 +2,8 @@ import { Menu, type MenuItemConstructorOptions } from 'electron';
 
 export interface AppMenuActions {
   newTab(): void;
+  newWindow(): void;
+  newPrivateWindow(): void;
   closeTab(): void;
   focusAddress(): void;
   reload(): void;
@@ -13,6 +15,7 @@ export interface AppMenuActions {
   savePageToDrive(): void;
   mailPage(): void;
   openSettings(): void;
+  clearData(): void;
   devTools(): void;
 }
 
@@ -24,12 +27,15 @@ export function buildAppMenu(a: AppMenuActions): Menu {
       label: 'File',
       submenu: [
         { label: 'Nuova scheda', accelerator: 'CmdOrCtrl+T', click: a.newTab },
+        { label: 'Nuova finestra', accelerator: 'CmdOrCtrl+N', click: a.newWindow },
+        { label: 'Nuova finestra privata', accelerator: 'CmdOrCtrl+Shift+N', click: a.newPrivateWindow },
         { label: 'Chiudi scheda', accelerator: 'CmdOrCtrl+W', click: a.closeTab },
         { type: 'separator' },
         { label: 'Salva pagina come PDF su kDrive', accelerator: 'CmdOrCtrl+Shift+S', click: a.savePageToDrive },
         { label: 'Invia pagina via Mail…', accelerator: 'CmdOrCtrl+Shift+M', click: a.mailPage },
         { type: 'separator' },
-        { label: 'Impostazioni…', accelerator: 'CmdOrCtrl+,', click: a.openSettings },
+        { label: 'Impostazioni', accelerator: 'CmdOrCtrl+,', click: a.openSettings },
+        { label: 'Cancella dati di navigazione…', accelerator: 'CmdOrCtrl+Shift+Delete', click: a.clearData },
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit', label: 'Esci' },
       ],

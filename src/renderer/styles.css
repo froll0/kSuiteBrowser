@@ -16,8 +16,9 @@
   color-scheme: light dark;
 }
 
+/* Dark theme: follows the system unless the user picked a theme in the settings (data-theme). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #16191f;
     --surface: #1f232b;
     --surface-2: #2a2f39;
@@ -30,6 +31,20 @@
     --warning: #f0b35a;
   }
 }
+:root[data-theme="dark"] {
+  --bg: #16191f;
+  --surface: #1f232b;
+  --surface-2: #2a2f39;
+  --border: #353b47;
+  --text: #e6e9ef;
+  --muted: #9aa3b2;
+  --accent: #3aa8ff;
+  --danger: #ff6b5e;
+  --success: #5bd07a;
+  --warning: #f0b35a;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -73,7 +88,17 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 /* ---------- Chrome ---------- */
 
 #chrome { background: var(--surface-2); border-bottom: 1px solid var(--border); }
-#tabstrip { display: flex; align-items: flex-end; gap: 2px; padding: 6px 8px 0; overflow-x: auto; scrollbar-width: none; }
+#tabstrip-row { display: flex; align-items: flex-end; }
+#private-badge { display: none; margin: 0 0 7px 10px; padding: 2px 8px; border-radius: 10px; background: #6b3fa0; color: #fff; font-size: 11px; font-weight: 600; }
+body.private #private-badge { display: inline-block; }
+body.private #chrome { background: #2b2140; color: #eee; }
+body.private .tab { color: #b9b0cc; }
+body.private .tab.active, body.private #toolbar { background: #3a2d55; color: #fff; }
+body.private #omnibox { background: #2b2140; color: #fff; }
+body.private #toolbar button.icon, body.private .new-tab, body.private .tab-close { color: #fff; }
+body.private .action { background: #3a2d55; color: #fff; border-color: #5a4a7a; }
+body.no-sidebar #sidebar { display: none; }
+#tabstrip { flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: 2px; padding: 6px 8px 0; overflow-x: auto; scrollbar-width: none; }
 .tab {
   display: flex; align-items: center; gap: 6px;
   min-width: 60px; max-width: 220px; flex: 1 1 180px;
@@ -95,6 +120,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 #omnibox-form { flex: 1; min-width: 120px; }
 #omnibox { border-radius: 16px; padding: 6px 14px; background: var(--surface-2); border-color: transparent; }
 .action { white-space: nowrap; font-size: 12px; }
+.shield { position: relative; width: auto !important; min-width: 30px; padding: 0 4px !important; border-radius: 15px !important; display: inline-flex; align-items: center; gap: 2px; }
+.shield .glyph { font-size: 15px; }
+.shield .count { font-size: 11px; font-weight: 600; color: var(--success); }
+.shield.off .glyph { opacity: .4; }
+.settings-link { margin-left: auto; }
 #toast {
   position: absolute; right: 120px; top: 50%; transform: translateY(-50%);
   max-width: 420px; padding: 5px 12px; border-radius: 14px;

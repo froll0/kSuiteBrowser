@@ -9,7 +9,10 @@
 </head>
 <body>
   <header id="chrome">
-    <div id="tabstrip" role="tablist"></div>
+    <div id="tabstrip-row">
+      <span id="private-badge" title="Finestra privata: cronologia, cookie e dati vengono eliminati alla chiusura">Privata</span>
+      <div id="tabstrip" role="tablist"></div>
+    </div>
     <div id="toolbar">
       <button id="btn-back" class="icon" title="Indietro (Alt+←)" aria-label="Indietro">&#8592;</button>
       <button id="btn-forward" class="icon" title="Avanti (Alt+→)" aria-label="Avanti">&#8594;</button>
@@ -18,6 +21,7 @@
         <input id="omnibox" type="text" spellcheck="false" autocomplete="off"
                placeholder="Cerca o inserisci un indirizzo" aria-label="Indirizzo" />
       </form>
+      <button id="btn-shield" class="icon shield" title="Protezioni" aria-label="Protezioni"><span class="glyph">&#128737;</span><span class="count"></span></button>
       <div id="toast" role="status" aria-live="polite" hidden></div>
       <button id="btn-save-pdf" class="action" title="Salva la pagina come PDF su kDrive (Ctrl+Shift+S)">PDF → kDrive</button>
       <button id="btn-mail-page" class="action" title="Invia la pagina via Mail (Ctrl+Shift+M)">Invia via Mail</button>

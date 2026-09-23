@@ -11,11 +11,54 @@ export interface TabState {
   active: boolean;
   /** Set when the tab was opened from the kSuite sidebar. */
   appId: string | null;
+  /** Requests blocked by tracking protection on the current page. */
+  blocked: number;
+  /** False when the user turned tracking protection off for this site. */
+  protectionActive: boolean;
+}
+
+export type TrackingProtection = 'off' | 'standard' | 'strict';
+export type ThemeSource = 'system' | 'light' | 'dark';
+export type StartupMode = 'home' | 'restore';
+export type AskablePermission = 'media' | 'notifications' | 'geolocation';
+export type PermissionDefault = 'ask' | 'block';
+
+export interface SitePermission {
+  host: string;
+  permission: string;
+  allowed: boolean;
 }
 
 export interface Settings {
+  // Generale
+  startup: StartupMode;
   searchEngine: SearchEngineId;
   homePage: string;
+  /** null = the system Downloads folder. */
+  downloadDir: string | null;
+  askDownloadLocation: boolean;
+
+  // Aspetto
+  theme: ThemeSource;
+  showSidebar: boolean;
+  panelOpen: boolean;
+
+  // Privacy e sicurezza
+  trackingProtection: TrackingProtection;
+  blockThirdPartyCookies: boolean;
+  /** Sends the DNT and Sec-GPC headers. */
+  doNotTrack: boolean;
+  httpsOnly: boolean;
+  clearCookiesOnExit: boolean;
+  clearCacheOnExit: boolean;
+  /** Sites (registrable domains) where tracking protection is turned off. */
+  protectionExceptions: string[];
+  /** Hosts allowed to load over plain HTTP despite HTTPS-only mode. */
+  httpExceptions: string[];
+  permissionDefaults: Record<AskablePermission, PermissionDefault>;
+  sitePermissions: SitePermission[];
+
+  // kSuite
   /** kDrive used by the integration; null = first drive returned by the API. */
   driveId: number | null;
   /** Destination folder for "save to kDrive" actions (1 = drive root). */
@@ -23,7 +66,6 @@ export interface Settings {
   driveUploadFolderName: string;
   /** Upload every completed download to kDrive. */
   uploadDownloadsToDrive: boolean;
-  panelOpen: boolean;
 }
 
 export interface TokenStatus {
@@ -110,6 +152,23 @@ export interface NewEvent {
   start: string;
   end: string;
   description?: string;
+}
+
+export interface BrowsingDataSelection {
+  cookies: boolean;
+  cache: boolean;
+  downloads: boolean;
+  permissions: boolean;
+}
+
+export interface AboutInfo {
+  version: string;
+  electron: string;
+  chrome: string;
+  node: string;
+  platform: string;
+  userData: string;
+  blockerLists: string | null;
 }
 
 export interface DownloadItemState {

@@ -1,0 +1,61 @@
+:root {
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --border: #d9dee6;
+  --text: #1d2330;
+  --muted: #6b7384;
+  --accent: #0098ff;
+  --danger: #d93025;
+  --success: #188038;
+  --warning: #b06000;
+  color-scheme: light dark;
+}
+/* Dark theme: follows the system unless the user picked a theme in the settings (data-theme). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16191f;
+    --surface: #1f232b;
+    --surface-2: #2a2f39;
+    --border: #353b47;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --accent: #3aa8ff;
+    --danger: #ff6b5e;
+    --success: #5bd07a;
+    --warning: #f0b35a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16191f;
+  --surface: #1f232b;
+  --surface-2: #2a2f39;
+  --border: #353b47;
+  --text: #e6e9ef;
+  --muted: #9aa3b2;
+  --accent: #3aa8ff;
+  --danger: #ff6b5e;
+  --success: #5bd07a;
+  --warning: #f0b35a;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+button {
+  cursor: pointer; border: 1px solid var(--border); background: var(--surface);
+  border-radius: 6px; padding: 6px 12px;
+}
+button:hover:not(:disabled) { background: var(--surface-2); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.danger { color: var(--danger); }
+button.link { border: none; background: none; padding: 0; color: var(--accent); }
+input[type=text], input[type=url], input[type=password], select {
+  border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 6px 8px; min-width: 0;
+}
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+code { font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }

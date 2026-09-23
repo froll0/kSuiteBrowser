@@ -28,10 +28,36 @@
   "build": {
     "appId": "com.ksuitebrowser.app",
     "productName": "kSuite Browser",
-    "directories": { "output": "release", "buildResources": "build" },
-    "files": ["dist/**/*", "package.json"],
-    "win": { "target": ["nsis"] },
-    "mac": { "target": ["dmg"], "category": "public.app-category.productivity" },
-    "linux": { "target": ["AppImage", "deb"], "category": "Network" }
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network"
+    }
+  },
+  "dependencies": {
+    "@ghostery/adblocker": "^2.18.2",
+    "@ghostery/adblocker-electron-preload": "^2.18.2",
+    "tldts": "^7.4.15"
   }
 }

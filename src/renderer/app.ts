@@ -1,5 +1,5 @@
 import { KSUITE_APPS } from '../shared/ksuite-apps';
-import type { TabState } from '../shared/types';
+import type { Settings, TabState } from '../shared/types';
 import { ks } from './bridge';
 import { h } from './dom';
 import { Panel } from './panel';
@@ -14,6 +14,7 @@ const toastEl = $('toast');
 const backBtn = $<HTMLButtonElement>('btn-back');
 const forwardBtn = $<HTMLButtonElement>('btn-forward');
 const reloadBtn = $<HTMLButtonElement>('btn-reload');
+const shieldBtn = $<HTMLButtonElement>('btn-shield');
 
 let tabs: TabState[] = [];
 let unread: number | null = null;
@@ -80,7 +81,22 @@ function renderToolbar(): void {
   reloadBtn.innerHTML = tab?.loading ? '&#10005;' : '&#8635;';
   reloadBtn.title = tab?.loading ? 'Interrompi' : 'Ricarica (Ctrl+R)';
   if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' ? tab.url : '';
-  document.title = tab ? `${tab.title} — kSuite Browser` : 'kSuite Browser';
+  renderShield(tab);
+  const suffix = document.body.classList.contains('private') ? 'kSuite Browser (privata)' : 'kSuite Browser';
+  document.title = tab ? `${tab.title} — ${suffix}` : suffix;
+}
+
+function renderShield(tab: TabState | undefined): void {
+  const web = Boolean(tab && /^https?:/i.test(tab.url));
+  shieldBtn.disabled = !web;
+  shieldBtn.classList.toggle('off', web && !tab!.protectionActive);
+  const count = shieldBtn.querySelector('.count')!;
+  count.textContent = web && tab!.blocked > 0 ? (tab!.blocked > 999 ? '999+' : String(tab!.blocked)) : '';
+  shieldBtn.title = !web
+    ? 'Protezioni'
+    : tab!.protectionActive
+      ? `Protezione attiva: ${tab!.blocked} richieste bloccate`
+      : 'Protezione disattivata per questo sito';
 }
 
 function renderSidebar(): void {
@@ -144,6 +160,10 @@ $('btn-mail-page').addEventListener('click', () => {
   void setPanelOpen(true).then(() => panel.compose({ to: '', subject: t.title, body: `${t.title}\n${t.url}` }));
 });
 $('btn-panel').addEventListener('click', togglePanel);
+shieldBtn.addEventListener('click', () => {
+  const t = activeTab();
+  if (t) void ks.showShieldMenu(t.id);
+});
 $('btn-menu').addEventListener('click', () => void ks.showAppMenu());
 
 ks.events.onFocusAddress(() => {
@@ -151,11 +171,34 @@ ks.events.onFocusAddress(() => {
   omnibox.select();
 });
 ks.events.onTogglePanel(togglePanel);
-ks.events.onOpenSettings(() => void setPanelOpen(true).then(() => panel.show('settings')));
+let tokenConfigured = false;
+ks.events.onSettings(async (settings) => {
+  applyTheme(settings.theme);
+  applyLayoutSettings(settings.showSidebar);
+  const status = await ks.token.status();
+  if (status.configured !== tokenConfigured) {
+    tokenConfigured = status.configured;
+    if (!tokenConfigured) unread = null;
+    renderSidebar();
+    if (document.body.classList.contains('panel-open')) void panel.render();
+  }
+});
 ks.events.onComposeMail((mail) => void setPanelOpen(true).then(() => panel.compose(mail)));
 ks.events.onToast((t) => toast(t.kind, t.message));
 
 // ---------- Layout ----------
+
+/** Explicit theme choice; "system" falls back to the prefers-color-scheme media query. */
+function applyTheme(theme: Settings['theme']): void {
+  if (theme === 'system') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+}
+
+function applyLayoutSettings(showSidebar: boolean): void {
+  if (document.body.classList.contains('no-sidebar') === !showSidebar) return;
+  document.body.classList.toggle('no-sidebar', !showSidebar);
+  syncBounds();
+}
 
 /** The page views are native overlays: keep them aligned with the #content placeholder. */
 function syncBounds(): void {
@@ -168,14 +211,17 @@ window.addEventListener('resize', syncBounds);
 // ---------- Boot ----------
 
 async function boot(): Promise<void> {
-  const [settings, status, initialTabs] = await Promise.all([ks.settings.get(), ks.token.status(), ks.tabs.list()]);
+  const [settings, status, initialTabs, info] = await Promise.all([ks.settings.get(), ks.token.status(), ks.tabs.list(), ks.windowInfo()]);
   tabs = initialTabs;
+  tokenConfigured = status.configured;
+  document.body.classList.toggle('private', info.isPrivate);
+  document.body.classList.toggle('no-sidebar', !settings.showSidebar);
+  applyTheme(settings.theme);
   renderTabs();
   renderToolbar();
   renderSidebar();
   document.body.classList.toggle('panel-open', settings.panelOpen || !status.configured);
-  if (!status.configured) panel.show('settings');
-  else panel.show('home');
+  panel.show('home');
   syncBounds();
 }
 

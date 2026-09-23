@@ -9,7 +9,7 @@ export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; template: st
 };
 
 const SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
-const ALLOWED_SCHEMES = new Set(['http:', 'https:', 'file:', 'about:', 'view-source:']);
+const ALLOWED_SCHEMES = new Set(['http:', 'https:', 'file:', 'about:', 'view-source:', 'ksuite:']);
 
 /**
  * Turns what the user typed in the address bar into a URL:

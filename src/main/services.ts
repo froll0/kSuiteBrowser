@@ -65,10 +65,10 @@ export class KSuiteServices {
     return drive.webUrl(await this.driveId(), file);
   }
 
-  /** Downloads a kDrive file into the user's Downloads folder and returns the local path. */
-  async downloadToDisk(fileId: number, name: string): Promise<string> {
+  /** Downloads a kDrive file into the downloads folder and returns the local path. */
+  async downloadToDisk(fileId: number, name: string, folder: string = app.getPath('downloads')): Promise<string> {
     const res = await drive.downloadFile(this.client(), await this.driveId(), fileId);
-    const target = uniquePath(app.getPath('downloads'), safeFileName(name));
+    const target = uniquePath(folder, safeFileName(name));
     if (!res.body) throw new InfomaniakApiError('Risposta vuota dal server.', 500);
     await pipeline(Readable.fromWeb(res.body as unknown as WebReadableStream), createWriteStream(target));
     return target;

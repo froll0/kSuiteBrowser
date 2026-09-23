@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContentsView, type WebContents } from 'electron';
+import { BrowserWindow, WebContentsView, type Session, type WebContents } from 'electron';
 import type { Rect, TabState } from '../shared/types';
 
 interface Tab {
@@ -14,6 +14,16 @@ export interface TabManagerHooks {
   onChange(tabs: TabState[]): void;
   /** Called for every new page WebContents, to attach context menus, window handlers, etc. */
   onWebContentsCreated(contents: WebContents, tabs: TabManager): void;
+  /** Privacy information shown in the toolbar shield. */
+  privacyState(contents: WebContents): { blocked: number; protectionActive: boolean };
+  /** Page to show instead of the generic error page (e.g. the HTTPS-only warning), with the URL to display. */
+  failurePage?(contents: WebContents, url: string, code: number): { load: string; display: string } | null;
+}
+
+export interface TabManagerOptions {
+  session: Session;
+  /** Preload for tabs; it only exposes an API to internal ksuite:// pages. */
+  preload: string;
 }
 
 /** Owns the page views shown in the content area of the main window. */
@@ -26,11 +36,14 @@ export class TabManager {
   constructor(
     private readonly window: BrowserWindow,
     private readonly hooks: TabManagerHooks,
+    private readonly options: TabManagerOptions,
   ) {}
 
   create(url: string, options: { background?: boolean; appId?: string | null } = {}): number {
     const view = new WebContentsView({
       webPreferences: {
+        session: this.options.session,
+        preload: this.options.preload,
         sandbox: true,
         contextIsolation: true,
         nodeIntegration: false,
@@ -46,7 +59,7 @@ export class TabManager {
     wc.on('did-start-loading', emit);
     wc.on('did-stop-loading', emit);
     wc.on('did-navigate', (_e, url) => {
-      if (!url.startsWith('data:')) tab.failedUrl = null;
+      if (!url.startsWith('data:') && !url.startsWith('ksuite://https-only')) tab.failedUrl = null;
       emit();
     });
     wc.on('did-navigate-in-page', emit);
@@ -56,8 +69,9 @@ export class TabManager {
     });
     wc.on('did-fail-load', (_e, code, description, validatedUrl, isMainFrame) => {
       if (!isMainFrame || code === -3) return; // -3 = aborted (e.g. new navigation)
-      tab.failedUrl = validatedUrl;
-      void wc.loadURL(errorPage(validatedUrl, description));
+      const special = this.hooks.failurePage?.(wc, validatedUrl, code);
+      tab.failedUrl = special ? special.display : validatedUrl;
+      void wc.loadURL(special ? special.load : errorPage(validatedUrl, description));
     });
     this.hooks.onWebContentsCreated(wc, this);
 
@@ -145,6 +159,27 @@ export class TabManager {
     return this.tabs.length;
   }
 
+  /** Re-sends the tab states, e.g. when the blocked counter or a setting changed. */
+  refresh(): void {
+    this.emit();
+  }
+
+  /** Tab id owning a WebContents, if any. */
+  idOf(contents: WebContents): number | null {
+    return this.tabs.find((t) => t.view.webContents === contents)?.id ?? null;
+  }
+
+  urls(): string[] {
+    return this.states().map((t) => t.url).filter((u) => u && !u.startsWith('data:'));
+  }
+
+  /** Closes every tab; used when the window goes away. */
+  destroy(): void {
+    for (const tab of this.tabs) if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close();
+    this.tabs = [];
+    this.activeId = null;
+  }
+
   states(): TabState[] {
     return this.tabs.map((t) => {
       const wc = t.view.webContents;
@@ -159,6 +194,7 @@ export class TabManager {
         canGoForward: wc.navigationHistory.canGoForward(),
         active: t.id === this.activeId,
         appId: t.appId,
+        ...this.hooks.privacyState(wc),
       };
     });
   }

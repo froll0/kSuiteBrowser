@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; font-src 'self'" />
+  <title>kSuite Browser</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="chrome">
+    <div id="tabstrip" role="tablist"></div>
+    <div id="toolbar">
+      <button id="btn-back" class="icon" title="Indietro (Alt+←)" aria-label="Indietro">&#8592;</button>
+      <button id="btn-forward" class="icon" title="Avanti (Alt+→)" aria-label="Avanti">&#8594;</button>
+      <button id="btn-reload" class="icon" title="Ricarica (Ctrl+R)" aria-label="Ricarica">&#8635;</button>
+      <form id="omnibox-form">
+        <input id="omnibox" type="text" spellcheck="false" autocomplete="off"
+               placeholder="Cerca o inserisci un indirizzo" aria-label="Indirizzo" />
+      </form>
+      <div id="toast" role="status" aria-live="polite" hidden></div>
+      <button id="btn-save-pdf" class="action" title="Salva la pagina come PDF su kDrive (Ctrl+Shift+S)">PDF → kDrive</button>
+      <button id="btn-mail-page" class="action" title="Invia la pagina via Mail (Ctrl+Shift+M)">Invia via Mail</button>
+      <button id="btn-panel" class="icon" title="Pannello kSuite (Ctrl+Shift+K)" aria-label="Pannello kSuite">&#9776;</button>
+      <button id="btn-menu" class="icon" title="Menu" aria-label="Menu">&#8942;</button>
+    </div>
+  </header>
+  <div id="body">
+    <nav id="sidebar" aria-label="App kSuite"></nav>
+    <main id="content"></main>
+    <aside id="panel" aria-label="Pannello kSuite">
+      <div id="panel-tabs" role="tablist"></div>
+      <div id="panel-body"></div>
+    </aside>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

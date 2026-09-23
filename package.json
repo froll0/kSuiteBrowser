@@ -1,0 +1,37 @@
+{
+  "name": "ksuite-browser",
+  "productName": "kSuite Browser",
+  "version": "0.1.0",
+  "description": "Browser desktop con integrazione nativa di Infomaniak kSuite (kDrive, Mail, Calendar, kChat, kMeet)",
+  "main": "dist/main/main.js",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "dev": "node scripts/build.mjs --watch & electron .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
+  },
+  "build": {
+    "appId": "com.ksuitebrowser.app",
+    "productName": "kSuite Browser",
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["dist/**/*", "package.json"],
+    "win": { "target": ["nsis"] },
+    "mac": { "target": ["dmg"], "category": "public.app-category.productivity" },
+    "linux": { "target": ["AppImage", "deb"], "category": "Network" }
+  }
+}

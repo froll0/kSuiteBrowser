@@ -1,6 +1,6 @@
 import { h } from '../../renderer/dom';
 import { ASKABLE_PERMISSIONS, REMINDER_MINUTES } from '../../shared/settings-schema';
-import type { AskablePermission, BrowsingDataSelection, Settings } from '../../shared/types';
+import type { AskablePermission, BrowsingDataSelection, Settings, UpdateStatus } from '../../shared/types';
 import { SEARCH_ENGINES } from '../../shared/url';
 import { ZOOM_STEPS } from '../../shared/zoom';
 import { internal } from '../shared/bridge';
@@ -339,10 +339,61 @@ async function ksuiteSection(): Promise<HTMLElement> {
   return section('ksuite', 'Account kSuite', ...rows);
 }
 
+function platformNote(): string {
+  return /Mac/i.test(navigator.userAgent)
+    ? 'Su macOS l’installazione automatica richiede un’app firmata da Apple: quando esce una nuova versione ricevi un avviso e la scarichi dalla pagina della release.'
+    : 'Il pacchetto .deb non si aggiorna da solo: quando esce una nuova versione ricevi un avviso e la scarichi dalla pagina della release (oppure usa l’AppImage, che si aggiorna automaticamente).';
+}
+
+function updateRow(status: UpdateStatus): HTMLElement {
+  const busy = status.state === 'checking' || status.state === 'downloading';
+  let text: string;
+  switch (status.state) {
+    case 'checking':
+      text = 'Ricerca di aggiornamenti…';
+      break;
+    case 'available':
+      text = status.mode === 'auto' ? `È disponibile la versione ${status.version}.` : `È disponibile la versione ${status.version}: scaricala dalla pagina della release.`;
+      break;
+    case 'downloading':
+      text = `Download della versione ${status.version ?? ''} in corso… ${status.percent ?? 0}%`;
+      break;
+    case 'downloaded':
+      text = `La versione ${status.version} è pronta: verrà installata al riavvio.`;
+      break;
+    case 'not-available':
+      text = 'Stai usando la versione più recente.';
+      break;
+    case 'error':
+      text = status.message ?? 'Errore durante la ricerca di aggiornamenti.';
+      break;
+    default:
+      text = status.mode === 'disabled' ? 'Gli aggiornamenti funzionano solo nella versione installata (non avviando con npm start).' : 'Controllo automatico ogni 6 ore.';
+  }
+  const actions = h('div', { class: 'control' });
+  if (status.mode !== 'disabled') {
+    if (status.state === 'downloaded') actions.append(h('button', { class: 'primary', onclick: () => void internal.updates.install() }, 'Riavvia e aggiorna'));
+    else if (status.state === 'available') actions.append(h('button', { class: 'primary', onclick: () => void internal.updates.download() }, status.mode === 'auto' ? 'Scarica' : 'Apri la pagina di download'));
+    else actions.append(h('button', { disabled: busy, onclick: () => void internal.updates.check() }, 'Controlla ora'));
+  }
+  const desc = h('span', { class: status.state === 'error' ? 'message error' : '' }, text);
+  return h('div', { class: 'row', id: 'update-row', 'data-search': 'aggiornamenti versione update' },
+    h('div', { class: 'text' }, h('div', { class: 'title' }, `Versione ${status.current}`), h('div', { class: 'desc' }, desc)),
+    actions,
+  );
+}
+
 async function aboutSection(): Promise<HTMLElement> {
+  const status = await internal.updates.status();
+  const modeNote =
+    status.mode === 'notify'
+      ? row('Aggiornamenti manuali', platformNote(), null)
+      : null;
+  const autoRow = status.mode === 'auto' ? row('Scarica e installa automaticamente', 'Gli aggiornamenti vengono scaricati in background e installati al successivo riavvio del browser.', toggle('autoUpdate', 'Aggiornamenti automatici')) : null;
+  const updatesCard = section('updates', 'Aggiornamenti', updateRow(status), autoRow, modeNote);
   const a = await internal.about();
   const item = (k: string, v: string) => [h('dt', {}, k), h('dd', {}, v)];
-  return section(
+  const aboutCard = section(
     'about',
     'Informazioni',
     h('div', { class: 'row stack' },
@@ -357,6 +408,7 @@ async function aboutSection(): Promise<HTMLElement> {
       ),
     ),
   );
+  return h('div', {}, updatesCard, aboutCard);
 }
 
 // ---------- Page ----------
@@ -410,5 +462,8 @@ internal.onSettings(() => {
   if (active instanceof HTMLInputElement && (active.type === 'text' || active.type === 'url' || active.type === 'password' || active.type === 'search')) return;
   void render();
 });
+
+// Live progress of update checks and downloads.
+internal.updates.onChange((status) => document.getElementById('update-row')?.replaceWith(updateRow(status)));
 
 void render().then(scrollToHash);

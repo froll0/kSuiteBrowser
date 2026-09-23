@@ -1,10 +1,11 @@
 import { INTERNAL } from '../../shared/ipc';
-import type { AboutInfo, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, VaultStatus } from '../../shared/types';
+import type { AboutInfo, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
 
 interface InternalBridge {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
   onSettings(listener: (settings: Settings) => void): () => void;
   onBookmarks(listener: (list: Bookmark[]) => void): () => void;
+  onUpdate(listener: (status: UpdateStatus) => void): () => void;
 }
 
 declare global {
@@ -35,6 +36,14 @@ export const internal = {
   about: () => call<AboutInfo>(INTERNAL.about),
   httpsContinue: (url: string) => call<void>(INTERNAL.httpsContinue, url),
   testNotification: () => call<boolean>(INTERNAL.testNotification),
+  updates: {
+    status: () => call<UpdateStatus>(INTERNAL.updateStatus),
+    check: () => call<UpdateStatus>(INTERNAL.updateCheck),
+    download: () => call<void>(INTERNAL.updateDownload),
+    install: () => call<void>(INTERNAL.updateInstall),
+    openRelease: () => call<void>(INTERNAL.updateOpenRelease),
+    onChange: (fn: (s: UpdateStatus) => void) => bridge().onUpdate(fn),
+  },
   passwordStatus: () => call<VaultStatus>(INTERNAL.pwStatus),
   passwords: {
     status: () => call<VaultStatus>(INTERNAL.pwStatus),

@@ -33,6 +33,8 @@ export const IPC = {
   bookmarkOpen: 'ui:bookmark-open',
   bookmarkMenu: 'ui:bookmark-menu',
   bookmarksMenu: 'ui:bookmarks-menu',
+  updateInstall: 'ui:update-install',
+  updateStatus: 'ui:update-status',
   passwordAnswer: 'ui:password-answer',
   passwordUnlock: 'ui:password-unlock',
 
@@ -70,6 +72,7 @@ export const IPC = {
   evPasswordPrompt: 'ev:password-prompt',
   evPasswordUnlock: 'ev:password-unlock',
   evUnread: 'ev:unread',
+  evUpdate: 'ev:update',
 } as const;
 
 /** Channels of the internal pages (ksuite://…), see src/preload/page.ts. */
@@ -109,10 +112,16 @@ export const INTERNAL = {
   pwExport: 'internal:pw:export',
   pwGenerate: 'internal:pw:generate',
   testNotification: 'internal:notifications:test',
+  updateStatus: 'internal:update:status',
+  updateCheck: 'internal:update:check',
+  updateDownload: 'internal:update:download',
+  updateInstall: 'internal:update:install',
+  updateOpenRelease: 'internal:update:open-release',
   newtabData: 'internal:newtab:data',
   newtabHide: 'internal:newtab:hide',
   newtabRestore: 'internal:newtab:restore',
   newtabFocusOmnibox: 'internal:newtab:focus-omnibox',
   evSettings: 'internal:ev:settings',
   evBookmarks: 'internal:ev:bookmarks',
+  evUpdate: 'internal:ev:update',
 } as const;

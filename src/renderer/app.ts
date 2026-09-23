@@ -418,6 +418,27 @@ ks.events.onPasswordUnlock(() => {
   input.focus();
 });
 
+// ---------- Updates ----------
+
+let announcedUpdate: string | null = null;
+
+ks.events.onUpdate((status) => {
+  const ready = status.state === 'downloaded';
+  const notifyOnly = status.mode === 'notify' && status.state === 'available';
+  if ((!ready && !notifyOnly) || !status.version || announcedUpdate === `${status.state}:${status.version}`) return;
+  announcedUpdate = `${status.state}:${status.version}`;
+  infobar.replaceChildren(
+    h('span', { class: 'key', 'aria-hidden': 'true' }, '⬆'),
+    h('span', { class: 'msg' }, ready ? `kSuite Browser ${status.version} è pronto: verrà installato al prossimo riavvio.` : `È disponibile kSuite Browser ${status.version}.`),
+    h('span', { class: 'spacer' }),
+    ready
+      ? h('button', { class: 'primary', onclick: () => void ks.updates.install() }, 'Riavvia ora')
+      : h('button', { class: 'primary', onclick: () => { hideInfobar(); void ks.openSettingsPage('updates'); } }, 'Dettagli'),
+    h('button', { onclick: hideInfobar }, 'Più tardi'),
+  );
+  infobar.hidden = false;
+});
+
 // ---------- Find in page ----------
 
 let lastQuery = '';

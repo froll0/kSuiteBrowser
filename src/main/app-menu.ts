@@ -25,6 +25,8 @@ export interface AppMenuActions {
   openHistory(): void;
   openBookmarks(): void;
   openPasswords(): void;
+  checkUpdates(): void;
+  about(): void;
   clearData(): void;
   devTools(): void;
 }
@@ -115,6 +117,13 @@ export function buildAppMenu(a: AppMenuActions): Menu {
       ],
     },
     { role: 'windowMenu', label: 'Finestra' },
+    {
+      label: 'Aiuto',
+      submenu: [
+        { label: 'Controlla aggiornamenti…', click: a.checkUpdates },
+        { label: 'Informazioni su kSuite Browser', click: a.about },
+      ],
+    },
   ];
   return Menu.buildFromTemplate(template);
 }

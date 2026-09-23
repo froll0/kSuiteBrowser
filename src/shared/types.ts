@@ -23,6 +23,18 @@ export interface TabState {
   muted: boolean;
 }
 
+export interface UpdateStatus {
+  /** auto: download and install; notify: only tells about new versions (macOS unsigned, .deb); disabled: development build. */
+  mode: 'auto' | 'notify' | 'disabled';
+  state: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'not-available' | 'error';
+  current: string;
+  version?: string;
+  percent?: number;
+  message?: string;
+  releaseUrl?: string;
+  checkedAt?: number;
+}
+
 export interface TopSite {
   url: string;
   title: string;
@@ -128,6 +140,10 @@ export interface Settings {
   defaultZoom: number;
   /** Zoom chosen by the user per host, in percent. */
   siteZoom: Record<string, number>;
+
+  // Aggiornamenti
+  /** Download updates in the background and install them at the next restart. */
+  autoUpdate: boolean;
 
   // Notifiche
   notifyMail: boolean;

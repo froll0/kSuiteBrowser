@@ -114,12 +114,41 @@ npm run typecheck
 
 ```bash
 npm run dist:win     # .exe (NSIS)
-npm run dist:mac     # .dmg
+npm run dist:mac     # .dmg e .zip
 npm run dist:linux   # AppImage e .deb
 ```
 
-Gli installer finiscono in `release/`. La GitHub Action `CI` li genera per tutti e tre i sistemi
-quando pubblichi un tag `v*` o la avvii manualmente.
+Gli installer finiscono in `release/`. Avviando a mano la GitHub Action `CI` (*Run workflow*) vengono creati
+per tutti e tre i sistemi come artefatti scaricabili, senza pubblicare nulla.
+
+## Aggiornamenti automatici
+
+L'app si aggiorna dalle [GitHub Releases](https://github.com/froll0/kSuiteBrowser/releases) del progetto
+(controllo 30 secondi dopo l'avvio e poi ogni 6 ore, oppure da *Aiuto › Controlla aggiornamenti*).
+
+| Installazione | Comportamento |
+| --- | --- |
+| Windows (.exe) | scarica in background e installa al riavvio (anche con "Riavvia ora") |
+| Linux AppImage | come Windows |
+| macOS (.dmg) | avvisa della nuova versione e apre la pagina di download (l'installazione automatica richiede un'app firmata con un certificato Apple Developer) |
+| Linux .deb | avvisa della nuova versione e apre la pagina di download |
+| `npm start` | disattivati |
+
+In *Impostazioni › Aggiornamenti* si può disattivare il download automatico.
+
+### Pubblicare una nuova versione
+
+```bash
+npm version patch        # oppure minor / major: aggiorna package.json e crea il tag vX.Y.Z
+git push --follow-tags
+```
+
+Il tag avvia la GitHub Action che crea una release in bozza, compila Windows, macOS e Linux, carica installer e
+file `latest*.yml` (letti dall'app per trovare gli aggiornamenti) e infine pubblica la release. Se il tag non
+corrisponde alla versione di `package.json` la pubblicazione si ferma.
+
+Gli installer non sono firmati: Windows SmartScreen e macOS Gatekeeper mostrano un avviso alla prima installazione.
+L'app verifica comunque l'integrità di ogni aggiornamento (SHA-512 dal file `latest*.yml` scaricato via HTTPS).
 
 ## Struttura
 

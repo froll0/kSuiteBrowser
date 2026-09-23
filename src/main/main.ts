@@ -21,6 +21,7 @@ import { clearBrowsingData } from './browsing-data';
 import { DownloadManager } from './downloads';
 import { isInternalUrl, registerInternalScheme, serveInternalPages } from './internal-pages';
 import { NotificationCenter } from './notifications';
+import { UpdateService } from './updater';
 import { PasswordManager } from './passwords/manager';
 import { originOf } from './passwords/vault';
 import { configurePermissions, memoryOnly, persistentMemory } from './permissions';
@@ -55,6 +56,7 @@ let bookmarks: BookmarksStore;
 let passwords: PasswordManager;
 let favicons: FaviconStore;
 let notifications: NotificationCenter;
+let updates: UpdateService;
 
 type SavedTab = { url: string; pinned?: boolean };
 const blocker = new TrackerBlocker();
@@ -132,6 +134,11 @@ function start(): void {
     onUnread: (count) => broadcast(IPC.evUnread, count),
   });
   notifications.start();
+  updates = new UpdateService(settings, (status) => {
+    broadcast(IPC.evUpdate, status);
+    sendToInternalPages(INTERNAL.evUpdate, status);
+  });
+  void updates.start();
   bookmarks.onChange((list) => {
     broadcast(IPC.evBookmarks, list);
     sendToInternalPages(INTERNAL.evBookmarks, list);
@@ -504,6 +511,11 @@ function buildMenu(): Menu {
     openHistory: () => current()?.openInternal('ksuite://history/'),
     openBookmarks: () => current()?.openInternal('ksuite://bookmarks/'),
     openPasswords: () => current()?.openInternal('ksuite://passwords/'),
+    checkUpdates: () => {
+      current()?.openSettings('updates');
+      void updates.check();
+    },
+    about: () => current()?.openSettings('about'),
     clearData: () => current()?.openSettings('privacy'),
     devTools: () => current()?.activeContents()?.toggleDevTools(),
   });
@@ -625,6 +637,8 @@ function registerChromeIpc(): void {
   });
   handle(IPC.bookmarkMenu, (w, id: string) => bookmarkContextMenu(w, id));
   handle(IPC.bookmarksMenu, (w) => allBookmarksMenu(w));
+  handle(IPC.updateStatus, () => updates.get());
+  handle(IPC.updateInstall, () => updates.install());
   handle(IPC.passwordAnswer, (w, id: string, action: 'save' | 'never' | 'dismiss', username?: string) => passwords.answer(w, String(id), action, username));
   handle(IPC.passwordUnlock, (w, primary: string) => wrap(() => passwords.unlock(w, String(primary ?? ''))));
 
@@ -715,6 +729,11 @@ function registerInternalIpc(): void {
   });
   handleInternal(INTERNAL.drives, S, () => wrap(() => services.drives()));
   handleInternal(INTERNAL.testNotification, S, () => notifications.test());
+  handleInternal(INTERNAL.updateStatus, S, () => updates.get());
+  handleInternal(INTERNAL.updateCheck, S, () => updates.check());
+  handleInternal(INTERNAL.updateDownload, S, () => updates.download());
+  handleInternal(INTERNAL.updateInstall, S, () => updates.install());
+  handleInternal(INTERNAL.updateOpenRelease, S, () => updates.openRelease());
   handleInternal(INTERNAL.clearData, S, (event, selection: BrowsingDataSelection) =>
     wrap(async () => {
       await clearBrowsingData(event.sender.session, selection);

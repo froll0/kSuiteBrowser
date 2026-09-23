@@ -23,6 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultZoom: 100,
   siteZoom: {},
 
+  autoUpdate: true,
   notifyMail: true,
   notifyEvents: true,
   eventReminderMinutes: 10,
@@ -102,6 +103,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     defaultZoom: (ZOOM_STEPS as readonly number[]).includes(s.defaultZoom as number) ? (s.defaultZoom as number) : d.defaultZoom,
     siteZoom: siteZoom(s.siteZoom),
 
+    autoUpdate: bool(s.autoUpdate, d.autoUpdate),
     notifyMail: bool(s.notifyMail, d.notifyMail),
     notifyEvents: bool(s.notifyEvents, d.notifyEvents),
     eventReminderMinutes: (REMINDER_MINUTES as readonly number[]).includes(s.eventReminderMinutes as number) ? (s.eventReminderMinutes as number) : d.eventReminderMinutes,

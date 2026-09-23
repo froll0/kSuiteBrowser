@@ -59,3 +59,28 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 code { font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
+
+/* List pages (history, bookmarks) */
+.page { max-width: 900px; margin: 0 auto; padding: 24px 24px 80px; }
+.page-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
+.page-header h1 { font-size: 22px; margin: 0 auto 0 0; }
+.page-header input[type=search] { width: 320px; max-width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: 16px; padding: 7px 14px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+.group { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
+.group h2 { font-size: 13px; margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 600; }
+.entry { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--border); min-width: 0; }
+.entry:last-child { border-bottom: none; }
+.entry:hover { background: var(--surface-2); }
+.entry .time { width: 44px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.entry .letter { display: grid; place-items: center; width: 20px; height: 20px; flex: none; border-radius: 5px; background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 700; }
+.entry .main { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: baseline; }
+.entry a { color: var(--text); text-decoration: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.entry a:hover { text-decoration: underline; }
+.entry .host { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
+.entry .actions { display: flex; gap: 4px; flex: none; }
+.entry button.icon { border: none; background: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; color: var(--muted); }
+.entry button.icon:hover { background: var(--border); color: var(--text); }
+.empty { color: var(--muted); padding: 24px 16px; text-align: center; }
+.edit { display: grid; grid-template-columns: 1fr 1fr auto auto auto; gap: 8px; width: 100%; }
+.status { font-size: 13px; color: var(--muted); }
+@media (max-width: 700px) { .edit { grid-template-columns: 1fr; } .entry .host { display: none; } }

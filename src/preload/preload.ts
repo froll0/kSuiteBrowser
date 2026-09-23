@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC } from '../shared/ipc';
 import type {
+  Bookmark, FindResult, Suggestion,
   ApiResult, CalendarEvent, DriveFile, DriveListing, DownloadItemState, MailOverview,
   NewEvent, OutgoingMail, Profile, Rect, Settings, TabState, TokenStatus,
 } from '../shared/types';
@@ -32,6 +33,24 @@ const api = {
   showShieldMenu: (tabId: number) => invoke<void>(IPC.showShieldMenu, tabId),
   openSettingsPage: (section?: string) => invoke<void>(IPC.openSettingsPage, section),
   windowInfo: () => invoke<{ isPrivate: boolean }>(IPC.windowInfo),
+  suggest: {
+    query: (input: string) => invoke<Suggestion[]>(IPC.suggest, input),
+    show: (items: Suggestion[], rect: Rect, selected: number) => invoke<void>(IPC.suggestShow, items, rect, selected),
+    hide: () => invoke<void>(IPC.suggestHide),
+  },
+  find: {
+    start: (tabId: number, text: string, options: { forward?: boolean; newSearch?: boolean; matchCase?: boolean }) =>
+      invoke<void>(IPC.findStart, tabId, text, options),
+    stop: (tabId: number) => invoke<void>(IPC.findStop, tabId),
+  },
+  zoomReset: (tabId: number) => invoke<void>(IPC.zoomReset, tabId),
+  bookmarks: {
+    list: () => invoke<Bookmark[]>(IPC.bookmarksList),
+    toggle: (tabId: number) => invoke<void>(IPC.bookmarkToggle, tabId),
+    open: (id: string, how: 'current' | 'background') => invoke<void>(IPC.bookmarkOpen, id, how),
+    menu: (id: string) => invoke<void>(IPC.bookmarkMenu, id),
+    all: () => invoke<void>(IPC.bookmarksMenu),
+  },
   settings: {
     get: () => invoke<Settings>(IPC.settingsGet),
     set: (patch: Partial<Settings>) => invoke<Settings>(IPC.settingsSet, patch),
@@ -63,6 +82,10 @@ const api = {
     onFocusAddress: (fn: () => void) => on(IPC.evFocusAddress, fn),
     onTogglePanel: (fn: () => void) => on(IPC.evTogglePanel, fn),
     onSettings: (fn: (settings: Settings) => void) => on(IPC.evSettings, fn),
+    onBookmarks: (fn: (list: Bookmark[]) => void) => on(IPC.evBookmarks, fn),
+    onFind: (fn: () => void) => on(IPC.evFind, fn),
+    onFindNext: (fn: (opts: { backwards: boolean }) => void) => on(IPC.evFindNext, fn),
+    onFindResult: (fn: (result: FindResult) => void) => on(IPC.evFindResult, fn),
     onComposeMail: (fn: (mail: OutgoingMail) => void) => on(IPC.evComposeMail, fn),
     onToast: (fn: (toast: { kind: 'info' | 'success' | 'error'; message: string }) => void) => on(IPC.evToast, fn),
   },

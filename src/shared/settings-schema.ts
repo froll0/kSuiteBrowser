@@ -1,5 +1,6 @@
 import type { AskablePermission, PermissionDefault, Settings, SitePermission } from './types';
 import { SEARCH_ENGINES } from './url';
+import { ZOOM_STEPS } from './zoom';
 
 export const ASKABLE_PERMISSIONS: readonly AskablePermission[] = ['media', 'notifications', 'geolocation'];
 
@@ -12,8 +13,12 @@ export const DEFAULT_SETTINGS: Settings = {
 
   theme: 'system',
   showSidebar: true,
+  showBookmarksBar: true,
   panelOpen: true,
+  defaultZoom: 100,
+  siteZoom: {},
 
+  saveHistory: true,
   trackingProtection: 'standard',
   blockThirdPartyCookies: true,
   doNotTrack: true,
@@ -40,6 +45,15 @@ function hostList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const hosts = value.filter((v): v is string => typeof v === 'string').map((v) => v.trim().toLowerCase()).filter(Boolean);
   return [...new Set(hosts)].sort();
+}
+
+function siteZoom(value: unknown): Record<string, number> {
+  if (!value || typeof value !== 'object') return {};
+  const out: Record<string, number> = {};
+  for (const [host, zoom] of Object.entries(value as Record<string, unknown>)) {
+    if (host && typeof zoom === 'number' && (ZOOM_STEPS as readonly number[]).includes(zoom)) out[host.toLowerCase()] = zoom;
+  }
+  return out;
 }
 
 function sitePermissions(value: unknown): SitePermission[] {
@@ -70,8 +84,12 @@ export function sanitizeSettings(raw: unknown): Settings {
 
     theme: oneOf(s.theme, ['system', 'light', 'dark'] as const, d.theme),
     showSidebar: bool(s.showSidebar, d.showSidebar),
+    showBookmarksBar: bool(s.showBookmarksBar, d.showBookmarksBar),
     panelOpen: bool(s.panelOpen, d.panelOpen),
+    defaultZoom: (ZOOM_STEPS as readonly number[]).includes(s.defaultZoom as number) ? (s.defaultZoom as number) : d.defaultZoom,
+    siteZoom: siteZoom(s.siteZoom),
 
+    saveHistory: bool(s.saveHistory, d.saveHistory),
     trackingProtection: oneOf(s.trackingProtection, ['off', 'standard', 'strict'] as const, d.trackingProtection),
     blockThirdPartyCookies: bool(s.blockThirdPartyCookies, d.blockThirdPartyCookies),
     doNotTrack: bool(s.doNotTrack, d.doNotTrack),

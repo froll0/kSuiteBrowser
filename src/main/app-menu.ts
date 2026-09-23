@@ -15,6 +15,13 @@ export interface AppMenuActions {
   savePageToDrive(): void;
   mailPage(): void;
   openSettings(): void;
+  find(): void;
+  findNext(backwards: boolean): void;
+  zoom(direction: 'in' | 'out' | 'reset'): void;
+  toggleBookmarksBar(): void;
+  bookmarkPage(): void;
+  openHistory(): void;
+  openBookmarks(): void;
   clearData(): void;
   devTools(): void;
 }
@@ -40,7 +47,24 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         isMac ? { role: 'close' } : { role: 'quit', label: 'Esci' },
       ],
     },
-    { role: 'editMenu', label: 'Modifica' },
+    {
+      label: 'Modifica',
+      submenu: [
+        { role: 'undo', label: 'Annulla' },
+        { role: 'redo', label: 'Ripeti' },
+        { type: 'separator' },
+        { role: 'cut', label: 'Taglia' },
+        { role: 'copy', label: 'Copia' },
+        { role: 'paste', label: 'Incolla' },
+        { role: 'selectAll', label: 'Seleziona tutto' },
+        { type: 'separator' },
+        { label: 'Trova nella pagina…', accelerator: 'CmdOrCtrl+F', click: a.find },
+        { label: 'Trova successivo', accelerator: 'F3', click: () => a.findNext(false) },
+        { label: 'Trova successivo', accelerator: 'CmdOrCtrl+G', click: () => a.findNext(false), visible: false },
+        { label: 'Trova precedente', accelerator: 'Shift+F3', click: () => a.findNext(true) },
+        { label: 'Trova precedente', accelerator: 'CmdOrCtrl+Shift+G', click: () => a.findNext(true), visible: false },
+      ],
+    },
     {
       label: 'Visualizza',
       submenu: [
@@ -53,10 +77,34 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { label: 'Scheda successiva', accelerator: 'Ctrl+Tab', click: a.nextTab },
         { label: 'Scheda precedente', accelerator: 'Ctrl+Shift+Tab', click: a.previousTab },
         { type: 'separator' },
+        { label: 'Zoom avanti', accelerator: 'CmdOrCtrl+Plus', click: () => a.zoom('in') },
+        { label: 'Zoom avanti', accelerator: 'CmdOrCtrl+=', click: () => a.zoom('in'), visible: false },
+        { label: 'Zoom avanti', accelerator: 'CmdOrCtrl+numadd', click: () => a.zoom('in'), visible: false },
+        { label: 'Zoom indietro', accelerator: 'CmdOrCtrl+-', click: () => a.zoom('out') },
+        { label: 'Zoom indietro', accelerator: 'CmdOrCtrl+numsub', click: () => a.zoom('out'), visible: false },
+        { label: 'Dimensioni reali', accelerator: 'CmdOrCtrl+0', click: () => a.zoom('reset') },
+        { label: 'Dimensioni reali', accelerator: 'CmdOrCtrl+num0', click: () => a.zoom('reset'), visible: false },
+        { type: 'separator' },
+        { label: 'Mostra/nascondi barra dei preferiti', accelerator: 'CmdOrCtrl+Shift+B', click: a.toggleBookmarksBar },
         { label: 'Mostra/nascondi pannello kSuite', accelerator: 'CmdOrCtrl+Shift+K', click: a.togglePanel },
         { label: 'Strumenti per sviluppatori', accelerator: 'F12', click: a.devTools },
         { type: 'separator' },
         { role: 'togglefullscreen', label: 'Schermo intero' },
+      ],
+    },
+    {
+      label: 'Cronologia',
+      submenu: [
+        { label: 'Mostra tutta la cronologia', accelerator: isMac ? 'Cmd+Y' : 'Ctrl+H', click: a.openHistory },
+        { label: 'Cancella dati di navigazione…', click: a.clearData },
+      ],
+    },
+    {
+      label: 'Preferiti',
+      submenu: [
+        { label: 'Aggiungi pagina ai preferiti', accelerator: 'CmdOrCtrl+D', click: a.bookmarkPage },
+        { label: 'Gestisci preferiti', accelerator: 'CmdOrCtrl+Shift+O', click: a.openBookmarks },
+        { label: 'Mostra/nascondi barra dei preferiti', click: a.toggleBookmarksBar },
       ],
     },
     { role: 'windowMenu', label: 'Finestra' },

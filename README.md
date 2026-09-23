@@ -20,8 +20,13 @@ quindi funzionano senza sorprese.
 
 **Browser**
 - Schede e più finestre, barra indirizzi/ricerca (DuckDuckGo, Qwant, Ecosia, Startpage, Google)
+- **Suggerimenti nella barra degli indirizzi** da preferiti e cronologia, con navigazione da tastiera
+- **Cronologia** (`ksuite://history`, `Ctrl+H`): ricerca, raggruppata per giorno, cancellazione di singole pagine o per periodo; mai registrata nelle finestre private
+- **Preferiti**: stella nella barra degli indirizzi (`Ctrl+D`), barra dei preferiti (`Ctrl+Shift+B`), gestione (`ksuite://bookmarks`, `Ctrl+Shift+O`) con modifica, riordino e cartelle; **importazione ed esportazione** in formato HTML compatibile con Chrome, Edge, Firefox e Safari
+- **Trova nella pagina** (`Ctrl+F`, `F3`/`Shift+F3`), con conteggio dei risultati e distinzione maiuscole/minuscole
+- **Zoom** (`Ctrl +`, `Ctrl −`, `Ctrl+0`, `Ctrl`+rotellina) ricordato per ogni sito, zoom predefinito nelle impostazioni
 - Riapertura delle schede della sessione precedente
-- Scorciatoie: `Ctrl+T`, `Ctrl+N`, `Ctrl+Shift+N` (finestra privata), `Ctrl+W`, `Ctrl+L`, `Ctrl+R`/`F5`, `Alt+←/→`, `Ctrl+Tab`, `Ctrl+,` (impostazioni), `Ctrl+Shift+Canc` (cancella dati), `F12`
+- Scorciatoie: `Ctrl+T`, `Ctrl+N`, `Ctrl+Shift+N` (finestra privata), `Ctrl+W`, `Ctrl+L`, `Ctrl+R`/`F5`, `Alt+←/→`, `Ctrl+Tab`, `Ctrl+,` (impostazioni), `Ctrl+Shift+Canc` (cancella dati), `F12` (su Mac: `⌘` al posto di `Ctrl`, cronologia con `⌘+Y`)
 - Download con cartella configurabile o "chiedi dove salvare"
 
 **Impostazioni** (`ksuite://settings`, `Ctrl+,`)
@@ -97,7 +102,7 @@ src/
   main/       Processo principale: finestre, schede, privacy, download, permessi, menu, IPC
   preload/    Ponti sicuri (contextBridge): UI del browser e pagine interne ksuite://
   renderer/   Interfaccia del browser (barra schede, sidebar, pannello kSuite)
-  pages/      Pagine interne: ksuite://settings, ksuite://https-only
+  pages/      Pagine interne: ksuite://settings, ksuite://history, ksuite://bookmarks, ksuite://https-only
   shared/     Tipi, canali IPC, schema delle impostazioni, regole privacy, barra indirizzi
 test/         Test Vitest
 ```

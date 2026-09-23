@@ -18,8 +18,10 @@
       <button id="btn-forward" class="icon" title="Avanti (Alt+→)" aria-label="Avanti">&#8594;</button>
       <button id="btn-reload" class="icon" title="Ricarica (Ctrl+R)" aria-label="Ricarica">&#8635;</button>
       <form id="omnibox-form">
-        <input id="omnibox" type="text" spellcheck="false" autocomplete="off"
-               placeholder="Cerca o inserisci un indirizzo" aria-label="Indirizzo" />
+        <input id="omnibox" type="text" spellcheck="false" autocomplete="off" role="combobox" aria-autocomplete="list"
+               aria-expanded="false" placeholder="Cerca o inserisci un indirizzo" aria-label="Indirizzo" />
+        <button id="btn-zoom" type="button" class="pill" title="Ripristina lo zoom (Ctrl+0)" hidden></button>
+        <button id="btn-star" type="button" class="star" title="Aggiungi ai preferiti (Ctrl+D)" aria-label="Aggiungi ai preferiti">&#9734;</button>
       </form>
       <button id="btn-shield" class="icon shield" title="Protezioni" aria-label="Protezioni"><span class="glyph">&#128737;</span><span class="count"></span></button>
       <div id="toast" role="status" aria-live="polite" hidden></div>
@@ -27,6 +29,10 @@
       <button id="btn-mail-page" class="action" title="Invia la pagina via Mail (Ctrl+Shift+M)">Invia via Mail</button>
       <button id="btn-panel" class="icon" title="Pannello kSuite (Ctrl+Shift+K)" aria-label="Pannello kSuite">&#9776;</button>
       <button id="btn-menu" class="icon" title="Menu" aria-label="Menu">&#8942;</button>
+    </div>
+    <div id="bookmarks-bar" aria-label="Barra dei preferiti">
+      <div id="bookmarks-items"></div>
+      <button id="btn-all-bookmarks" class="bookmark" title="Tutti i preferiti">Tutti i preferiti ▾</button>
     </div>
   </header>
   <div id="body">
@@ -36,6 +42,14 @@
       <div id="panel-tabs" role="tablist"></div>
       <div id="panel-body"></div>
     </aside>
+  </div>
+  <div id="findbar" role="search" hidden>
+    <input id="find-input" type="text" placeholder="Trova nella pagina" aria-label="Trova nella pagina" spellcheck="false" />
+    <span id="find-count" aria-live="polite"></span>
+    <button id="find-prev" class="icon" title="Precedente (Shift+Invio)" aria-label="Risultato precedente">&#8593;</button>
+    <button id="find-next" class="icon" title="Successivo (Invio)" aria-label="Risultato successivo">&#8595;</button>
+    <label class="find-case"><input id="find-case" type="checkbox" /> Maiuscole/minuscole</label>
+    <button id="find-close" class="icon" title="Chiudi (Esc)" aria-label="Chiudi la ricerca">&#10005;</button>
   </div>
   <script src="app.js"></script>
 </body>

@@ -2,6 +2,7 @@ import { h } from '../../renderer/dom';
 import { ASKABLE_PERMISSIONS } from '../../shared/settings-schema';
 import type { AskablePermission, BrowsingDataSelection, Settings } from '../../shared/types';
 import { SEARCH_ENGINES } from '../../shared/url';
+import { ZOOM_STEPS } from '../../shared/zoom';
 import { internal } from '../shared/bridge';
 
 const TOKEN_PAGE = 'https://manager.infomaniak.com/v3/ng/accounts/token/list';
@@ -113,11 +114,31 @@ function appearanceSection(): HTMLElement {
       }, true),
     ),
     row('Barra laterale kSuite', 'Le icone di Mail, kDrive, Calendar e delle altre app.', toggle('showSidebar', 'Mostra barra laterale')),
+    row('Barra dei preferiti', h('span', {}, 'Sotto la barra degli indirizzi (Ctrl+Shift+B). ', h('a', { href: 'ksuite://bookmarks/' }, 'Gestisci preferiti')), toggle('showBookmarksBar', 'Mostra barra dei preferiti')),
+    row('Zoom predefinito', 'Per le pagine senza uno zoom scelto da te. Ctrl + e Ctrl − cambiano lo zoom di un sito, Ctrl+0 lo ripristina.', zoomSelect()),
+    h('div', { class: 'row stack', 'data-search': 'zoom siti ingrandimento' },
+      h('div', { class: 'title' }, 'Zoom dei siti'),
+      Object.keys(settings.siteZoom).length
+        ? h('ul', { class: 'list' }, ...Object.entries(settings.siteZoom).sort().map(([host, zoom]) =>
+            h('li', {}, h('span', {}, h('strong', {}, host), ` · ${zoom}%`),
+              h('button', { class: 'link', onclick: () => {
+                const next = { ...settings.siteZoom };
+                delete next[host];
+                void update({ siteZoom: next }).then(render);
+              } }, 'Rimuovi'))))
+        : h('p', { class: 'muted small' }, 'Nessun sito con uno zoom personalizzato.'),
+    ),
   );
 }
 
+function zoomSelect(): HTMLElement {
+  const select = h('select', { 'aria-label': 'Zoom predefinito' }, ...ZOOM_STEPS.map((z) => h('option', { value: String(z), selected: settings.defaultZoom === z }, `${z}%`)));
+  select.addEventListener('change', () => void update({ defaultZoom: Number(select.value) }));
+  return select;
+}
+
 function privacySection(): HTMLElement {
-  const selection: BrowsingDataSelection = { cookies: true, cache: true, downloads: false, permissions: false };
+  const selection: BrowsingDataSelection = { history: true, cookies: true, cache: true, downloads: false, permissions: false };
   const check = (key: keyof BrowsingDataSelection, label: string) => {
     const input = h('input', { type: 'checkbox', checked: selection[key] });
     input.addEventListener('change', () => (selection[key] = input.checked));
@@ -138,6 +159,7 @@ function privacySection(): HTMLElement {
   return section(
     'privacy',
     'Privacy e sicurezza',
+    row('Salva la cronologia', h('span', {}, 'Ricorda le pagine visitate (mai nelle finestre private). ', h('a', { href: 'ksuite://history/' }, 'Apri la cronologia')), toggle('saveHistory', 'Salva la cronologia')),
     h('div', { class: 'row stack', 'data-search': 'protezione tracciamento tracker pubblicità blocco annunci cookie banner' },
       h('div', { class: 'title' }, 'Protezione dal tracciamento'),
       h('div', { class: 'desc muted small' }, 'Blocca le richieste verso tracker e reti pubblicitarie con le liste di Ghostery (EasyList, EasyPrivacy e altre), aggiornate ogni settimana.'),
@@ -163,6 +185,7 @@ function privacySection(): HTMLElement {
       h('div', { class: 'title' }, 'Cancella dati di navigazione'),
       h('div', { class: 'desc muted small' }, 'Riguarda le finestre normali: le finestre private non salvano nulla. Cancellando i cookie dovrai rifare l’accesso ai siti, anche alle app kSuite.'),
       h('div', { class: 'checks' },
+        check('history', 'Cronologia di navigazione'),
         check('cookies', 'Cookie e dati dei siti'),
         check('cache', 'Immagini e file nella cache'),
         check('downloads', 'Elenco dei download'),

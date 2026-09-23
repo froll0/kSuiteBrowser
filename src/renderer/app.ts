@@ -1,5 +1,5 @@
 import { KSUITE_APPS } from '../shared/ksuite-apps';
-import type { Settings, TabState } from '../shared/types';
+import type { Bookmark, Settings, Suggestion, TabState } from '../shared/types';
 import { ks } from './bridge';
 import { h } from './dom';
 import { Panel } from './panel';
@@ -15,9 +15,19 @@ const backBtn = $<HTMLButtonElement>('btn-back');
 const forwardBtn = $<HTMLButtonElement>('btn-forward');
 const reloadBtn = $<HTMLButtonElement>('btn-reload');
 const shieldBtn = $<HTMLButtonElement>('btn-shield');
+const starBtn = $<HTMLButtonElement>('btn-star');
+const zoomBtn = $<HTMLButtonElement>('btn-zoom');
+const bookmarkItems = $('bookmarks-items');
+const findbar = $('findbar');
+const findInput = $<HTMLInputElement>('find-input');
+const findCount = $('find-count');
+const findCase = $<HTMLInputElement>('find-case');
 
 let tabs: TabState[] = [];
 let unread: number | null = null;
+let currentSettings: Settings | null = null;
+let bookmarks: Bookmark[] = [];
+let lastActiveId: number | null = null;
 
 const activeTab = () => tabs.find((t) => t.active);
 
@@ -82,6 +92,16 @@ function renderToolbar(): void {
   reloadBtn.title = tab?.loading ? 'Interrompi' : 'Ricarica (Ctrl+R)';
   if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' ? tab.url : '';
   renderShield(tab);
+
+  const bookmarkable = Boolean(tab && /^(https?|file|ksuite):/i.test(tab.url));
+  starBtn.disabled = !bookmarkable;
+  starBtn.classList.toggle('on', Boolean(tab?.bookmarked));
+  starBtn.textContent = tab?.bookmarked ? '★' : '☆';
+  starBtn.title = tab?.bookmarked ? 'Modifica preferito (Ctrl+D)' : 'Aggiungi ai preferiti (Ctrl+D)';
+
+  const defaultZoom = currentSettings?.defaultZoom ?? 100;
+  zoomBtn.hidden = !tab || tab.zoom === defaultZoom;
+  zoomBtn.textContent = tab ? `${tab.zoom}%` : '';
   const suffix = document.body.classList.contains('private') ? 'kSuite Browser (privata)' : 'kSuite Browser';
   document.title = tab ? `${tab.title} — ${suffix}` : suffix;
 }
@@ -122,14 +142,57 @@ ks.events.onTabs((next) => {
   renderTabs();
   renderToolbar();
   renderSidebar();
+  const active = activeTab()?.id ?? null;
+  if (active !== lastActiveId) {
+    lastActiveId = active;
+    hideSuggestions();
+    if (!findbar.hidden) runFind(false, false, true);
+  }
 });
+
+// ---------- Address bar suggestions ----------
+
+let suggestions: Suggestion[] = [];
+let selected = -1;
+let typed = '';
+let suggestSeq = 0;
+
+function showSuggestions(): void {
+  if (suggestions.length === 0) return hideSuggestions();
+  const r = omnibox.getBoundingClientRect();
+  void ks.suggest.show(suggestions, { x: r.left, y: r.top, width: r.width, height: r.height }, selected);
+  omnibox.setAttribute('aria-expanded', 'true');
+}
+
+function hideSuggestions(): void {
+  suggestSeq++;
+  if (suggestions.length === 0 && omnibox.getAttribute('aria-expanded') !== 'true') return;
+  suggestions = [];
+  selected = -1;
+  omnibox.setAttribute('aria-expanded', 'false');
+  void ks.suggest.hide();
+}
+
+omnibox.addEventListener('input', async () => {
+  typed = omnibox.value;
+  const seq = ++suggestSeq;
+  const items = await ks.suggest.query(typed);
+  if (seq !== suggestSeq || document.activeElement !== omnibox) return;
+  suggestions = items;
+  selected = items.length ? 0 : -1;
+  showSuggestions();
+});
+
+omnibox.addEventListener('blur', () => window.setTimeout(hideSuggestions, 200));
 
 // ---------- Toolbar ----------
 
 $('omnibox-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const tab = activeTab();
-  const value = omnibox.value.trim();
+  const choice = selected >= 0 ? suggestions[selected] : undefined;
+  hideSuggestions();
+  const value = choice ? choice.url : omnibox.value.trim();
   if (!value) return;
   if (tab) void ks.tabs.navigate(tab.id, value);
   else void ks.tabs.create(value);
@@ -137,10 +200,128 @@ $('omnibox-form').addEventListener('submit', (e) => {
 });
 omnibox.addEventListener('focus', () => omnibox.select());
 omnibox.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    renderToolbar();
-    omnibox.blur();
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && suggestions.length) {
+    e.preventDefault();
+    const step = e.key === 'ArrowDown' ? 1 : -1;
+    selected = (selected + step + suggestions.length) % suggestions.length;
+    const item = suggestions[selected];
+    omnibox.value = item.kind === 'search' ? typed : item.url;
+    showSuggestions();
+  } else if (e.key === 'Escape') {
+    if (suggestions.length) {
+      hideSuggestions();
+      omnibox.value = typed;
+    } else {
+      renderToolbar();
+      omnibox.blur();
+    }
   }
+});
+
+// ---------- Bookmarks ----------
+
+function renderBookmarksBar(): void {
+  const bar = bookmarks.filter((b) => b.folder === 'bar');
+  if (bar.length === 0) {
+    bookmarkItems.replaceChildren(h('span', { class: 'bookmarks-hint' }, 'Premi ☆ nella barra degli indirizzi (o Ctrl+D) per aggiungere qui una pagina.'));
+    return;
+  }
+  bookmarkItems.replaceChildren(
+    ...bar.map((b) => {
+      let host = '';
+      try {
+        host = new URL(b.url).hostname.replace(/^www\./, '');
+      } catch {
+        /* ignore */
+      }
+      const el = h(
+        'button',
+        { class: 'bookmark', title: `${b.title}\n${b.url}` },
+        h('span', { class: 'letter' }, (host || b.title || '?').slice(0, 1).toUpperCase()),
+        h('span', { class: 'label' }, b.title),
+      );
+      el.addEventListener('click', () => void ks.bookmarks.open(b.id, 'current'));
+      el.addEventListener('auxclick', (e) => {
+        if ((e as MouseEvent).button === 1) void ks.bookmarks.open(b.id, 'background');
+      });
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        void ks.bookmarks.menu(b.id);
+      });
+      return el;
+    }),
+  );
+}
+
+ks.events.onBookmarks((list) => {
+  bookmarks = list;
+  renderBookmarksBar();
+});
+$('btn-all-bookmarks').addEventListener('click', () => void ks.bookmarks.all());
+starBtn.addEventListener('click', () => {
+  const t = activeTab();
+  if (t) void ks.bookmarks.toggle(t.id);
+});
+zoomBtn.addEventListener('click', () => {
+  const t = activeTab();
+  if (t) void ks.zoomReset(t.id);
+});
+
+// ---------- Find in page ----------
+
+let lastQuery = '';
+let findTabId: number | null = null;
+
+function runFind(next: boolean, backwards: boolean, restart = false): void {
+  const t = activeTab();
+  if (!t) return;
+  if (findTabId !== null && findTabId !== t.id) void ks.find.stop(findTabId);
+  findTabId = t.id;
+  const text = findInput.value;
+  const continuing = next && !restart && text === lastQuery;
+  lastQuery = text;
+  void ks.find.start(t.id, text, { forward: !backwards, newSearch: !continuing, matchCase: findCase.checked });
+}
+
+function openFind(): void {
+  findbar.hidden = false;
+  findInput.focus();
+  findInput.select();
+  if (findInput.value) runFind(false, false, true);
+}
+
+function closeFind(): void {
+  findbar.hidden = true;
+  findCount.textContent = '';
+  findInput.classList.remove('notfound');
+  if (findTabId !== null) void ks.find.stop(findTabId);
+  findTabId = null;
+  lastQuery = '';
+}
+
+findInput.addEventListener('input', () => runFind(false, false, true));
+findInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    runFind(true, e.shiftKey);
+  } else if (e.key === 'Escape') {
+    closeFind();
+  }
+});
+findCase.addEventListener('change', () => runFind(false, false, true));
+$('find-next').addEventListener('click', () => runFind(true, false));
+$('find-prev').addEventListener('click', () => runFind(true, true));
+$('find-close').addEventListener('click', closeFind);
+ks.events.onFind(openFind);
+ks.events.onFindNext(({ backwards }) => {
+  if (findbar.hidden) openFind();
+  else runFind(true, backwards);
+});
+ks.events.onFindResult((r) => {
+  if (r.tabId !== activeTab()?.id || findbar.hidden) return;
+  const empty = !findInput.value;
+  findCount.textContent = empty ? '' : r.total ? `${r.active} di ${r.total}` : 'Nessun risultato';
+  findInput.classList.toggle('notfound', !empty && r.total === 0);
 });
 
 backBtn.addEventListener('click', () => { const t = activeTab(); if (t) void ks.tabs.back(t.id); });
@@ -173,6 +354,9 @@ ks.events.onFocusAddress(() => {
 ks.events.onTogglePanel(togglePanel);
 let tokenConfigured = false;
 ks.events.onSettings(async (settings) => {
+  currentSettings = settings;
+  document.body.classList.toggle('bookmarks-bar', settings.showBookmarksBar);
+  renderToolbar();
   applyTheme(settings.theme);
   applyLayoutSettings(settings.showSidebar);
   const status = await ks.token.status();
@@ -211,8 +395,14 @@ window.addEventListener('resize', syncBounds);
 // ---------- Boot ----------
 
 async function boot(): Promise<void> {
-  const [settings, status, initialTabs, info] = await Promise.all([ks.settings.get(), ks.token.status(), ks.tabs.list(), ks.windowInfo()]);
+  const [settings, status, initialTabs, info, bookmarkList] = await Promise.all([
+    ks.settings.get(), ks.token.status(), ks.tabs.list(), ks.windowInfo(), ks.bookmarks.list(),
+  ]);
   tabs = initialTabs;
+  currentSettings = settings;
+  bookmarks = bookmarkList;
+  document.body.classList.toggle('bookmarks-bar', settings.showBookmarksBar);
+  renderBookmarksBar();
   tokenConfigured = status.configured;
   document.body.classList.toggle('private', info.isPrivate);
   document.body.classList.toggle('no-sidebar', !settings.showSidebar);

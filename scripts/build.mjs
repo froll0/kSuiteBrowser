@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const watch = process.argv.includes('--watch');
+const PAGES = ['settings', 'history', 'bookmarks', 'https-only'];
 
 const common = { bundle: true, sourcemap: true, logLevel: 'info' };
 const node = { ...common, platform: 'node', format: 'cjs', target: 'node22', external: ['electron'] };
@@ -15,15 +16,15 @@ const targets = [
   { ...node, entryPoints: ['src/preload/preload.ts'], outfile: 'dist/preload/preload.js' },
   { ...node, entryPoints: ['src/preload/page.ts'], outfile: 'dist/preload/page.js' },
   { ...web, entryPoints: ['src/renderer/app.ts'], outfile: 'dist/renderer/app.js' },
-  { ...web, entryPoints: ['src/pages/settings/settings.ts'], outfile: 'dist/pages/settings/settings.js' },
-  { ...web, entryPoints: ['src/pages/https-only/https-only.ts'], outfile: 'dist/pages/https-only/https-only.js' },
+  { ...node, entryPoints: ['src/preload/suggest.ts'], outfile: 'dist/preload/suggest.js' },
+  { ...web, entryPoints: ['src/renderer/suggest.ts'], outfile: 'dist/renderer/suggest.js' },
+  ...PAGES.map((page) => ({ ...web, entryPoints: [`src/pages/${page}/${page}.ts`], outfile: `dist/pages/${page}/${page}.js` })),
 ];
 
 function copyStatic() {
-  for (const dir of ['dist/renderer', 'dist/preload', 'dist/pages/settings', 'dist/pages/https-only']) mkdirSync(dir, { recursive: true });
-  cpSync('src/renderer/index.html', 'dist/renderer/index.html');
-  cpSync('src/renderer/styles.css', 'dist/renderer/styles.css');
-  for (const page of ['settings', 'https-only']) {
+  for (const dir of ['dist/renderer', 'dist/preload', ...PAGES.map((p) => `dist/pages/${p}`)]) mkdirSync(dir, { recursive: true });
+  for (const file of ['index.html', 'styles.css', 'suggest.html', 'suggest.css']) cpSync(`src/renderer/${file}`, `dist/renderer/${file}`);
+  for (const page of PAGES) {
     cpSync(`src/pages/${page}/index.html`, `dist/pages/${page}/index.html`);
     cpSync(`src/pages/${page}/${page}.css`, `dist/pages/${page}/${page}.css`);
     cpSync('src/pages/shared/page.css', `dist/pages/${page}/page.css`);

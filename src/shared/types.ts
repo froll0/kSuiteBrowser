@@ -15,6 +15,39 @@ export interface TabState {
   blocked: number;
   /** False when the user turned tracking protection off for this site. */
   protectionActive: boolean;
+  /** Zoom of the page, in percent. */
+  zoom: number;
+  bookmarked: boolean;
+}
+
+export interface HistoryVisit {
+  id: string;
+  url: string;
+  title: string;
+  /** Epoch milliseconds. */
+  visitedAt: number;
+}
+
+export type BookmarkFolder = 'bar' | 'other';
+
+export interface Bookmark {
+  id: string;
+  title: string;
+  url: string;
+  folder: BookmarkFolder;
+  createdAt: number;
+}
+
+export interface Suggestion {
+  kind: 'search' | 'url' | 'history' | 'bookmark';
+  title: string;
+  url: string;
+}
+
+export interface FindResult {
+  tabId: number;
+  active: number;
+  total: number;
 }
 
 export type TrackingProtection = 'off' | 'standard' | 'strict';
@@ -41,9 +74,16 @@ export interface Settings {
   // Aspetto
   theme: ThemeSource;
   showSidebar: boolean;
+  showBookmarksBar: boolean;
   panelOpen: boolean;
+  /** Zoom for sites without their own level, in percent. */
+  defaultZoom: number;
+  /** Zoom chosen by the user per host, in percent. */
+  siteZoom: Record<string, number>;
 
   // Privacy e sicurezza
+  /** Record visited pages (never in private windows). */
+  saveHistory: boolean;
   trackingProtection: TrackingProtection;
   blockThirdPartyCookies: boolean;
   /** Sends the DNT and Sec-GPC headers. */
@@ -155,6 +195,7 @@ export interface NewEvent {
 }
 
 export interface BrowsingDataSelection {
+  history: boolean;
   cookies: boolean;
   cache: boolean;
   downloads: boolean;

@@ -4,8 +4,9 @@ import { extname, join, normalize, sep } from 'node:path';
 
 export const INTERNAL_SCHEME = 'ksuite';
 
-/** Internal pages: ksuite://settings, ksuite://https-only. Each host maps to a folder in dist/pages. */
-const PAGES = new Set(['settings', 'https-only']);
+/** Internal pages: ksuite://settings, ksuite://history, … Each host maps to a folder in dist/pages. */
+export const INTERNAL_PAGES = ['settings', 'history', 'bookmarks', 'https-only'] as const;
+const PAGES = new Set<string>(INTERNAL_PAGES);
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',

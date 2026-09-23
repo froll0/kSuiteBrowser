@@ -6,13 +6,21 @@ import { isInternalUrl } from './internal-pages';
 import type { PrivacyGuard } from './privacy';
 import type { KSuiteServices } from './services';
 import type { SettingsStore } from './settings';
+import type { BookmarksStore } from './stores/bookmarks';
+import type { HistoryStore } from './stores/history';
+import { SuggestionsPopup } from './suggestions-popup';
 import { TabManager } from './tabs';
 
 export interface WindowContext {
   settings: SettingsStore;
   services: KSuiteServices;
+  history: HistoryStore;
+  bookmarks: BookmarksStore;
   guardFor(session: Session): PrivacyGuard;
-  paths: { chromePreload: string; pagePreload: string; chromeHtml: string };
+  /** Applies the zoom saved for the page's site (or the default zoom). */
+  applyZoom(contents: WebContents): void;
+  stepZoom(controller: BrowserWindowController, contents: WebContents, direction: 'in' | 'out'): void;
+  paths: { chromePreload: string; pagePreload: string; chromeHtml: string; suggestHtml: string; suggestPreload: string };
   onTabsChanged(controller: BrowserWindowController): void;
   onClosed(controller: BrowserWindowController): void;
 }
@@ -23,6 +31,7 @@ export const SETTINGS_URL = 'ksuite://settings/';
 export class BrowserWindowController {
   readonly win: BrowserWindow;
   readonly tabs: TabManager;
+  readonly suggestions: SuggestionsPopup;
   private refreshTimer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -60,9 +69,11 @@ export class BrowserWindowController {
           ctx.onTabsChanged(this);
         },
         onWebContentsCreated: (contents, manager) => this.setupPage(contents, manager),
-        privacyState: (contents) => ({
+        extraState: (contents) => ({
           blocked: guard.blockedCount(contents.id),
           protectionActive: guard.protectionActiveFor(contents.getURL() || null),
+          zoom: Math.round(contents.getZoomFactor() * 100),
+          bookmarked: /^(https?|file|ksuite):/i.test(contents.getURL()) && Boolean(ctx.bookmarks.find(contents.getURL())),
         }),
         failurePage: (contents, url) => {
           const http = guard.httpFallbackFor(contents.id, url);
@@ -72,6 +83,13 @@ export class BrowserWindowController {
       { session, preload: ctx.paths.pagePreload },
     );
 
+    this.suggestions = new SuggestionsPopup(this.win, { html: ctx.paths.suggestHtml, preload: ctx.paths.suggestPreload }, (item) => {
+      const id = this.activeTabId();
+      if (id === null) this.tabs.create(item.url);
+      else this.tabs.navigate(id, item.url);
+      this.activeContents()?.focus();
+    });
+
     void this.win.loadFile(ctx.paths.chromeHtml, { query: isPrivate ? { private: '1' } : {} });
     this.win.webContents.once('did-finish-load', () => {
       const urls = initialUrls.length ? initialUrls : [ctx.settings.get().homePage];
@@ -79,6 +97,7 @@ export class BrowserWindowController {
     });
     this.win.on('closed', () => {
       if (this.refreshTimer) clearTimeout(this.refreshTimer);
+      this.suggestions.destroy();
       this.tabs.destroy();
       ctx.onClosed(this);
     });
@@ -132,11 +151,16 @@ export class BrowserWindowController {
 
   /** Focuses the settings tab (or opens one), optionally at a section. */
   openSettings(section?: string): void {
-    const url = section ? `${SETTINGS_URL}#${section}` : SETTINGS_URL;
-    const existing = this.tabs.states().find((t) => t.url.startsWith(SETTINGS_URL));
+    this.openInternal(section ? `${SETTINGS_URL}#${section}` : SETTINGS_URL);
+  }
+
+  /** Focuses the tab already showing an internal page (ksuite://host/), or opens it. */
+  openInternal(url: string): void {
+    const base = url.replace(/#.*$/, '');
+    const existing = this.tabs.states().find((t) => t.url.startsWith(base));
     if (existing) {
       this.tabs.activate(existing.id);
-      if (section) this.tabs.navigate(existing.id, url);
+      if (url !== base) this.tabs.navigate(existing.id, url);
     } else {
       this.tabs.create(url);
     }
@@ -161,6 +185,29 @@ export class BrowserWindowController {
   }
 
   private setupPage(contents: WebContents, manager: TabManager): void {
+    // History (never for private windows) and per-site zoom.
+    let visitId: string | null = null;
+    const record = (url: string) => {
+      visitId = null;
+      if (this.isPrivate || !this.ctx.settings.get().saveHistory || !/^https?:/i.test(url)) return;
+      visitId = this.ctx.history.add(url, contents.getTitle() === url ? '' : contents.getTitle());
+    };
+    contents.on('did-navigate', (_e, url) => {
+      record(url);
+      this.ctx.applyZoom(contents);
+    });
+    contents.on('did-navigate-in-page', (_e, url, isMainFrame) => {
+      if (isMainFrame) record(url);
+    });
+    contents.on('page-title-updated', (_e, title) => {
+      if (visitId) this.ctx.history.setTitle(visitId, title);
+    });
+    contents.on('zoom-changed', (_e, direction) => this.ctx.stepZoom(this, contents, direction === 'in' ? 'in' : 'out'));
+    contents.on('found-in-page', (_e, result) => {
+      const tabId = manager.idOf(contents);
+      if (tabId !== null) this.send(IPC.evFindResult, { tabId, active: result.activeMatchOrdinal, total: result.matches });
+    });
+
     contents.setWindowOpenHandler(({ url, disposition, features }) => {
       if (isInternalUrl(url) && !isInternalUrl(contents.getURL())) return { action: 'deny' };
       // Real popups (e.g. OAuth logins) need window.opener: keep them as windows in the same session.

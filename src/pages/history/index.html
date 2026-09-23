@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Cronologia</title>
+  <link rel="stylesheet" href="page.css" />
+  <link rel="stylesheet" href="history.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Cronologia</h1>
+      <input id="search" type="search" placeholder="Cerca nella cronologia" aria-label="Cerca nella cronologia" />
+    </header>
+    <div class="toolbar">
+      <label for="range">Cancella:</label>
+      <select id="range">
+        <option value="3600000">Ultima ora</option>
+        <option value="86400000">Ultime 24 ore</option>
+        <option value="604800000">Ultimi 7 giorni</option>
+        <option value="2419200000">Ultime 4 settimane</option>
+        <option value="0">Tutta la cronologia</option>
+      </select>
+      <button id="clear" class="danger">Cancella</button>
+      <span id="status" class="status" role="status"></span>
+    </div>
+    <div id="list"></div>
+    <button id="more" hidden>Mostra altre pagine</button>
+  </div>
+  <script src="history.js"></script>
+</body>
+</html>

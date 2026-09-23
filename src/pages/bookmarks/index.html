@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Preferiti</title>
+  <link rel="stylesheet" href="page.css" />
+  <link rel="stylesheet" href="bookmarks.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Preferiti</h1>
+      <input id="search" type="search" placeholder="Cerca nei preferiti" aria-label="Cerca nei preferiti" />
+    </header>
+    <div class="toolbar">
+      <button id="add" class="primary">Aggiungi preferito</button>
+      <button id="import">Importa da file HTML…</button>
+      <input id="import-file" type="file" accept=".html,.htm,text/html" hidden />
+      <button id="export">Esporta</button>
+      <span id="status" class="status" role="status"></span>
+    </div>
+    <div id="list"></div>
+    <p class="muted small">Per importare i preferiti da Chrome, Edge, Firefox o Safari, esportali da quel browser come file HTML e caricalo con “Importa”.</p>
+  </div>
+  <script src="bookmarks.js"></script>
+</body>
+</html>

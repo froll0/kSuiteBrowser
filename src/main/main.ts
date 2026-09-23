@@ -7,8 +7,12 @@ import { join } from 'node:path';
 import { INTERNAL, IPC } from '../shared/ipc';
 import { KSUITE_APPS } from '../shared/ksuite-apps';
 import { siteOf } from '../shared/privacy-rules';
-import type { AboutInfo, ApiResult, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings } from '../shared/types';
+import { buildSuggestions } from '../shared/suggest';
+import type {
+  AboutInfo, ApiResult, BookmarkFolder, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion,
+} from '../shared/types';
 import { resolveOmniboxInput } from '../shared/url';
+import { stepZoom, withSiteZoom, zoomFor } from '../shared/zoom';
 import { buildAppMenu } from './app-menu';
 import { TrackerBlocker } from './blocker';
 import { clearBrowsingData } from './browsing-data';
@@ -18,6 +22,8 @@ import { configurePermissions, memoryOnly, persistentMemory } from './permission
 import { PrivacyGuard } from './privacy';
 import { KSuiteServices } from './services';
 import { SettingsStore } from './settings';
+import { BookmarksStore } from './stores/bookmarks';
+import { HistoryStore } from './stores/history';
 import { BrowserWindowController, type WindowContext } from './window';
 
 registerInternalScheme();
@@ -27,12 +33,16 @@ const PATHS = {
   pagePreload: join(__dirname, '../preload/page.js'),
   adblockPreload: join(__dirname, '../preload/adblock.js'),
   chromeHtml: join(__dirname, '../renderer/index.html'),
+  suggestHtml: join(__dirname, '../renderer/suggest.html'),
+  suggestPreload: join(__dirname, '../preload/suggest.js'),
   pages: join(__dirname, '../pages'),
 };
 
 let settings: SettingsStore;
 let services: KSuiteServices;
 let downloads: DownloadManager;
+let history: HistoryStore;
+let bookmarks: BookmarksStore;
 const blocker = new TrackerBlocker();
 const guards = new Map<Session, PrivacyGuard>();
 const windows = new Set<BrowserWindowController>();
@@ -59,6 +69,10 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.on('window-all-closed', () => app.quit());
+app.on('will-quit', () => {
+  history?.flush();
+  bookmarks?.flush();
+});
 
 app.on('before-quit', (event) => {
   quitting = true;
@@ -81,6 +95,13 @@ function start(): void {
   settings = new SettingsStore();
   services = new KSuiteServices(settings);
   downloads = new DownloadManager(settings, services, (items) => broadcast(IPC.evDownloads, items));
+  history = new HistoryStore(join(app.getPath('userData'), 'history.json'));
+  bookmarks = new BookmarksStore(join(app.getPath('userData'), 'bookmarks.json'));
+  bookmarks.onChange((list) => {
+    broadcast(IPC.evBookmarks, list);
+    sendToInternalPages(INTERNAL.evBookmarks, list);
+    refreshAllTabs();
+  });
 
   nativeTheme.themeSource = settings.get().theme;
   void blocker.setLevel(settings.get().trackingProtection);
@@ -119,6 +140,14 @@ const windowContext: WindowContext = {
   get services() {
     return services;
   },
+  get history() {
+    return history;
+  },
+  get bookmarks() {
+    return bookmarks;
+  },
+  applyZoom: (wc) => applyZoom(wc),
+  stepZoom: (w, wc, direction) => changeZoom(w, wc, direction),
   guardFor: (ses) => guards.get(ses)!,
   paths: PATHS,
   onTabsChanged: (w) => {
@@ -197,11 +226,108 @@ function onSettingsChanged(next: Settings, previous: Settings): void {
   if (next.driveId !== previous.driveId) services.resetCache();
   if (next.protectionExceptions !== previous.protectionExceptions) refreshAllTabs();
   if (next.clearCookiesOnExit || next.clearCacheOnExit) dataCleared = false;
+  if (next.defaultZoom !== previous.defaultZoom || next.siteZoom !== previous.siteZoom) {
+    for (const w of windows) for (const t of w.tabs.states()) {
+      const wc = w.tabs.contents(t.id);
+      if (wc) applyZoom(wc);
+    }
+    refreshAllTabs();
+  }
 
   broadcast(IPC.evSettings, next);
+  sendToInternalPages(INTERNAL.evSettings, next);
+}
+
+function sendToInternalPages(channel: string, payload: unknown): void {
   for (const wc of allWebContents.getAllWebContents()) {
-    if (!wc.isDestroyed() && isInternalUrl(wc.getURL())) wc.send(INTERNAL.evSettings, next);
+    if (!wc.isDestroyed() && isInternalUrl(wc.getURL())) wc.send(channel, payload);
   }
+}
+
+// ---------- Zoom ----------
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function applyZoom(wc: Electron.WebContents): void {
+  const s = settings.get();
+  const host = hostOf(wc.getURL());
+  const zoom = host ? zoomFor(host, s.siteZoom, s.defaultZoom) : s.defaultZoom;
+  if (Math.round(wc.getZoomFactor() * 100) !== zoom) wc.setZoomFactor(zoom / 100);
+}
+
+/** Zooms a page one step; the level is remembered for the site (except in private windows). */
+function changeZoom(w: BrowserWindowController, wc: Electron.WebContents, direction: 'in' | 'out' | 'reset'): void {
+  const s = settings.get();
+  const next = direction === 'reset' ? s.defaultZoom : stepZoom(Math.round(wc.getZoomFactor() * 100), direction);
+  wc.setZoomFactor(next / 100);
+  const host = hostOf(wc.getURL());
+  if (!w.isPrivate && host) settings.update({ siteZoom: withSiteZoom(s.siteZoom, host, next, s.defaultZoom) });
+  else w.tabs.refresh();
+}
+
+// ---------- Bookmarks ----------
+
+function openUrl(w: BrowserWindowController, url: string, how: 'current' | 'tab' | 'background' | 'window' | 'private'): void {
+  if (how === 'window') openWindow(false, [url]);
+  else if (how === 'private') openWindow(true, [url]);
+  else if (how === 'current' && w.activeTabId() !== null) w.tabs.navigate(w.activeTabId()!, url);
+  else w.tabs.create(url, { background: how === 'background' });
+}
+
+function bookmarkPageMenu(w: BrowserWindowController, tabId: number): void {
+  const wc = w.tabs.contents(tabId);
+  if (!wc) return;
+  const url = wc.getURL();
+  if (!/^(https?|file|ksuite):/i.test(url)) return;
+  const existing = bookmarks.find(url);
+  if (!existing) {
+    bookmarks.add({ title: wc.getTitle(), url, folder: 'bar' });
+    w.send(IPC.evToast, { kind: 'success', message: 'Aggiunto alla barra dei preferiti' });
+    return;
+  }
+  const other: BookmarkFolder = existing.folder === 'bar' ? 'other' : 'bar';
+  Menu.buildFromTemplate([
+    { label: `Nei preferiti: ${existing.title}`, enabled: false },
+    { type: 'separator' },
+    { label: other === 'other' ? 'Sposta in Altri preferiti' : 'Sposta nella barra dei preferiti', click: () => bookmarks.update(existing.id, { folder: other }) },
+    { label: 'Modifica…', click: () => w.openInternal('ksuite://bookmarks/') },
+    { label: 'Rimuovi dai preferiti', click: () => bookmarks.remove(existing.id) },
+  ]).popup({ window: w.win });
+}
+
+function bookmarkContextMenu(w: BrowserWindowController, id: string): void {
+  const b = bookmarks.list().find((x) => x.id === id);
+  if (!b) return;
+  const other: BookmarkFolder = b.folder === 'bar' ? 'other' : 'bar';
+  Menu.buildFromTemplate([
+    { label: 'Apri', click: () => openUrl(w, b.url, 'current') },
+    { label: 'Apri in una nuova scheda', click: () => openUrl(w, b.url, 'background') },
+    { label: 'Apri in una nuova finestra', click: () => openUrl(w, b.url, 'window') },
+    { label: 'Apri in una finestra privata', click: () => openUrl(w, b.url, 'private') },
+    { type: 'separator' },
+    { label: other === 'other' ? 'Sposta in Altri preferiti' : 'Sposta nella barra dei preferiti', click: () => bookmarks.update(b.id, { folder: other }) },
+    { label: 'Modifica…', click: () => w.openInternal('ksuite://bookmarks/') },
+    { label: 'Elimina', click: () => bookmarks.remove(b.id) },
+  ]).popup({ window: w.win });
+}
+
+function allBookmarksMenu(w: BrowserWindowController): void {
+  const item = (b: { title: string; url: string }) => ({ label: b.title.slice(0, 60) || b.url, click: () => openUrl(w, b.url, 'current') });
+  const bar = bookmarks.list().filter((b) => b.folder === 'bar');
+  const others = bookmarks.list().filter((b) => b.folder === 'other');
+  Menu.buildFromTemplate([
+    ...bar.map(item),
+    ...(bar.length ? [{ type: 'separator' as const }] : []),
+    { label: 'Altri preferiti', submenu: others.length ? others.map(item) : [{ label: 'Vuoto', enabled: false }] },
+    { type: 'separator' },
+    { label: 'Gestisci preferiti', click: () => w.openInternal('ksuite://bookmarks/') },
+  ]).popup({ window: w.win });
 }
 
 function refreshAllTabs(): void {
@@ -242,6 +368,21 @@ function buildMenu(): Menu {
       if (w && wc) w.composeMail(wc.getURL(), wc.getTitle());
     },
     openSettings: () => current()?.openSettings(),
+    find: () => current()?.focusChrome(IPC.evFind),
+    findNext: (backwards) => current()?.send(IPC.evFindNext, { backwards }),
+    zoom: (direction) => {
+      const w = current();
+      const wc = w?.activeContents();
+      if (w && wc) changeZoom(w, wc, direction);
+    },
+    toggleBookmarksBar: () => settings.update({ showBookmarksBar: !settings.get().showBookmarksBar }),
+    bookmarkPage: () => {
+      const w = current();
+      const id = w?.activeTabId();
+      if (w && id != null) bookmarkPageMenu(w, id);
+    },
+    openHistory: () => current()?.openInternal('ksuite://history/'),
+    openBookmarks: () => current()?.openInternal('ksuite://bookmarks/'),
     clearData: () => current()?.openSettings('privacy'),
     devTools: () => current()?.activeContents()?.toggleDevTools(),
   });
@@ -300,6 +441,10 @@ function handle<A extends unknown[], R>(channel: string, fn: (w: BrowserWindowCo
 }
 
 function registerChromeIpc(): void {
+  ipcMain.on('suggest:choose', (event, index: number) => {
+    const w = [...windows].find((c) => c.suggestions.contents === event.sender);
+    if (w && Number.isInteger(index)) w.suggestions.choose(index);
+  });
   handle(IPC.windowInfo, (w) => ({ isPrivate: w.isPrivate }));
   handle(IPC.tabsList, (w) => w.tabs.states());
   handle(IPC.tabsCreate, (w, url?: string) => w.newTab(url ? resolveOmniboxInput(url, settings.get().searchEngine) : undefined));
@@ -318,6 +463,36 @@ function registerChromeIpc(): void {
   handle(IPC.showAppMenu, (w) => Menu.getApplicationMenu()?.popup({ window: w.win }));
   handle(IPC.showShieldMenu, (w, tabId: number) => showShieldMenu(w, tabId));
   handle(IPC.openSettingsPage, (w, section?: string) => w.openSettings(section));
+
+  handle(IPC.suggest, (_w, input: string) =>
+    buildSuggestions(String(input ?? ''), settings.get().searchEngine, settings.get().saveHistory ? history.summaries() : [], bookmarks.list()),
+  );
+  handle(IPC.suggestShow, (w, items: Suggestion[], rect: Rect, selected: number) => w.suggestions.show(items, rect, selected, settings.get().theme));
+  handle(IPC.suggestHide, (w) => w.suggestions.hide());
+  handle(IPC.findStart, (w, tabId: number, text: string, options: { forward?: boolean; newSearch?: boolean; matchCase?: boolean }) => {
+    const wc = w.tabs.contents(tabId);
+    if (!wc) return;
+    if (!text) {
+      wc.stopFindInPage('clearSelection');
+      w.send(IPC.evFindResult, { tabId, active: 0, total: 0 });
+      return;
+    }
+    // Electron's naming is inverted: findNext: true starts a new search, false moves to the next match.
+    wc.findInPage(String(text), { forward: options?.forward !== false, findNext: options?.newSearch !== false, matchCase: Boolean(options?.matchCase) });
+  });
+  handle(IPC.findStop, (w, tabId: number) => w.tabs.contents(tabId)?.stopFindInPage('keepSelection'));
+  handle(IPC.zoomReset, (w, tabId: number) => {
+    const wc = w.tabs.contents(tabId);
+    if (wc) changeZoom(w, wc, 'reset');
+  });
+  handle(IPC.bookmarkToggle, (w, tabId: number) => bookmarkPageMenu(w, tabId));
+  handle(IPC.bookmarksList, () => bookmarks.list());
+  handle(IPC.bookmarkOpen, (w, id: string, how: 'current' | 'background') => {
+    const b = bookmarks.list().find((x) => x.id === id);
+    if (b) openUrl(w, b.url, how === 'background' ? 'background' : 'current');
+  });
+  handle(IPC.bookmarkMenu, (w, id: string) => bookmarkContextMenu(w, id));
+  handle(IPC.bookmarksMenu, (w) => allBookmarksMenu(w));
 
   handle(IPC.settingsGet, () => settings.get());
   handle(IPC.settingsSet, (_w, patch: Partial<Settings>) => settings.update(patch));
@@ -405,6 +580,7 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.clearData, S, (event, selection: BrowsingDataSelection) =>
     wrap(async () => {
       await clearBrowsingData(event.sender.session, selection);
+      if (selection.history) history.clearSince(0);
       if (selection.downloads) downloads.clear();
       if (selection.permissions) settings.update({ sitePermissions: [] });
     }),
@@ -427,6 +603,18 @@ function registerInternalIpc(): void {
     userData: app.getPath('userData'),
     blockerLists: blocker.describe(),
   }));
+  const HB = ['history', 'bookmarks', 'settings'];
+  handleInternal(INTERNAL.historySearch, ['history'], (_e, query: string, before?: number) => history.search(String(query ?? ''), 300, before ?? Infinity));
+  handleInternal(INTERNAL.historyRemove, ['history'], (_e, ids: string[]) => history.remove(Array.isArray(ids) ? ids.map(String) : []));
+  handleInternal(INTERNAL.historyClear, ['history', 'settings'], (_e, since: number) => history.clearSince(Number(since) || 0));
+  handleInternal(INTERNAL.bookmarksList, HB, () => bookmarks.list());
+  handleInternal(INTERNAL.bookmarksAdd, ['bookmarks'], (_e, b: { title: string; url: string; folder: BookmarkFolder }) => bookmarks.add(b));
+  handleInternal(INTERNAL.bookmarksUpdate, ['bookmarks'], (_e, id: string, patch: { title?: string; url?: string; folder?: BookmarkFolder }) => bookmarks.update(String(id), patch ?? {}));
+  handleInternal(INTERNAL.bookmarksRemove, ['bookmarks'], (_e, id: string) => bookmarks.remove(String(id)));
+  handleInternal(INTERNAL.bookmarksShift, ['bookmarks'], (_e, id: string, direction: number) => bookmarks.shift(String(id), direction < 0 ? -1 : 1));
+  handleInternal(INTERNAL.bookmarksImport, ['bookmarks'], (_e, items: Array<{ title: string; url: string; folder: BookmarkFolder }>) =>
+    bookmarks.import(Array.isArray(items) ? items.slice(0, 20000) : []),
+  );
   handleInternal(INTERNAL.httpsContinue, ['https-only'], (event, url: string) => {
     const parsed = new URL(url);
     if (parsed.protocol !== 'http:') throw new Error('URL non valido');

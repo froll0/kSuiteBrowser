@@ -14,8 +14,8 @@ export interface TabManagerHooks {
   onChange(tabs: TabState[]): void;
   /** Called for every new page WebContents, to attach context menus, window handlers, etc. */
   onWebContentsCreated(contents: WebContents, tabs: TabManager): void;
-  /** Privacy information shown in the toolbar shield. */
-  privacyState(contents: WebContents): { blocked: number; protectionActive: boolean };
+  /** Extra per-tab state shown in the toolbar: shield, zoom badge, bookmark star. */
+  extraState(contents: WebContents): Pick<TabState, 'blocked' | 'protectionActive' | 'zoom' | 'bookmarked'>;
   /** Page to show instead of the generic error page (e.g. the HTTPS-only warning), with the URL to display. */
   failurePage?(contents: WebContents, url: string, code: number): { load: string; display: string } | null;
 }
@@ -194,7 +194,7 @@ export class TabManager {
         canGoForward: wc.navigationHistory.canGoForward(),
         active: t.id === this.activeId,
         appId: t.appId,
-        ...this.hooks.privacyState(wc),
+        ...this.hooks.extraState(wc),
       };
     });
   }

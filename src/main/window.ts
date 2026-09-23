@@ -22,10 +22,14 @@ export interface WindowContext {
   stepZoom(controller: BrowserWindowController, contents: WebContents, direction: 'in' | 'out'): void;
   paths: { chromePreload: string; pagePreload: string; chromeHtml: string; suggestHtml: string; suggestPreload: string };
   onTabsChanged(controller: BrowserWindowController): void;
+  /** Window currently holding a tab's page (tabs can move between windows). */
+  ownerOf(contents: WebContents): BrowserWindowController | null;
+  recordFavicon(contents: WebContents, faviconUrl: string): void;
   onClosed(controller: BrowserWindowController): void;
 }
 
 export const SETTINGS_URL = 'ksuite://settings/';
+export const NEWTAB_URL = 'ksuite://newtab/';
 
 /** One browser window: the UI around it, its tabs and its session (persistent, or in-memory when private). */
 export class BrowserWindowController {
@@ -38,11 +42,14 @@ export class BrowserWindowController {
     private readonly ctx: WindowContext,
     readonly session: Session,
     readonly isPrivate: boolean,
-    initialUrls: string[],
+    /** null: start without tabs (a tab moved from another window is about to arrive). */
+    initialTabs: Array<{ url: string; pinned?: boolean }> | null,
+    bounds?: Partial<Electron.Rectangle>,
   ) {
     this.win = new BrowserWindow({
       width: 1400,
       height: 900,
+      ...bounds,
       minWidth: 720,
       minHeight: 480,
       title: isPrivate ? 'kSuite Browser — Finestra privata' : 'kSuite Browser',
@@ -68,7 +75,7 @@ export class BrowserWindowController {
           this.send(IPC.evTabs, states);
           ctx.onTabsChanged(this);
         },
-        onWebContentsCreated: (contents, manager) => this.setupPage(contents, manager),
+        onWebContentsCreated: (contents) => this.setupPage(contents),
         extraState: (contents) => ({
           blocked: guard.blockedCount(contents.id),
           protectionActive: guard.protectionActiveFor(contents.getURL() || null),
@@ -92,8 +99,11 @@ export class BrowserWindowController {
 
     void this.win.loadFile(ctx.paths.chromeHtml, { query: isPrivate ? { private: '1' } : {} });
     this.win.webContents.once('did-finish-load', () => {
-      const urls = initialUrls.length ? initialUrls : [ctx.settings.get().homePage];
-      for (const url of urls) this.tabs.create(url);
+      if (initialTabs === null) return;
+      const tabs = initialTabs.length ? initialTabs : [{ url: ctx.settings.get().homePage }];
+      for (const t of tabs) this.tabs.create(t.url, { pinned: t.pinned, background: true });
+      const firstUnpinned = this.tabs.states().find((t) => !t.pinned) ?? this.tabs.states()[0];
+      if (firstUnpinned) this.tabs.activate(firstUnpinned.id);
     });
     this.win.on('closed', () => {
       if (this.refreshTimer) clearTimeout(this.refreshTimer);
@@ -117,6 +127,12 @@ export class BrowserWindowController {
     this.win.focus();
   }
 
+  /** Position right after the tab of `contents`, where links opened from it go. */
+  indexAfter(contents: WebContents): number | undefined {
+    const id = this.tabs.idOf(contents);
+    return id === null ? undefined : this.tabs.ids().indexOf(id) + 1;
+  }
+
   /** Throttled tab refresh, used when blocked counters change during page loads. */
   scheduleRefresh(): void {
     if (this.refreshTimer) return;
@@ -134,8 +150,11 @@ export class BrowserWindowController {
     return this.tabs.activeContents();
   }
 
-  newTab(url?: string): void {
-    this.tabs.create(url ?? this.ctx.settings.get().homePage);
+  newTab(url?: string, options: { afterActive?: boolean } = {}): void {
+    const s = this.ctx.settings.get();
+    const active = this.activeTabId();
+    const index = options.afterActive && active !== null ? this.tabs.ids().indexOf(active) + 1 : undefined;
+    this.tabs.create(url ?? (s.newTabPage === 'newtab' ? NEWTAB_URL : s.homePage), { index });
     if (!url) this.focusChrome(IPC.evFocusAddress);
   }
 
@@ -184,12 +203,14 @@ export class BrowserWindowController {
     return this.runDriveAction('Salvataggio pagina in PDF', () => this.ctx.services.savePageAsPdf(contents));
   }
 
-  private setupPage(contents: WebContents, manager: TabManager): void {
+  private setupPage(contents: WebContents): void {
+    // The tab may move to another window: always act on the window that holds it now.
+    const owner = () => this.ctx.ownerOf(contents) ?? this;
     // History (never for private windows) and per-site zoom.
     let visitId: string | null = null;
     const record = (url: string) => {
       visitId = null;
-      if (this.isPrivate || !this.ctx.settings.get().saveHistory || !/^https?:/i.test(url)) return;
+      if (owner().isPrivate || !this.ctx.settings.get().saveHistory || !/^https?:/i.test(url)) return;
       visitId = this.ctx.history.add(url, contents.getTitle() === url ? '' : contents.getTitle());
     };
     contents.on('did-navigate', (_e, url) => {
@@ -199,13 +220,16 @@ export class BrowserWindowController {
     contents.on('did-navigate-in-page', (_e, url, isMainFrame) => {
       if (isMainFrame) record(url);
     });
+    contents.on('page-favicon-updated', (_e, favicons) => {
+      if (!owner().isPrivate && favicons[0]) this.ctx.recordFavicon(contents, favicons[0]);
+    });
     contents.on('page-title-updated', (_e, title) => {
       if (visitId) this.ctx.history.setTitle(visitId, title);
     });
-    contents.on('zoom-changed', (_e, direction) => this.ctx.stepZoom(this, contents, direction === 'in' ? 'in' : 'out'));
+    contents.on('zoom-changed', (_e, direction) => this.ctx.stepZoom(owner(), contents, direction === 'in' ? 'in' : 'out'));
     contents.on('found-in-page', (_e, result) => {
-      const tabId = manager.idOf(contents);
-      if (tabId !== null) this.send(IPC.evFindResult, { tabId, active: result.activeMatchOrdinal, total: result.matches });
+      const tabId = owner().tabs.idOf(contents);
+      if (tabId !== null) owner().send(IPC.evFindResult, { tabId, active: result.activeMatchOrdinal, total: result.matches });
     });
 
     contents.setWindowOpenHandler(({ url, disposition, features }) => {
@@ -220,7 +244,7 @@ export class BrowserWindowController {
           },
         };
       }
-      manager.create(url, { background: disposition === 'background-tab' });
+      owner().tabs.create(url, { background: disposition === 'background-tab', index: owner().indexAfter(contents) });
       return { action: 'deny' };
     });
 
@@ -238,10 +262,10 @@ export class BrowserWindowController {
     });
 
     attachContextMenu(contents, {
-      openInNewTab: (url) => manager.create(url, { background: true }),
-      saveUrlToDrive: (url) => void this.runDriveAction('Salvataggio su kDrive', () => this.ctx.services.saveUrlToDrive(contents.session, url)),
-      savePageToDrive: (wc) => void this.savePageToDrive(wc),
-      mailLink: (url, title) => this.composeMail(url, title),
+      openInNewTab: (url) => owner().tabs.create(url, { background: true, index: owner().indexAfter(contents) }),
+      saveUrlToDrive: (url) => void owner().runDriveAction('Salvataggio su kDrive', () => this.ctx.services.saveUrlToDrive(contents.session, url)),
+      savePageToDrive: (wc) => void owner().savePageToDrive(wc),
+      mailLink: (url, title) => owner().composeMail(url, title),
     });
   }
 }

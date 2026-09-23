@@ -1,7 +1,11 @@
 import { h } from '../../renderer/dom';
 import { isWeakPassword } from '../../shared/password-gen';
+import { faviconUrl } from '../../shared/top-sites';
 import type { SavedLogin, VaultStatus } from '../../shared/types';
 import { internal } from '../shared/bridge';
+import { followTheme } from '../shared/theme';
+
+followTheme();
 
 const content = document.getElementById('content')!;
 const search = document.getElementById('search') as HTMLInputElement;
@@ -133,7 +137,7 @@ function loginRow(login: SavedLogin, reused: Set<string>): HTMLElement {
   return h(
     'div',
     { class: 'entry' },
-    h('span', { class: 'letter', 'aria-hidden': 'true' }, host.replace(/^www\./, '').slice(0, 1).toUpperCase()),
+    h('img', { class: 'site-icon', src: faviconUrl(login.origin), alt: '' }),
     h('div', { class: 'main' },
       h('a', { href: login.origin, title: login.origin }, host),
       h('span', { class: 'user' }, login.username || '(senza nome utente)'),

@@ -95,3 +95,30 @@ describe('bookmark files', () => {
     ]);
   });
 });
+
+describe('new tab page', () => {
+  it('lists one tile per site, most visited first, without removed sites', async () => {
+    const { topSites } = await import('../src/shared/top-sites');
+    const history = [
+      { url: 'https://a.example/x', title: 'A x', visits: 3, lastVisit: NOW },
+      { url: 'https://a.example/y', title: 'A y', visits: 5, lastVisit: NOW },
+      { url: 'https://b.example/', title: 'B', visits: 7, lastVisit: NOW },
+      { url: 'https://c.example/', title: '', visits: 1, lastVisit: NOW },
+      { url: 'ksuite://settings/', title: 'Impostazioni', visits: 50, lastVisit: NOW },
+    ];
+    expect(topSites(history, [])).toEqual([
+      { url: 'https://a.example/y', title: 'A y' },
+      { url: 'https://b.example/', title: 'B' },
+      { url: 'https://c.example/', title: 'c.example' },
+    ]);
+    expect(topSites(history, ['https://a.example']).map((s) => s.url)).toEqual(['https://b.example/', 'https://c.example/']);
+  });
+
+  it('draws a stable, escaped letter icon', async () => {
+    const { letterIconSvg, letterColor, faviconUrl } = await import('../src/shared/top-sites');
+    expect(letterIconSvg('www.example.org')).toContain('>E</text>');
+    expect(letterColor('example.org')).toBe(letterColor('example.org'));
+    expect(letterIconSvg('<script>')).not.toContain('<script');
+    expect(faviconUrl('https://a.example/?q=1')).toBe('ksuite://favicon/?url=https%3A%2F%2Fa.example%2F%3Fq%3D1');
+  });
+});

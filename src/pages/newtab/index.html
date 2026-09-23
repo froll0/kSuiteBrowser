@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Nuova scheda</title>
+  <link rel="stylesheet" href="page.css" />
+  <link rel="stylesheet" href="newtab.css" />
+</head>
+<body>
+  <main class="newtab">
+    <h1 id="greeting"></h1>
+    <form id="search-form" role="search">
+      <span class="search-icon" aria-hidden="true">&#128269;</span>
+      <input id="search" type="text" autocomplete="off" aria-label="Cerca o inserisci un indirizzo" />
+    </form>
+    <section id="top-sites" aria-label="Siti più visitati"></section>
+    <p id="restore" hidden><button class="link" id="restore-btn">Ripristina i siti rimossi</button></p>
+    <section aria-labelledby="apps-title">
+      <h2 id="apps-title">kSuite</h2>
+      <div id="apps" class="apps"></div>
+    </section>
+  </main>
+  <script src="newtab.js"></script>
+</body>
+</html>

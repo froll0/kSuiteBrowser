@@ -15,6 +15,9 @@ export const DEFAULT_SETTINGS: Settings = {
   showSidebar: true,
   showBookmarksBar: true,
   panelOpen: true,
+  newTabPage: 'newtab',
+  showTopSites: true,
+  hiddenTopSites: [],
   defaultZoom: 100,
   siteZoom: {},
 
@@ -88,6 +91,9 @@ export function sanitizeSettings(raw: unknown): Settings {
     showSidebar: bool(s.showSidebar, d.showSidebar),
     showBookmarksBar: bool(s.showBookmarksBar, d.showBookmarksBar),
     panelOpen: bool(s.panelOpen, d.panelOpen),
+    newTabPage: oneOf(s.newTabPage, ['newtab', 'home'] as const, d.newTabPage),
+    showTopSites: bool(s.showTopSites, d.showTopSites),
+    hiddenTopSites: hostList(s.hiddenTopSites),
     defaultZoom: (ZOOM_STEPS as readonly number[]).includes(s.defaultZoom as number) ? (s.defaultZoom as number) : d.defaultZoom,
     siteZoom: siteZoom(s.siteZoom),
 

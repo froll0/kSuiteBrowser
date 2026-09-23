@@ -12,6 +12,7 @@ import type {
   AboutInfo, ApiResult, BookmarkFolder, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion,
 } from '../shared/types';
 import { generatePassword } from '../shared/password-gen';
+import { letterIconSvg, topSites } from '../shared/top-sites';
 import { resolveOmniboxInput } from '../shared/url';
 import { stepZoom, withSiteZoom, zoomFor } from '../shared/zoom';
 import { buildAppMenu } from './app-menu';
@@ -26,8 +27,9 @@ import { PrivacyGuard } from './privacy';
 import { KSuiteServices } from './services';
 import { SettingsStore } from './settings';
 import { BookmarksStore } from './stores/bookmarks';
+import { FaviconStore } from './stores/favicons';
 import { HistoryStore } from './stores/history';
-import { BrowserWindowController, type WindowContext } from './window';
+import { BrowserWindowController, NEWTAB_URL, type WindowContext } from './window';
 
 registerInternalScheme();
 
@@ -48,6 +50,9 @@ let downloads: DownloadManager;
 let history: HistoryStore;
 let bookmarks: BookmarksStore;
 let passwords: PasswordManager;
+let favicons: FaviconStore;
+
+type SavedTab = { url: string; pinned?: boolean };
 const blocker = new TrackerBlocker();
 const guards = new Map<Session, PrivacyGuard>();
 const windows = new Set<BrowserWindowController>();
@@ -57,13 +62,13 @@ let quitting = false;
 let dataCleared = false;
 
 const sessionFile = () => join(app.getPath('userData'), 'session.json');
-const pendingUrls: string[] = urlsFromArgv(process.argv);
+const pendingUrls: SavedTab[] = urlsFromArgv(process.argv).map((url) => ({ url }));
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', (_e, argv) => {
-    const target = normalWindow() ?? openWindow(false, []);
+    const target = normalWindow() ?? openWindow(false, [{ url: settings.get().homePage }]);
     target.focus();
     for (const url of urlsFromArgv(argv)) target.tabs.create(url);
   });
@@ -77,6 +82,7 @@ app.on('window-all-closed', () => app.quit());
 app.on('will-quit', () => {
   history?.flush();
   bookmarks?.flush();
+  favicons?.flush();
 });
 
 app.on('before-quit', (event) => {
@@ -102,6 +108,7 @@ function start(): void {
   downloads = new DownloadManager(settings, services, (items) => broadcast(IPC.evDownloads, items));
   history = new HistoryStore(join(app.getPath('userData'), 'history.json'));
   bookmarks = new BookmarksStore(join(app.getPath('userData'), 'bookmarks.json'));
+  favicons = new FaviconStore(join(app.getPath('userData'), 'favicons.json'));
   passwords = new PasswordManager(app.getPath('userData'), settings, (_frame, sender) => {
     for (const w of windows) {
       const tabId = w.tabs.idOf(sender);
@@ -128,7 +135,7 @@ function start(): void {
 
   const restored = settings.get().startup === 'restore' ? readSavedSession() : [];
   if (pendingUrls.length) openWindow(false, pendingUrls);
-  else if (restored.length) for (const urls of restored) openWindow(false, urls);
+  else if (restored.length) for (const tabs of restored) openWindow(false, tabs);
   else openWindow(false, []);
 }
 
@@ -142,7 +149,7 @@ function setupSession(ses: Session, isPrivate: boolean): void {
   guards.set(ses, guard);
   downloads.attach(ses, { isPrivate });
   configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings), () => lastFocused?.win ?? null);
-  serveInternalPages(ses, PATHS.pages);
+  serveInternalPages(ses, PATHS.pages, faviconFor);
   ses.registerPreloadScript({ type: 'frame', id: 'ksuite-adblock', filePath: PATHS.adblockPreload });
   ses.registerPreloadScript({ type: 'frame', id: 'ksuite-passwords', filePath: PATHS.passwordsPreload });
 }
@@ -163,6 +170,11 @@ const windowContext: WindowContext = {
   applyZoom: (wc) => applyZoom(wc),
   stepZoom: (w, wc, direction) => changeZoom(w, wc, direction),
   guardFor: (ses) => guards.get(ses)!,
+  ownerOf: (contents) => [...windows].find((w) => w.tabs.idOf(contents) !== null) ?? null,
+  recordFavicon: (contents, source) => {
+    const origin = originOf(contents.getURL());
+    if (origin) void favicons.record(origin, source, (url) => contents.session.fetch(url));
+  },
   paths: PATHS,
   onTabsChanged: (w) => {
     if (!w.isPrivate) scheduleSessionSave();
@@ -175,19 +187,90 @@ const windowContext: WindowContext = {
   },
 };
 
-function openWindow(isPrivate: boolean, urls: string[]): BrowserWindowController {
-  let ses = electronSession.defaultSession;
-  if (isPrivate) {
+function openWindow(isPrivate: boolean, tabs: SavedTab[] | null, options: { session?: Session; bounds?: Partial<Electron.Rectangle> } = {}): BrowserWindowController {
+  let ses = options.session ?? electronSession.defaultSession;
+  if (isPrivate && !options.session) {
     // No "persist:" prefix: cookies, cache and storage live in memory and vanish with the window.
     ses = electronSession.fromPartition(`private-${++privateCounter}`);
     setupSession(ses, true);
   }
-  const controller = new BrowserWindowController(windowContext, ses, isPrivate, urls);
+  const controller = new BrowserWindowController(windowContext, ses, isPrivate, tabs, options.bounds);
   windows.add(controller);
   lastFocused = controller;
   controller.win.on('focus', () => (lastFocused = controller));
-  if (isPrivate) controller.win.on('closed', () => guards.delete(ses));
+  // A private session lives as long as one of its windows (a tab may have been moved to a new one).
+  if (isPrivate) controller.win.on('closed', () => {
+    if (![...windows].some((w) => w.session === ses)) guards.delete(ses);
+  });
   return controller;
+}
+
+function faviconFor(pageUrl: string): { mime: string; body: Buffer | string } {
+  const origin = originOf(pageUrl) ?? originOf(`https://${pageUrl}`);
+  const cached = origin ? favicons.get(origin) : null;
+  if (cached) return cached;
+  let host = pageUrl;
+  try {
+    host = new URL(pageUrl).hostname;
+  } catch {
+    /* keep raw */
+  }
+  return { mime: 'image/svg+xml', body: letterIconSvg(host || '?') };
+}
+
+// ---------- Moving tabs ----------
+
+/** Moves a tab (with its live page) to another window of the same session, or to a new window. */
+function moveTab(from: BrowserWindowController, tabId: number, to: BrowserWindowController | 'new', index?: number, point?: { x: number; y: number }): void {
+  if (to !== 'new' && (to === from || to.session !== from.session)) return;
+  if (to === 'new' && from.tabs.count() < 2) return;
+  const tab = from.tabs.detach(tabId);
+  if (!tab) return;
+  tab.pinned = false;
+  let target = to;
+  if (target === 'new') {
+    const [width, height] = from.win.getSize();
+    const bounds = point && Number.isFinite(point.x) && Number.isFinite(point.y) ? { x: Math.round(point.x - 120), y: Math.round(point.y - 20), width, height } : undefined;
+    target = openWindow(from.isPrivate, null, { session: from.session, bounds });
+  }
+  target.tabs.adopt(tab, index);
+  target.focus();
+  if (from.tabs.count() === 0) from.win.close();
+}
+
+function tabContextMenu(w: BrowserWindowController, tabId: number): void {
+  const state = w.tabs.states().find((t) => t.id === tabId);
+  if (!state) return;
+  const ids = w.tabs.ids();
+  const index = ids.indexOf(tabId);
+  const others = [...windows].filter((x) => x !== w && x.session === w.session);
+  const isPinned = (id: number) => w.tabs.states().find((t) => t.id === id)?.pinned;
+  const closeMany = (list: number[]) => {
+    for (const id of list) w.tabs.close(id);
+  };
+  Menu.buildFromTemplate([
+    { label: 'Nuova scheda a destra', click: () => w.tabs.create(settings.get().newTabPage === 'newtab' ? NEWTAB_URL : settings.get().homePage, { index: index + 1 }) },
+    { type: 'separator' },
+    { label: 'Ricarica', click: () => w.tabs.reload(tabId) },
+    { label: 'Duplica', click: () => w.tabs.duplicate(tabId) },
+    { label: state.pinned ? 'Sblocca scheda' : 'Fissa scheda', click: () => w.tabs.setPinned(tabId, !state.pinned) },
+    { label: state.muted ? 'Riattiva audio del sito' : 'Disattiva audio del sito', click: () => w.tabs.setMuted(tabId, !state.muted) },
+    { type: 'separator' },
+    { label: 'Sposta in una nuova finestra', enabled: ids.length > 1, click: () => moveTab(w, tabId, 'new') },
+    ...(others.length
+      ? [{ label: 'Sposta nella finestra', submenu: others.map((o) => ({ label: o.tabs.states().find((t) => t.active)?.title.slice(0, 50) ?? 'Finestra', click: () => moveTab(w, tabId, o) })) }]
+      : []),
+    { type: 'separator' },
+    { label: 'Chiudi scheda', click: () => w.closeTab(tabId) },
+    { label: 'Chiudi le altre schede', enabled: ids.length > 1, click: () => closeMany(ids.filter((id) => id !== tabId && !isPinned(id))) },
+    { label: 'Chiudi le schede a destra', enabled: index < ids.length - 1, click: () => closeMany(ids.slice(index + 1)) },
+    { type: 'separator' },
+    { label: 'Riapri scheda chiusa', enabled: w.tabs.hasClosed(), click: () => w.tabs.reopenClosed() },
+  ]).popup({ window: w.win });
+}
+
+function newTabUrl(): string {
+  return settings.get().newTabPage === 'newtab' ? NEWTAB_URL : settings.get().homePage;
 }
 
 function normalWindow(): BrowserWindowController | null {
@@ -207,7 +290,7 @@ function scheduleSessionSave(): void {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    const data = [...windows].filter((w) => !w.isPrivate).map((w) => w.tabs.urls()).filter((urls) => urls.length > 0);
+    const data = [...windows].filter((w) => !w.isPrivate).map((w) => w.tabs.saved()).filter((tabs) => tabs.length > 0);
     if (data.length === 0) return;
     try {
       writeFileSync(sessionFile(), JSON.stringify({ windows: data }), { mode: 0o600 });
@@ -217,14 +300,20 @@ function scheduleSessionSave(): void {
   }, 1000);
 }
 
-function readSavedSession(): string[][] {
+function readSavedSession(): SavedTab[][] {
   try {
     const parsed = JSON.parse(readFileSync(sessionFile(), 'utf8')) as { windows?: unknown };
     if (!Array.isArray(parsed.windows)) return [];
     return parsed.windows
       .filter(Array.isArray)
-      .map((urls: unknown[]) => urls.filter((u): u is string => typeof u === 'string' && /^(https?|ksuite|file):/i.test(u)))
-      .filter((urls) => urls.length > 0);
+      .map((tabs: unknown[]) =>
+        tabs
+          // Older sessions stored plain URLs.
+          .map((t) => (typeof t === 'string' ? { url: t } : (t as SavedTab)))
+          .filter((t) => t && typeof t.url === 'string' && /^(https?|ksuite|file):/i.test(t.url))
+          .map((t) => ({ url: t.url, pinned: Boolean(t.pinned) })),
+      )
+      .filter((tabs) => tabs.length > 0);
   } catch {
     return [];
   }
@@ -288,8 +377,8 @@ function changeZoom(w: BrowserWindowController, wc: Electron.WebContents, direct
 // ---------- Bookmarks ----------
 
 function openUrl(w: BrowserWindowController, url: string, how: 'current' | 'tab' | 'background' | 'window' | 'private'): void {
-  if (how === 'window') openWindow(false, [url]);
-  else if (how === 'private') openWindow(true, [url]);
+  if (how === 'window') openWindow(false, [{ url }]);
+  else if (how === 'private') openWindow(true, [{ url }]);
   else if (how === 'current' && w.activeTabId() !== null) w.tabs.navigate(w.activeTabId()!, url);
   else w.tabs.create(url, { background: how === 'background' });
 }
@@ -357,8 +446,10 @@ function broadcast(channel: string, payload?: unknown): void {
 function buildMenu(): Menu {
   return buildAppMenu({
     newTab: () => current()?.newTab(),
-    newWindow: () => openWindow(false, []),
-    newPrivateWindow: () => openWindow(true, []),
+    newWindow: () => openWindow(false, [{ url: newTabUrl() }]),
+    newPrivateWindow: () => openWindow(true, [{ url: newTabUrl() }]),
+    reopenClosed: () => current()?.tabs.reopenClosed(),
+    selectTab: (index) => current()?.tabs.activateIndex(index),
     closeTab: () => current()?.closeActiveTab(),
     focusAddress: () => current()?.focusChrome(IPC.evFocusAddress),
     reload: () => {
@@ -460,7 +551,18 @@ function registerChromeIpc(): void {
     const w = [...windows].find((c) => c.suggestions.contents === event.sender);
     if (w && Number.isInteger(index)) w.suggestions.choose(index);
   });
-  handle(IPC.windowInfo, (w) => ({ isPrivate: w.isPrivate }));
+  handle(IPC.windowInfo, (w) => ({ isPrivate: w.isPrivate, windowId: w.win.id }));
+  handle(IPC.tabsMove, (w, id: number, index: number) => w.tabs.move(id, Number(index)));
+  handle(IPC.tabsMenu, (w, id: number) => tabContextMenu(w, id));
+  handle(IPC.tabsMute, (w, id: number) => {
+    const state = w.tabs.states().find((t) => t.id === id);
+    if (state) w.tabs.setMuted(id, !state.muted);
+  });
+  handle(IPC.tabsDetach, (w, id: number, x: number, y: number) => moveTab(w, id, 'new', undefined, { x: Number(x), y: Number(y) }));
+  handle(IPC.tabsAdopt, (w, fromWindowId: number, tabId: number, index: number) => {
+    const from = [...windows].find((x) => x.win.id === fromWindowId);
+    if (from) moveTab(from, Number(tabId), w, Number(index));
+  });
   handle(IPC.tabsList, (w) => w.tabs.states());
   handle(IPC.tabsCreate, (w, url?: string) => w.newTab(url ? resolveOmniboxInput(url, settings.get().searchEngine) : undefined));
   handle(IPC.tabsClose, (w, id: number) => w.closeTab(id));
@@ -575,7 +677,8 @@ function handleInternal<A extends unknown[], R>(channel: string, hosts: string[]
 
 function registerInternalIpc(): void {
   const S = ['settings'];
-  handleInternal(INTERNAL.settingsGet, S, () => settings.get());
+  // Every internal page reads the settings (theme); only the settings page changes them.
+  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'history', 'bookmarks', 'passwords'], () => settings.get());
   handleInternal(INTERNAL.settingsSet, S, (_e, patch: Partial<Settings>) => settings.update(patch));
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
   handleInternal(INTERNAL.tokenSet, S, (_e, token: string) =>
@@ -663,6 +766,24 @@ function registerInternalIpc(): void {
     return vault().exportCsv();
   }));
   handleInternal(INTERNAL.pwGenerate, P, () => generatePassword());
+  handleInternal(INTERNAL.newtabData, ['newtab'], () => {
+    const s = settings.get();
+    return {
+      topSites: s.saveHistory && s.showTopSites ? topSites(history.summaries(), s.hiddenTopSites) : [],
+      searchEngine: s.searchEngine,
+      showTopSites: s.showTopSites,
+      hiddenCount: s.hiddenTopSites.length,
+    };
+  });
+  handleInternal(INTERNAL.newtabHide, ['newtab'], (_e, url: string) => {
+    const origin = originOf(String(url ?? ''));
+    if (origin) settings.update({ hiddenTopSites: [...settings.get().hiddenTopSites, origin] });
+  });
+  handleInternal(INTERNAL.newtabRestore, ['newtab', 'settings'], () => settings.update({ hiddenTopSites: [] }));
+  handleInternal(INTERNAL.newtabFocusOmnibox, ['newtab'], (event) => {
+    const w = [...windows].find((x) => x.tabs.idOf(event.sender) !== null);
+    w?.focusChrome(IPC.evFocusAddress);
+  });
   handleInternal(INTERNAL.httpsContinue, ['https-only'], (event, url: string) => {
     const parsed = new URL(url);
     if (parsed.protocol !== 'http:') throw new Error('URL non valido');

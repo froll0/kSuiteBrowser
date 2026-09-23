@@ -1,4 +1,5 @@
 import { KSUITE_APPS } from '../shared/ksuite-apps';
+import { faviconUrl } from '../shared/top-sites';
 import type { Bookmark, Settings, Suggestion, TabState } from '../shared/types';
 import { ks } from './bridge';
 import { h } from './dom';
@@ -62,27 +63,120 @@ const togglePanel = () => void setPanelOpen(!document.body.classList.contains('p
 
 // ---------- Tabs ----------
 
+const TAB_MIME = 'application/x-ksuite-tab';
+let windowId = 0;
+
+function tabIcon(t: TabState): HTMLElement {
+  if (t.url.startsWith('ksuite://')) return h('span', { class: 'favicon internal', 'aria-hidden': 'true' }, 'k');
+  const src = t.favicon ?? (/^https?:/i.test(t.url) ? faviconUrl(t.url) : null);
+  if (!src) return h('span', { class: 'favicon placeholder' });
+  const img = h('img', { class: 'favicon', src, alt: '' });
+  img.addEventListener('error', () => {
+    if (/^https?:/i.test(t.url) && img.src !== faviconUrl(t.url)) img.src = faviconUrl(t.url);
+    else img.replaceWith(h('span', { class: 'favicon placeholder' }));
+  });
+  return img;
+}
+
+/** Insertion index for a drop at clientX: before the first tab whose middle is to the right. */
+function dropIndex(clientX: number): number {
+  const els = [...tabstrip.querySelectorAll<HTMLElement>('.tab')];
+  const i = els.findIndex((el) => {
+    const r = el.getBoundingClientRect();
+    return clientX < r.left + r.width / 2;
+  });
+  return i === -1 ? els.length : i;
+}
+
+function clearDropMarks(): void {
+  for (const el of tabstrip.querySelectorAll('.drop-before, .drop-after')) el.classList.remove('drop-before', 'drop-after');
+}
+
 function renderTabs(): void {
   tabstrip.replaceChildren(
     ...tabs.map((t) => {
-      const icon = t.favicon ? h('img', { class: 'favicon', src: t.favicon, alt: '' }) : h('span', { class: 'favicon placeholder' });
+      const audio = t.audible || t.muted
+        ? h('button', {
+            class: 'tab-audio',
+            title: t.muted ? 'Riattiva audio' : 'Disattiva audio',
+            'aria-label': t.muted ? 'Riattiva audio della scheda' : 'Disattiva audio della scheda',
+            onclick: (e: Event) => { e.stopPropagation(); void ks.tabs.mute(t.id); },
+          }, t.muted ? '🔇' : '🔊')
+        : null;
       const el = h(
         'div',
-        { class: `tab${t.active ? ' active' : ''}${t.loading ? ' loading' : ''}`, role: 'tab', 'aria-selected': String(t.active), title: `${t.title}\n${t.url}` },
-        icon,
-        h('span', { class: 'tab-title' }, t.title),
-        h('button', { class: 'tab-close', 'aria-label': 'Chiudi scheda', onclick: (e: Event) => { e.stopPropagation(); void ks.tabs.close(t.id); } }, '×'),
+        {
+          class: `tab${t.active ? ' active' : ''}${t.loading ? ' loading' : ''}${t.pinned ? ' pinned' : ''}`,
+          role: 'tab',
+          'aria-selected': String(t.active),
+          title: `${t.title}\n${t.url}`,
+          draggable: 'true',
+          'data-id': String(t.id),
+        },
+        tabIcon(t),
+        t.pinned ? null : h('span', { class: 'tab-title' }, t.title),
+        audio,
+        t.pinned ? null : h('button', { class: 'tab-close', 'aria-label': 'Chiudi scheda', onclick: (e: Event) => { e.stopPropagation(); void ks.tabs.close(t.id); } }, '×'),
       );
       el.addEventListener('click', () => void ks.tabs.activate(t.id));
       el.addEventListener('auxclick', (e) => {
         if ((e as MouseEvent).button === 1) void ks.tabs.close(t.id);
       });
-      icon.addEventListener('error', () => icon.replaceWith(h('span', { class: 'favicon placeholder' })));
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        void ks.tabs.menu(t.id);
+      });
+      el.addEventListener('dragstart', (e) => {
+        e.dataTransfer!.effectAllowed = 'move';
+        e.dataTransfer!.setData(TAB_MIME, JSON.stringify({ windowId, tabId: t.id }));
+        e.dataTransfer!.setData('text/uri-list', t.url);
+        e.dataTransfer!.setData('text/plain', t.url);
+        el.classList.add('dragging');
+      });
+      el.addEventListener('dragend', (e) => {
+        el.classList.remove('dragging');
+        clearDropMarks();
+        const dropped = e.dataTransfer!.dropEffect !== 'none';
+        if (dropped) return;
+        // Released away from the tab strip: move the tab to a new window there.
+        const strip = tabstrip.getBoundingClientRect();
+        const outside = e.clientY < strip.top - 40 || e.clientY > strip.bottom + 40 || e.clientX < 0 || e.clientX > window.innerWidth;
+        if (outside && tabs.length > 1) void ks.tabs.detach(t.id, e.screenX, e.screenY);
+      });
       return el;
     }),
     h('button', { class: 'new-tab', title: 'Nuova scheda (Ctrl+T)', 'aria-label': 'Nuova scheda', onclick: () => void ks.tabs.create() }, '+'),
   );
 }
+
+tabstrip.addEventListener('dragover', (e) => {
+  if (!e.dataTransfer?.types.includes(TAB_MIME)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  clearDropMarks();
+  const els = [...tabstrip.querySelectorAll<HTMLElement>('.tab')];
+  const index = dropIndex(e.clientX);
+  if (els[index]) els[index].classList.add('drop-before');
+  else els[els.length - 1]?.classList.add('drop-after');
+});
+tabstrip.addEventListener('dragleave', (e) => {
+  if (!tabstrip.contains(e.relatedTarget as Node)) clearDropMarks();
+});
+tabstrip.addEventListener('drop', (e) => {
+  const raw = e.dataTransfer?.getData(TAB_MIME);
+  clearDropMarks();
+  if (!raw) return;
+  e.preventDefault();
+  const { windowId: from, tabId } = JSON.parse(raw) as { windowId: number; tabId: number };
+  let index = dropIndex(e.clientX);
+  if (from === windowId) {
+    const current = tabs.findIndex((t) => t.id === tabId);
+    if (current !== -1 && current < index) index--;
+    if (current !== index) void ks.tabs.move(tabId, index);
+  } else {
+    void ks.tabs.adopt(from, tabId, index);
+  }
+});
 
 function renderToolbar(): void {
   const tab = activeTab();
@@ -90,7 +184,7 @@ function renderToolbar(): void {
   forwardBtn.disabled = !tab?.canGoForward;
   reloadBtn.innerHTML = tab?.loading ? '&#10005;' : '&#8635;';
   reloadBtn.title = tab?.loading ? 'Interrompi' : 'Ricarica (Ctrl+R)';
-  if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' ? tab.url : '';
+  if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' && !tab.url.startsWith('ksuite://newtab') ? tab.url : '';
   renderShield(tab);
 
   const bookmarkable = Boolean(tab && /^(https?|file|ksuite):/i.test(tab.url));
@@ -237,7 +331,7 @@ function renderBookmarksBar(): void {
       const el = h(
         'button',
         { class: 'bookmark', title: `${b.title}\n${b.url}` },
-        h('span', { class: 'letter' }, (host || b.title || '?').slice(0, 1).toUpperCase()),
+        /^https?:/i.test(b.url) ? h('img', { class: 'bm-icon', src: faviconUrl(b.url), alt: '' }) : h('span', { class: 'letter' }, (host || b.title || '?').slice(0, 1).toUpperCase()),
         h('span', { class: 'label' }, b.title),
       );
       el.addEventListener('click', () => void ks.bookmarks.open(b.id, 'current'));
@@ -450,6 +544,7 @@ async function boot(): Promise<void> {
     ks.settings.get(), ks.token.status(), ks.tabs.list(), ks.windowInfo(), ks.bookmarks.list(),
   ]);
   tabs = initialTabs;
+  windowId = info.windowId;
   currentSettings = settings;
   bookmarks = bookmarkList;
   document.body.classList.toggle('bookmarks-bar', settings.showBookmarksBar);

@@ -1,18 +1,28 @@
-import { BrowserWindow, WebContentsView, type Session, type WebContents } from 'electron';
+import { BrowserWindow, WebContentsView, type NavigationEntry, type Session, type WebContents } from 'electron';
 import type { Rect, TabState } from '../shared/types';
 
-interface Tab {
+/** A tab. It can move to another window, so its listeners always go through `owner`. */
+export interface Tab {
   id: number;
   view: WebContentsView;
   favicon: string | null;
   appId: string | null;
+  pinned: boolean;
   /** URL that failed to load while the error page is shown. */
   failedUrl: string | null;
+  owner: TabManager;
+}
+
+export interface ClosedTab {
+  url: string;
+  pinned: boolean;
+  entries: NavigationEntry[];
+  index: number;
 }
 
 export interface TabManagerHooks {
   onChange(tabs: TabState[]): void;
-  /** Called for every new page WebContents, to attach context menus, window handlers, etc. */
+  /** Called once for every new page WebContents, to attach context menus, window handlers, etc. */
   onWebContentsCreated(contents: WebContents, tabs: TabManager): void;
   /** Extra per-tab state shown in the toolbar: shield, zoom badge, bookmark star. */
   extraState(contents: WebContents): Pick<TabState, 'blocked' | 'protectionActive' | 'zoom' | 'bookmarked'>;
@@ -26,20 +36,38 @@ export interface TabManagerOptions {
   preload: string;
 }
 
-/** Owns the page views shown in the content area of the main window. */
+export interface CreateOptions {
+  background?: boolean;
+  appId?: string | null;
+  pinned?: boolean;
+  /** Position in the tab strip; default: at the end. */
+  index?: number;
+  /** Navigation history to restore instead of loading `url` (reopened or duplicated tabs). */
+  history?: { entries: NavigationEntry[]; index: number };
+}
+
+// Global so tab ids stay unique when tabs move between windows.
+let nextTabId = 1;
+const MAX_CLOSED = 25;
+
+/** Owns the page views shown in the content area of a window. */
 export class TabManager {
   private tabs: Tab[] = [];
   private activeId: number | null = null;
-  private nextId = 1;
   private bounds: Rect = { x: 0, y: 0, width: 0, height: 0 };
+  private readonly closed: ClosedTab[] = [];
 
   constructor(
     private readonly window: BrowserWindow,
-    private readonly hooks: TabManagerHooks,
+    readonly hooks: TabManagerHooks,
     private readonly options: TabManagerOptions,
   ) {}
 
-  create(url: string, options: { background?: boolean; appId?: string | null } = {}): number {
+  get session(): Session {
+    return this.options.session;
+  }
+
+  create(url: string, options: CreateOptions = {}): number {
     const view = new WebContentsView({
       webPreferences: {
         session: this.options.session,
@@ -50,16 +78,18 @@ export class TabManager {
         spellcheck: true,
       },
     });
-    const tab: Tab = { id: this.nextId++, view, favicon: null, appId: options.appId ?? null, failedUrl: null };
-    this.tabs.push(tab);
+    const tab: Tab = { id: nextTabId++, view, favicon: null, appId: options.appId ?? null, pinned: Boolean(options.pinned), failedUrl: null, owner: this };
+    this.insert(tab, options.index);
 
     const wc = view.webContents;
-    const emit = () => this.emit();
+    const emit = () => tab.owner.emit();
     wc.on('page-title-updated', emit);
     wc.on('did-start-loading', emit);
     wc.on('did-stop-loading', emit);
-    wc.on('did-navigate', (_e, url) => {
-      if (!url.startsWith('data:') && !url.startsWith('ksuite://https-only')) tab.failedUrl = null;
+    wc.on('audio-state-changed', emit);
+    wc.on('did-navigate', (_e, navUrl) => {
+      if (!navUrl.startsWith('data:') && !navUrl.startsWith('ksuite://https-only')) tab.failedUrl = null;
+      tab.favicon = null;
       emit();
     });
     wc.on('did-navigate-in-page', emit);
@@ -69,13 +99,17 @@ export class TabManager {
     });
     wc.on('did-fail-load', (_e, code, description, validatedUrl, isMainFrame) => {
       if (!isMainFrame || code === -3) return; // -3 = aborted (e.g. new navigation)
-      const special = this.hooks.failurePage?.(wc, validatedUrl, code);
+      const special = tab.owner.hooks.failurePage?.(wc, validatedUrl, code);
       tab.failedUrl = special ? special.display : validatedUrl;
       void wc.loadURL(special ? special.load : errorPage(validatedUrl, description));
     });
     this.hooks.onWebContentsCreated(wc, this);
 
-    void wc.loadURL(url);
+    if (options.history?.entries.length) {
+      wc.navigationHistory.restore({ entries: options.history.entries, index: options.history.index }).catch(() => void wc.loadURL(url));
+    } else {
+      void wc.loadURL(url);
+    }
     if (!options.background || this.activeId === null) this.activate(tab.id);
     else this.emit();
     return tab.id;
@@ -89,17 +123,79 @@ export class TabManager {
   }
 
   close(id: number): void {
-    const index = this.tabs.findIndex((t) => t.id === id);
-    if (index === -1) return;
-    const [tab] = this.tabs.splice(index, 1);
-    this.window.contentView.removeChildView(tab.view);
-    tab.view.webContents.close();
+    const tab = this.detach(id);
+    if (!tab) return;
+    const wc = tab.view.webContents;
+    const url = tab.failedUrl ?? wc.getURL();
+    if (url && !url.startsWith('data:')) {
+      this.closed.push({ url, pinned: tab.pinned, entries: wc.navigationHistory.getAllEntries(), index: wc.navigationHistory.getActiveIndex() });
+      if (this.closed.length > MAX_CLOSED) this.closed.shift();
+    }
+    wc.close();
+  }
 
+  /** Reopens the last closed tab with its back/forward history. */
+  reopenClosed(): boolean {
+    const last = this.closed.pop();
+    if (!last) return false;
+    this.create(last.url, { pinned: last.pinned, history: { entries: last.entries, index: last.index } });
+    return true;
+  }
+
+  duplicate(id: number): void {
+    const tab = this.find(id);
+    if (!tab) return;
+    const wc = tab.view.webContents;
+    this.create(tab.failedUrl ?? wc.getURL(), {
+      index: this.tabs.indexOf(tab) + 1,
+      history: { entries: wc.navigationHistory.getAllEntries(), index: wc.navigationHistory.getActiveIndex() },
+    });
+  }
+
+  /** Removes a tab from this window without destroying its page (to move it elsewhere). */
+  detach(id: number): Tab | undefined {
+    const index = this.tabs.findIndex((t) => t.id === id);
+    if (index === -1) return undefined;
+    const [tab] = this.tabs.splice(index, 1);
+    if (!this.window.isDestroyed()) this.window.contentView.removeChildView(tab.view);
     if (this.activeId === id) {
       this.activeId = null;
       const next = this.tabs[index] ?? this.tabs[index - 1];
       if (next) this.activate(next.id);
     }
+    this.emit();
+    return tab;
+  }
+
+  /** Takes a tab detached from another window. */
+  adopt(tab: Tab, index?: number): void {
+    tab.owner = this;
+    this.insert(tab, index);
+    this.activate(tab.id);
+  }
+
+  /** Moves a tab to a new position; pinned tabs always stay before the others. */
+  move(id: number, toIndex: number): void {
+    const tab = this.find(id);
+    if (!tab) return;
+    this.tabs.splice(this.tabs.indexOf(tab), 1);
+    this.insert(tab, toIndex);
+    this.emit();
+  }
+
+  setPinned(id: number, pinned: boolean): void {
+    const tab = this.find(id);
+    if (!tab || tab.pinned === pinned) return;
+    this.tabs.splice(this.tabs.indexOf(tab), 1);
+    tab.pinned = pinned;
+    this.insert(tab, pinned ? this.tabs.filter((t) => t.pinned).length : undefined);
+    this.emit();
+  }
+
+  setMuted(id: number, muted: boolean): void {
+    const wc = this.contents(id);
+    if (!wc) return;
+    wc.setAudioMuted(muted);
     this.emit();
   }
 
@@ -113,6 +209,12 @@ export class TabManager {
     tab.view.setBounds(this.bounds);
     tab.view.webContents.focus();
     this.emit();
+  }
+
+  /** Activates the tab at a position (Ctrl+1…8); -1 is the last tab (Ctrl+9). */
+  activateIndex(index: number): void {
+    const tab = index < 0 ? this.tabs[this.tabs.length - 1] : this.tabs[index];
+    if (tab) this.activate(tab.id);
   }
 
   cycle(step: 1 | -1): void {
@@ -155,8 +257,16 @@ export class TabManager {
     return this.find(id)?.view.webContents;
   }
 
+  ids(): number[] {
+    return this.tabs.map((t) => t.id);
+  }
+
   count(): number {
     return this.tabs.length;
+  }
+
+  hasClosed(): boolean {
+    return this.closed.length > 0;
   }
 
   /** Re-sends the tab states, e.g. when the blocked counter or a setting changed. */
@@ -169,8 +279,11 @@ export class TabManager {
     return this.tabs.find((t) => t.view.webContents === contents)?.id ?? null;
   }
 
-  urls(): string[] {
-    return this.states().map((t) => t.url).filter((u) => u && !u.startsWith('data:'));
+  /** Tabs to reopen at the next start. */
+  saved(): Array<{ url: string; pinned: boolean }> {
+    return this.states()
+      .filter((t) => t.url && !t.url.startsWith('data:'))
+      .map((t) => ({ url: t.url, pinned: t.pinned }));
   }
 
   /** Closes every tab; used when the window goes away. */
@@ -186,7 +299,7 @@ export class TabManager {
       const url = t.failedUrl ?? wc.getURL();
       return {
         id: t.id,
-        title: wc.getTitle() || url || 'Nuova scheda',
+        title: url.startsWith('ksuite://newtab') ? 'Nuova scheda' : wc.getTitle() || url || 'Nuova scheda',
         url,
         favicon: t.favicon,
         loading: wc.isLoading(),
@@ -194,16 +307,27 @@ export class TabManager {
         canGoForward: wc.navigationHistory.canGoForward(),
         active: t.id === this.activeId,
         appId: t.appId,
+        pinned: t.pinned,
+        audible: wc.isCurrentlyAudible(),
+        muted: wc.isAudioMuted(),
         ...this.hooks.extraState(wc),
       };
     });
+  }
+
+  private insert(tab: Tab, index?: number): void {
+    const pinnedCount = this.tabs.filter((t) => t.pinned).length;
+    const min = tab.pinned ? 0 : pinnedCount;
+    const max = tab.pinned ? pinnedCount : this.tabs.length;
+    const at = Math.min(max, Math.max(min, index ?? max));
+    this.tabs.splice(at, 0, tab);
   }
 
   private find(id: number): Tab | undefined {
     return this.tabs.find((t) => t.id === id);
   }
 
-  private emit(): void {
+  emit(): void {
     if (!this.window.isDestroyed()) this.hooks.onChange(this.states());
   }
 }

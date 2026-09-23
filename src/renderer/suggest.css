@@ -5,6 +5,7 @@ ul { list-style: none; margin: 0; padding: 4px 0; background: var(--surface); co
 li { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 14px; cursor: default; }
 li:hover { background: var(--hover); }
 li.selected { background: var(--selected); }
-.icon { width: 16px; text-align: center; color: var(--muted); flex: none; }
+.icon { width: 16px; height: 16px; text-align: center; color: var(--muted); flex: none; }
+img.icon { border-radius: 3px; }
 .title { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .url { flex: 1 1 0; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -1,7 +1,11 @@
 import { h } from '../../renderer/dom';
 import { exportBookmarksHtml, parseBookmarksHtml } from '../../shared/bookmark-html';
+import { faviconUrl } from '../../shared/top-sites';
 import type { Bookmark, BookmarkFolder } from '../../shared/types';
 import { internal } from '../shared/bridge';
+import { followTheme } from '../shared/theme';
+
+followTheme();
 
 const list = document.getElementById('list')!;
 const search = document.getElementById('search') as HTMLInputElement;
@@ -61,7 +65,7 @@ function row(b: Bookmark, index: number, count: number, filtered: boolean): HTML
   return h(
     'div',
     { class: 'entry' },
-    h('span', { class: 'letter', 'aria-hidden': 'true' }, host.slice(0, 1).toUpperCase()),
+    /^https?:/i.test(b.url) ? h('img', { class: 'site-icon', src: faviconUrl(b.url), alt: '' }) : h('span', { class: 'letter', 'aria-hidden': 'true' }, host.slice(0, 1).toUpperCase()),
     h('div', { class: 'main' }, h('a', { href: b.url, title: b.url }, b.title), h('span', { class: 'host' }, host)),
     h('div', { class: 'actions' },
       filtered ? null : h('button', { class: 'icon', title: 'Sposta su', 'aria-label': `Sposta su ${b.title}`, disabled: index === 0, onclick: () => void internal.bookmarks.shift(b.id, -1) }, '↑'),

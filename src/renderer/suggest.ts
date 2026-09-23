@@ -20,9 +20,17 @@ bridge.onItems(({ items, selected, theme }) => {
       li.setAttribute('role', 'option');
       li.setAttribute('aria-selected', String(i === selected));
       if (i === selected) li.className = 'selected';
-      const icon = document.createElement('span');
-      icon.className = 'icon';
-      icon.textContent = ICONS[item.kind];
+      let icon: HTMLElement;
+      if (item.kind === 'history' || item.kind === 'bookmark') {
+        icon = document.createElement('img');
+        icon.className = 'icon';
+        (icon as HTMLImageElement).src = `ksuite://favicon/?url=${encodeURIComponent(item.url)}`;
+        (icon as HTMLImageElement).alt = '';
+      } else {
+        icon = document.createElement('span');
+        icon.className = 'icon';
+        icon.textContent = ICONS[item.kind];
+      }
       const title = document.createElement('span');
       title.className = 'title';
       title.textContent = item.title;

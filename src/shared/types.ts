@@ -18,6 +18,21 @@ export interface TabState {
   /** Zoom of the page, in percent. */
   zoom: number;
   bookmarked: boolean;
+  pinned: boolean;
+  audible: boolean;
+  muted: boolean;
+}
+
+export interface TopSite {
+  url: string;
+  title: string;
+}
+
+export interface NewTabData {
+  topSites: TopSite[];
+  searchEngine: SearchEngineId;
+  showTopSites: boolean;
+  hiddenCount: number;
 }
 
 export interface HistoryVisit {
@@ -104,6 +119,11 @@ export interface Settings {
   showSidebar: boolean;
   showBookmarksBar: boolean;
   panelOpen: boolean;
+  /** What Ctrl+T and the + button open. */
+  newTabPage: 'newtab' | 'home';
+  showTopSites: boolean;
+  /** Origins removed from the new tab page by the user. */
+  hiddenTopSites: string[];
   /** Zoom for sites without their own level, in percent. */
   defaultZoom: number;
   /** Zoom chosen by the user per host, in percent. */

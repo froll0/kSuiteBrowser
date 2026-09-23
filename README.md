@@ -25,7 +25,13 @@ quindi funzionano senza sorprese.
 - **Preferiti**: stella nella barra degli indirizzi (`Ctrl+D`), barra dei preferiti (`Ctrl+Shift+B`), gestione (`ksuite://bookmarks`, `Ctrl+Shift+O`) con modifica, riordino e cartelle; **importazione ed esportazione** in formato HTML compatibile con Chrome, Edge, Firefox e Safari
 - **Trova nella pagina** (`Ctrl+F`, `F3`/`Shift+F3`), con conteggio dei risultati e distinzione maiuscole/minuscole
 - **Zoom** (`Ctrl +`, `Ctrl −`, `Ctrl+0`, `Ctrl`+rotellina) ricordato per ogni sito, zoom predefinito nelle impostazioni
-- Riapertura delle schede della sessione precedente
+- **Pagina nuova scheda** (`ksuite://newtab`): ricerca, siti più visitati (rimovibili) e app kSuite
+- **Schede**: trascinamento per riordinarle, trascinamento fuori dalla finestra o in un'altra finestra per spostarle
+  (la pagina resta aperta, senza ricaricarsi), schede fissate, audio on/off, duplicazione, "chiudi le altre",
+  **riapri scheda chiusa** (`Ctrl+Shift+T`) con la sua cronologia avanti/indietro, `Ctrl+1…9`
+- **Icone dei siti** salvate durante la navigazione e mostrate in preferiti, cronologia, suggerimenti e password
+  (con un'iniziale colorata per i siti senza icona)
+- Riapertura delle schede della sessione precedente (anche quelle fissate)
 - Scorciatoie: `Ctrl+T`, `Ctrl+N`, `Ctrl+Shift+N` (finestra privata), `Ctrl+W`, `Ctrl+L`, `Ctrl+R`/`F5`, `Alt+←/→`, `Ctrl+Tab`, `Ctrl+,` (impostazioni), `Ctrl+Shift+Canc` (cancella dati), `F12` (su Mac: `⌘` al posto di `Ctrl`, cronologia con `⌘+Y`)
 - Download con cartella configurabile o "chiedi dove salvare"
 
@@ -121,7 +127,7 @@ src/
   main/       Processo principale: finestre, schede, privacy, download, permessi, menu, IPC
   preload/    Ponti sicuri (contextBridge): UI del browser e pagine interne ksuite://
   renderer/   Interfaccia del browser (barra schede, sidebar, pannello kSuite)
-  pages/      Pagine interne: ksuite://settings, ksuite://history, ksuite://bookmarks, ksuite://https-only
+  pages/      Pagine interne: ksuite://newtab, settings, history, bookmarks, passwords, https-only
   shared/     Tipi, canali IPC, schema delle impostazioni, regole privacy, barra indirizzi
 test/         Test Vitest
 ```

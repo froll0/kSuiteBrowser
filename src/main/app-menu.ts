@@ -4,6 +4,8 @@ export interface AppMenuActions {
   newTab(): void;
   newWindow(): void;
   newPrivateWindow(): void;
+  reopenClosed(): void;
+  selectTab(index: number): void;
   closeTab(): void;
   focusAddress(): void;
   reload(): void;
@@ -38,6 +40,7 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { label: 'Nuova finestra', accelerator: 'CmdOrCtrl+N', click: a.newWindow },
         { label: 'Nuova finestra privata', accelerator: 'CmdOrCtrl+Shift+N', click: a.newPrivateWindow },
         { label: 'Chiudi scheda', accelerator: 'CmdOrCtrl+W', click: a.closeTab },
+        { label: 'Riapri scheda chiusa', accelerator: 'CmdOrCtrl+Shift+T', click: a.reopenClosed },
         { type: 'separator' },
         { label: 'Salva pagina come PDF su kDrive', accelerator: 'CmdOrCtrl+Shift+S', click: a.savePageToDrive },
         { label: 'Invia pagina via Mail…', accelerator: 'CmdOrCtrl+Shift+M', click: a.mailPage },
@@ -78,6 +81,8 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { type: 'separator' },
         { label: 'Scheda successiva', accelerator: 'Ctrl+Tab', click: a.nextTab },
         { label: 'Scheda precedente', accelerator: 'Ctrl+Shift+Tab', click: a.previousTab },
+        ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ label: `Scheda ${n}`, accelerator: `CmdOrCtrl+${n}`, click: () => a.selectTab(n - 1), visible: false })),
+        { label: 'Ultima scheda', accelerator: 'CmdOrCtrl+9', click: () => a.selectTab(-1), visible: false },
         { type: 'separator' },
         { label: 'Zoom avanti', accelerator: 'CmdOrCtrl+Plus', click: () => a.zoom('in') },
         { label: 'Zoom avanti', accelerator: 'CmdOrCtrl+=', click: () => a.zoom('in'), visible: false },

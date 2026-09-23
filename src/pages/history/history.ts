@@ -1,6 +1,10 @@
 import { h } from '../../renderer/dom';
+import { faviconUrl } from '../../shared/top-sites';
 import type { HistoryVisit } from '../../shared/types';
 import { internal } from '../shared/bridge';
+import { followTheme } from '../shared/theme';
+
+followTheme();
 
 const list = document.getElementById('list')!;
 const search = document.getElementById('search') as HTMLInputElement;
@@ -34,7 +38,7 @@ function entry(v: HistoryVisit): HTMLElement {
     'div',
     { class: 'entry' },
     h('span', { class: 'time' }, new Date(v.visitedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })),
-    h('span', { class: 'letter', 'aria-hidden': 'true' }, host.slice(0, 1).toUpperCase()),
+    h('img', { class: 'site-icon', src: faviconUrl(v.url), alt: '' }),
     h('div', { class: 'main' }, h('a', { href: v.url, title: v.url }, v.title || v.url), h('span', { class: 'host' }, host)),
     h('div', { class: 'actions' },
       h('button', {

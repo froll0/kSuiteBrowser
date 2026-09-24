@@ -55,6 +55,8 @@ quindi funzionano senza sorprese.
 - **Informazioni sul sito** (clic sul lucchetto o su "Non sicuro"): stato della connessione, permessi concessi al sito, cancellazione di cookie e dati del sito
 - **Stampa** (`Ctrl+P`), **salva pagina con nome** in HTML completo o MHTML (`Ctrl+S`), **sorgente pagina** (`Ctrl+U`)
 - **Visualizzatore PDF** integrato
+- **Netflix, Disney+, Prime Video, Spotify** e gli altri servizi con contenuti protetti: il browser usa
+  [Castlabs Electron](https://github.com/castlabs/electron-releases) con Widevine (disattivabile in Impostazioni › Privacy)
 - **Video e audio**: menu contestuale con riproduci/pausa, audio, ripeti, controlli, velocità, **picture-in-picture**
   (anche sui siti che lo disattivano), apri/salva/copia indirizzo; `Ctrl+Shift+P` mette in picture-in-picture il video
   principale della scheda (anche dentro i riquadri incorporati); pulsante nella barra con i controlli di tutte le schede
@@ -250,6 +252,24 @@ test/         Test Vitest
 | AI Services | `GET /1/ai`, `GET /1/ai/models`, `POST /2/ai/{product_id}/openai/v1/chat/completions` (compatibile OpenAI, streaming SSE) |
 
 Sono gli stessi endpoint usati dai connettori MCP ufficiali di Infomaniak.
+
+## Contenuti protetti (Widevine)
+
+Il browser è costruito su Castlabs Electron (ECS), che include Widevine: il modulo di Google viene scaricato al primo
+avvio e aggiornato automaticamente. Su Windows e macOS i servizi di streaming accettano solo app con **firma VMP di
+produzione**, fatta con il servizio gratuito [Castlabs EVS](https://github.com/castlabs/electron-releases/wiki/EVS):
+
+1. Crea l'account (una volta sola, sul tuo computer):
+   ```bash
+   python3 -m pip install --upgrade castlabs-evs
+   python3 -m castlabs_evs.account signup
+   ```
+   Ti arriva un codice di conferma per email.
+2. Su GitHub, *Settings › Secrets and variables › Actions*, aggiungi i secret `EVS_ACCOUNT_NAME` e `EVS_PASSWD`.
+3. Le build successive (Windows e macOS) vengono firmate dall'hook `scripts/after-pack.cjs`; senza i secret la build
+   funziona lo stesso, ma Netflix e simili rifiutano la riproduzione.
+
+Su Linux Widevine funziona senza firma VMP (con qualità video limitata da alcuni servizi).
 
 ## Sicurezza dell'app installata
 

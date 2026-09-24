@@ -43,6 +43,7 @@ export const internal = {
     exit: () => call<void>(INTERNAL.readerExit),
     askAi: (action: 'summary' | 'keypoints') => call<void>(INTERNAL.readerAskAi, action),
   },
+  drmStatus: () => call<{ supported: boolean; ready: boolean; version: string | null; status: string }>(INTERNAL.drmStatus),
   threatStatus: () => call<{ entries: number; loadedAt: number | null }>(INTERNAL.threatStatus),
   testNotification: () => call<boolean>(INTERNAL.testNotification),
   defaultBrowser: {

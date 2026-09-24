@@ -26,6 +26,7 @@ import { TrackerBlocker } from './blocker';
 import { ThreatProtection } from './threats';
 import { ReaderCache, extractArticle, readerOriginal, readerUrl } from './reader';
 import { pageMedia, pageMediaAction } from './media';
+import { widevineReady, widevineStatus } from './widevine';
 import type { HoverInfo } from './hover-card';
 import { clearBrowsingData } from './browsing-data';
 import { DownloadManager } from './downloads';
@@ -172,7 +173,7 @@ async function makeDefaultBrowser(): Promise<boolean> {
 
 // ---------- Startup ----------
 
-function start(): void {
+async function start(): Promise<void> {
   // Look like a regular Chrome: the default user agent names Electron and this app, which makes the
   // browser easy to fingerprint and gets sign-ins refused by some sites (e.g. Google).
   app.userAgentFallback = chromeUserAgent(app.userAgentFallback);
@@ -237,6 +238,9 @@ function start(): void {
   registerInternalIpc();
   registerAdblockIpc();
   Menu.setApplicationMenu(buildMenu());
+
+  // Protected content (Netflix…): pages opened before the Widevine module is ready can't play it.
+  await widevineReady(8000);
 
   // Links opened from other apps are added to the restored session, like other browsers do.
   const restored = settings.get().startup === 'restore' ? readSavedSession() : [];
@@ -1211,6 +1215,7 @@ function registerInternalIpc(): void {
     void event.sender.loadURL(parsed.href);
   });
   handleInternal(INTERNAL.threatStatus, ['settings'], () => threats.status());
+  handleInternal(INTERNAL.drmStatus, ['settings'], () => widevineStatus());
   const R = ['reader'];
   handleInternal(INTERNAL.readerArticle, R, (_e, url: string) => readerCache.get(String(url)));
   handleInternal(INTERNAL.readerPrefs, R, (_e, patch: Partial<Settings>) => {

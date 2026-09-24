@@ -103,6 +103,7 @@ export const INTERNAL = {
   httpsContinue: 'internal:https-only:continue',
   threatContinue: 'internal:blocked:continue',
   threatStatus: 'internal:threats:status',
+  drmStatus: 'internal:drm:status',
   readerArticle: 'internal:reader:article',
   readerPrefs: 'internal:reader:prefs',
   readerExit: 'internal:reader:exit',

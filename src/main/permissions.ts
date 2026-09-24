@@ -54,6 +54,8 @@ const isAskable = (p: string): p is AskablePermission => (ASKABLE_PERMISSIONS as
 export function configurePermissions(session: Session, settings: SettingsStore, memory: PermissionMemory, getWindow: () => BrowserWindow | null): void {
   const decide = (host: string, permission: string): boolean | 'ask' => {
     if (ALWAYS_ALLOWED.has(permission)) return true;
+    // Protected content (Widevine): on/off from the privacy settings, no question per site.
+    if (permission === 'mediaKeySystem') return settings.get().drmEnabled;
     if (!DESCRIPTIONS[permission]) return false;
     if (isTrustedSuiteHost(host)) return true;
     const remembered = memory.get(host, permission);
@@ -118,6 +120,7 @@ export function configurePermissions(session: Session, settings: SettingsStore, 
 
   // Synchronous checks (e.g. Notification.permission): only a remembered or trusted "allow" counts.
   session.setPermissionCheckHandler((_contents, permission, requestingOrigin) => {
+    if (permission === 'mediaKeySystem') return settings.get().drmEnabled;
     if (!isAskable(permission)) return true;
     return decide(hostOf(requestingOrigin), permission) === true;
   });

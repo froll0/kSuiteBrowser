@@ -218,6 +218,18 @@ async function passwordsSection(): Promise<HTMLElement> {
   );
 }
 
+function drmRow(): HTMLElement {
+  const desc = h('span', {}, 'Permette ai servizi di streaming (Netflix, Disney+, Prime Video, Spotify…) di riprodurre film e musica protetti con Widevine di Google. Il modulo viene scaricato e aggiornato da Google. ');
+  void internal.drmStatus().then((st) => {
+    desc.append(h('span', { class: 'muted' }, !st.supported
+      ? 'Non disponibile in questa versione del browser.'
+      : st.ready
+        ? `Widevine ${st.version ?? ''} pronto.`
+        : 'Widevine non ancora scaricato: serve una connessione a Internet (poi riavvia il browser).'));
+  });
+  return row('Contenuti protetti (DRM)', desc, toggle('drmEnabled', 'Consenti contenuti protetti'));
+}
+
 function dnsRow(): HTMLElement {
   const options: Array<[SecureDnsChoice, string]> = [
     ['automatic', 'Automatico (consigliato)'],
@@ -296,6 +308,7 @@ function privacySection(): HTMLElement {
     ),
     row('Blocca i cookie di terze parti', 'I contenuti di altri siti incorporati in una pagina (pulsanti social, pubblicità, tracker) non ricevono né impostano cookie tramite la rete: è il modo principale in cui ti seguono da un sito all’altro. I servizi Infomaniak non sono toccati.', toggle('blockThirdPartyCookies', 'Blocca cookie di terze parti')),
     row('Chiedi ai siti di non tracciarti', 'Invia i segnali “Do Not Track” e Global Privacy Control (GPC). In alcuni Paesi il GPC ha valore legale.', toggle('doNotTrack', 'Invia DNT e GPC')),
+    drmRow(),
     dnsRow(),
     h('div', { class: 'row stack', 'data-search': 'webrtc ip indirizzo vpn videochiamate' },
       h('div', { class: 'text' },

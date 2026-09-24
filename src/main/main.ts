@@ -10,8 +10,9 @@ import { siteOf } from '../shared/privacy-rules';
 import { matchesAll } from '../shared/search-match';
 import { buildSuggestions } from '../shared/suggest';
 import type {
-  AboutInfo, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion,
+  AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion,
 } from '../shared/types';
+import { searchAnswerMessages } from '../shared/ai-prompts';
 import { generatePassword } from '../shared/password-gen';
 import { letterIconSvg, topSites } from '../shared/top-sites';
 import { resolveOmniboxInput } from '../shared/url';
@@ -21,6 +22,7 @@ import { TrackerBlocker } from './blocker';
 import { clearBrowsingData } from './browsing-data';
 import { DownloadManager } from './downloads';
 import { isInternalUrl, registerInternalScheme, serveInternalPages } from './internal-pages';
+import { AiService, readPage } from './ai';
 import { NotificationCenter } from './notifications';
 import { UpdateService } from './updater';
 import { PasswordManager } from './passwords/manager';
@@ -60,6 +62,7 @@ let passwords: PasswordManager;
 let favicons: FaviconStore;
 let notifications: NotificationCenter;
 let updates: UpdateService;
+let ai: AiService;
 
 type SavedTab = { url: string; pinned?: boolean };
 const blocker = new TrackerBlocker();
@@ -140,6 +143,10 @@ function start(): void {
     onUnread: (count) => broadcast(IPC.evUnread, count),
   });
   notifications.start();
+  ai = new AiService(settings);
+  settings.onChange((next, prev) => {
+    if (next.aiProductId !== prev.aiProductId) ai.reset();
+  });
   updates = new UpdateService(settings, (status) => {
     broadcast(IPC.evUpdate, status);
     sendToInternalPages(INTERNAL.evUpdate, status);
@@ -646,6 +653,16 @@ function registerChromeIpc(): void {
   });
   handle(IPC.bookmarkMenu, (w, id: string) => bookmarkContextMenu(w, id));
   handle(IPC.bookmarksMenu, (w) => allBookmarksMenu(w));
+  handle(IPC.aiStatus, () => ai.status());
+  handle(IPC.aiChat, async (w, request: AiChatRequest) => {
+    const messages = (Array.isArray(request?.messages) ? request.messages : [])
+      .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .map((m) => ({ role: m.role, content: m.content.slice(0, 20_000) }));
+    const tab = request?.pageTabId != null ? w.tabs.contents(Number(request.pageTabId)) : undefined;
+    const page = tab ? await readPage(tab).catch(() => null) : null;
+    return ai.start(messages, w.win.webContents, IPC.evAi, page);
+  });
+  handle(IPC.aiCancel, (_w, id: string) => ai.cancel(String(id)));
   handle(IPC.updateStatus, () => updates.get());
   handle(IPC.updateInstall, () => updates.install());
   handle(IPC.passwordAnswer, (w, id: string, action: 'save' | 'never' | 'dismiss', username?: string) => passwords.answer(w, String(id), action, username));
@@ -726,6 +743,7 @@ function registerInternalIpc(): void {
       services.resetCache();
       const profile = await services.profile();
       notifications.reset();
+      ai.reset();
       broadcast(IPC.evSettings, settings.get());
       return profile;
     }),
@@ -738,6 +756,9 @@ function registerInternalIpc(): void {
   });
   handleInternal(INTERNAL.drives, S, () => wrap(() => services.drives()));
   handleInternal(INTERNAL.testNotification, S, () => notifications.test());
+  handleInternal(INTERNAL.aiProducts, S, () => wrap(() => ai.listProducts()));
+  handleInternal(INTERNAL.aiModels, S, () => wrap(() => ai.listModels()));
+  handleInternal(INTERNAL.aiTest, S, () => wrap(() => ai.test()));
   handleInternal(INTERNAL.updateStatus, S, () => updates.get());
   handleInternal(INTERNAL.updateCheck, S, () => updates.check());
   handleInternal(INTERNAL.updateDownload, S, () => updates.download());
@@ -851,9 +872,17 @@ function registerSearchIpc(): void {
   const q = (value: unknown) => String(value ?? '').trim().slice(0, 300);
   const ownerOf = (sender: Electron.WebContents) => [...windows].find((w) => w.tabs.idOf(sender) !== null) ?? null;
 
-  handleInternal(INTERNAL.searchMeta, H, () => {
+  handleInternal(INTERNAL.searchMeta, H, (event) => {
     const s = settings.get();
-    return { tokenConfigured: settings.tokenStatus().configured, webSearchEngine: s.webSearchEngine, isDefault: s.searchEngine === 'ksuite' };
+    const configured = settings.tokenStatus().configured;
+    return {
+      tokenConfigured: configured,
+      webSearchEngine: s.webSearchEngine,
+      isDefault: s.searchEngine === 'ksuite',
+      aiEnabled: configured && s.aiEnabled,
+      // Private windows never send the query to the AI without a click.
+      aiAutoAnswer: configured && s.aiEnabled && s.aiAutoAnswer && event.sender.session.isPersistent(),
+    };
   });
   handleInternal(INTERNAL.searchLocal, H, (event, query: string) => {
     const text = q(query);
@@ -886,6 +915,8 @@ function registerSearchIpc(): void {
     ownerOf(event.sender)?.send(IPC.evComposeMail, { to: String(to ?? ''), subject: '', body: '' });
   });
   handleInternal(INTERNAL.searchSetDefault, H, () => settings.update({ searchEngine: 'ksuite' }));
+  handleInternal(INTERNAL.searchAi, H, (event, query: string) => ai.start(searchAnswerMessages(q(query)), event.sender, INTERNAL.evAi));
+  handleInternal(INTERNAL.aiCancel, H, (_e, id: string) => ai.cancel(String(id)));
 }
 
 // ---------- IPC: cosmetic filtering (strict mode) ----------

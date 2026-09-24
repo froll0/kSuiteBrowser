@@ -1,12 +1,15 @@
-import type { ApiResult, DownloadItemState, DriveFile, OutgoingMail } from '../shared/types';
+import { draftMailMessages } from '../shared/ai-prompts';
+import type { ApiResult, DownloadItemState, DriveFile, OutgoingMail, TabState } from '../shared/types';
+import { Assistant, type AiAsk } from './assistant';
 import { ks } from './bridge';
 import { formatBytes, formatDateTime, h } from './dom';
 import { fileIcon, icon, type IconName } from './icons';
 
-export type PanelView = 'home' | 'drive' | 'mail' | 'calendar' | 'downloads';
+export type PanelView = 'home' | 'assistant' | 'drive' | 'mail' | 'calendar' | 'downloads';
 
 const VIEWS: Array<{ id: PanelView; label: string; icon: IconName }> = [
   { id: 'home', label: 'Home', icon: 'grid' },
+  { id: 'assistant', label: 'IA', icon: 'sparkles' },
   { id: 'drive', label: 'kDrive', icon: 'cloud' },
   { id: 'mail', label: 'Mail', icon: 'mail' },
   { id: 'calendar', label: 'Agenda', icon: 'calendar' },
@@ -23,13 +26,16 @@ export class Panel {
   private downloads: DownloadItemState[] = [];
   /** Incremented on every render so late API answers for an old view are dropped. */
   private renderSeq = 0;
+  private readonly assistant: Assistant;
 
   constructor(
     private readonly tabsEl: HTMLElement,
     private readonly bodyEl: HTMLElement,
     private readonly notify: Notify,
     private readonly onUnreadChange: (count: number | null) => void,
+    activeTab: () => TabState | undefined,
   ) {
+    this.assistant = new Assistant(activeTab, notify);
     ks.events.onDownloads((items) => {
       this.downloads = items;
       if (this.view === 'downloads') void this.render();
@@ -37,9 +43,15 @@ export class Panel {
     void ks.downloads.list().then((items) => (this.downloads = items));
   }
 
-  show(view: PanelView): void {
+  show(view: PanelView): Promise<void> {
     this.view = view;
-    void this.render();
+    return this.render();
+  }
+
+  /** Opens the assistant and asks it something (context menu, address bar "?"). */
+  async askAi(req: AiAsk): Promise<void> {
+    await this.show('assistant');
+    this.assistant.ask(req);
   }
 
   current(): PanelView {
@@ -48,7 +60,7 @@ export class Panel {
 
   compose(mail: OutgoingMail): void {
     this.draft = { ...mail };
-    this.show('mail');
+    void this.show('mail');
   }
 
   async render(): Promise<void> {
@@ -62,6 +74,13 @@ export class Panel {
     const status = await ks.token.status();
     if (!status.configured && this.view !== 'downloads') {
       this.mount(seq, this.noTokenView());
+      return;
+    }
+
+    if (this.view === 'assistant') {
+      const box = h('div', { class: 'panel-view assistant-view' });
+      this.mount(seq, box);
+      if (seq === this.renderSeq) await this.assistant.render(box);
       return;
     }
 
@@ -87,6 +106,8 @@ export class Panel {
         return this.calendarView();
       case 'downloads':
         return this.downloadsView();
+      case 'assistant':
+        return [];
     }
   }
 
@@ -289,7 +310,22 @@ export class Panel {
     const body = h('textarea', { rows: 6, placeholder: 'Messaggio' });
     body.value = this.draft.body;
     const sendBtn = h('button', { class: 'primary', type: 'submit' }, 'Invia');
-    const form = h('form', { class: 'compose' }, to, subject, body, h('div', { class: 'actions' }, sendBtn, h('button', { type: 'button', onclick: () => { this.draft = { to: '', subject: '', body: '' }; void this.render(); } }, 'Svuota')));
+    const aiOn = (await ks.ai.status()).enabled;
+    const aiBtn = aiOn
+      ? withIcon(h('button', {
+          type: 'button',
+          title: 'Scrivi il testo con l’IA partendo dall’oggetto e dai tuoi appunti nel messaggio',
+          onclick: async () => {
+            aiBtn!.disabled = true;
+            const notes = body.value;
+            const result = await this.assistant.complete(draftMailMessages(subject.value, notes), (text) => (body.value = text));
+            if (result === null) body.value = notes;
+            aiBtn!.disabled = false;
+            syncDraft();
+          },
+        }, 'Scrivi con l’IA'), 'sparkles', 15)
+      : null;
+    const form = h('form', { class: 'compose' }, to, subject, body, h('div', { class: 'actions' }, sendBtn, aiBtn, h('button', { type: 'button', onclick: () => { this.draft = { to: '', subject: '', body: '' }; void this.render(); } }, 'Svuota')));
     const syncDraft = () => (this.draft = { to: to.value, subject: subject.value, body: body.value });
     form.addEventListener('input', syncDraft);
     form.addEventListener('submit', async (e) => {

@@ -4,8 +4,9 @@ import { formatDateTime, h } from '../../renderer/dom';
 import { fileIcon, hydrateIcons, icon, logoMark, type IconName } from '../../renderer/icons';
 import { calculate, formatNumber } from '../../shared/calc';
 import { INTERNAL } from '../../shared/ipc';
+import { renderMarkdown } from '../../renderer/markdown-dom';
 import { faviconUrl } from '../../shared/top-sites';
-import type { ApiResult, Bookmark, CalendarEvent, DriveFile, HistoryVisit } from '../../shared/types';
+import type { AiEvent, ApiResult, Bookmark, CalendarEvent, DriveFile, HistoryVisit } from '../../shared/types';
 import { WEB_SEARCH_ENGINES, webSearchUrl, type WebSearchEngineId } from '../../shared/url';
 import { followTheme } from '../shared/theme';
 
@@ -23,6 +24,8 @@ interface Meta {
   tokenConfigured: boolean;
   webSearchEngine: WebSearchEngineId;
   isDefault: boolean;
+  aiEnabled: boolean;
+  aiAutoAnswer: boolean;
 }
 
 // ---------- Helpers ----------
@@ -123,6 +126,64 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 }
 
+// ---------- AI answer ----------
+
+/** Card with an answer from the kSuite AI: on request, or right away with aiAutoAnswer. */
+function aiCard(auto: boolean): HTMLElement {
+  const body = h('div', { class: 'ai-body' });
+  const status = h('span', { class: 'ai-status', role: 'status' });
+  const head = h('div', { class: 'section-head' }, h('h2', {}, icon('sparkles', 15), 'Risposta dell’IA'), status);
+  const card = h('div', { class: 'cards ai-answer' }, body);
+  const el = h('section', { class: 'section ai-section' }, head, card);
+  let streamId: string | null = null;
+  let text = '';
+  let off: (() => void) | null = null;
+
+  const stop = h('button', { class: 'link more', type: 'button', hidden: true, onclick: () => streamId && void call(INTERNAL.aiCancel, streamId) }, 'Interrompi');
+  head.append(stop);
+
+  const paint = () => body.replaceChildren(renderMarkdown(text, (url) => (location.href = url)));
+  const finish = (error?: string) => {
+    off?.();
+    off = null;
+    streamId = null;
+    stop.hidden = true;
+    status.textContent = '';
+    card.classList.remove('streaming');
+    if (error) body.replaceChildren(h('div', { class: 'section-error' }, icon('alert', 16), error), h('button', { class: 'ai-ask', type: 'button', onclick: start }, icon('reload', 15), 'Riprova'));
+    else if (!text.trim()) body.replaceChildren(h('div', { class: 'section-error' }, 'Nessuna risposta.'));
+    else body.append(h('p', { class: 'ai-note' }, 'Generata dall’IA di Infomaniak: può contenere errori.'));
+  };
+  async function start(): Promise<void> {
+    text = '';
+    card.classList.add('streaming');
+    body.replaceChildren(h('div', { class: 'typing', 'aria-hidden': 'true' }, h('i', {}), h('i', {}), h('i', {})));
+    status.textContent = 'Sto scrivendo…';
+    stop.hidden = false;
+    const buffered: AiEvent[] = [];
+    // Listen before starting: the first delta can arrive before invoke resolves.
+    off = window.ksuiteInternal!.onAi((e) => {
+      if (!streamId) return void buffered.push(e);
+      handle(e);
+    });
+    const handle = (e: AiEvent) => {
+      if (e.id !== streamId) return;
+      if (e.delta) {
+        text += e.delta;
+        paint();
+      }
+      if (e.done) finish(e.error);
+    };
+    streamId = await call<string>(INTERNAL.searchAi, query);
+    buffered.forEach(handle);
+  }
+
+  if (auto) void start();
+  else body.append(h('button', { class: 'ai-ask', type: 'button', onclick: start }, icon('sparkles', 15), `Chiedi all’IA: «${query}»`));
+  addEventListener('pagehide', () => streamId && void call(INTERNAL.aiCancel, streamId));
+  return el;
+}
+
 // ---------- Side column ----------
 
 function renderSide(meta: Meta): void {
@@ -173,6 +234,8 @@ async function run(): Promise<void> {
       h('div', { class: 'section-head' }, h('h2', {}, icon('calculator', 15), 'Calcolo')),
       h('div', { class: 'cards calc' }, h('span', { class: 'expr' }, `${query} =`), h('span', { class: 'value' }, formatNumber(value)))));
   }
+
+  if (meta.aiEnabled) results.append(aiCard(meta.aiAutoAnswer));
 
   const local = section({ id: 'local', title: 'Preferiti e cronologia', icon: 'history' });
   results.append(local.el);

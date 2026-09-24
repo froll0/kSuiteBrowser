@@ -1,7 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { PageAction, TextAction } from '../shared/ai-prompts';
 import { IPC } from '../shared/ipc';
 import type {
-  Bookmark, FindResult, PasswordPrompt, Suggestion, UpdateStatus,
+  AiChatRequest, AiEvent, AiStatus, Bookmark, FindResult, PasswordPrompt, Suggestion, UpdateStatus,
   ApiResult, CalendarEvent, DriveFile, DriveListing, DownloadItemState, MailOverview,
   NewEvent, OutgoingMail, Profile, Rect, Settings, TabState, TokenStatus,
 } from '../shared/types';
@@ -49,6 +50,11 @@ const api = {
     stop: (tabId: number) => invoke<void>(IPC.findStop, tabId),
   },
   zoomReset: (tabId: number) => invoke<void>(IPC.zoomReset, tabId),
+  ai: {
+    status: () => invoke<AiStatus>(IPC.aiStatus),
+    chat: (request: AiChatRequest) => invoke<string>(IPC.aiChat, request),
+    cancel: (id: string) => invoke<void>(IPC.aiCancel, id),
+  },
   updates: {
     status: () => invoke<UpdateStatus>(IPC.updateStatus),
     install: () => invoke<void>(IPC.updateInstall),
@@ -103,6 +109,8 @@ const api = {
     onPasswordUnlock: (fn: (info: { reason: string }) => void) => on(IPC.evPasswordUnlock, fn),
     onUnread: (fn: (count: number | null) => void) => on(IPC.evUnread, fn),
     onUpdate: (fn: (status: UpdateStatus) => void) => on(IPC.evUpdate, fn),
+    onAi: (fn: (event: AiEvent) => void) => on(IPC.evAi, fn),
+    onAiAsk: (fn: (ask: { action?: TextAction; text?: string; page?: PageAction; question?: string }) => void) => on(IPC.evAiAsk, fn),
     onComposeMail: (fn: (mail: OutgoingMail) => void) => on(IPC.evComposeMail, fn),
     onToast: (fn: (toast: { kind: 'info' | 'success' | 'error'; message: string }) => void) => on(IPC.evToast, fn),
   },

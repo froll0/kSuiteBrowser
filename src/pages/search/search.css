@@ -72,3 +72,26 @@ a.button:hover { background: var(--accent-hover); }
 a.button span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .welcome { padding: 8px 4px; color: var(--muted); }
 .welcome h1 { color: var(--text); font-size: 22px; margin: 0 0 6px; }
+
+/* AI answer */
+.ai-section .section-head h2 { color: var(--accent); }
+.ai-status { font-size: 12px; color: var(--muted); }
+.ai-answer { padding: 14px 18px; border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); background: linear-gradient(180deg, var(--accent-soft), var(--surface) 90px); line-height: 1.6; }
+.ai-body > :first-child { margin-top: 0; }
+.ai-body > :last-child { margin-bottom: 0; }
+.ai-body p, .ai-body ul, .ai-body ol { margin: 0 0 10px; }
+.ai-body ul, .ai-body ol { padding-left: 22px; }
+.ai-body h3, .ai-body h4 { margin: 14px 0 6px; font-size: 14px; }
+.ai-body code { font-family: ui-monospace, monospace; font-size: 12.5px; background: var(--surface-2); border-radius: 4px; padding: 1px 4px; }
+.ai-body pre { background: var(--surface-2); border-radius: var(--r-sm); padding: 10px 12px; overflow-x: auto; }
+.ai-body pre code { background: none; padding: 0; }
+.ai-body .section-error { padding: 0 0 10px; }
+.ai-note { color: var(--muted); font-size: 11.5px; margin: 10px 0 0 !important; }
+.ai-ask { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+.ai-ask svg { color: var(--accent); flex: none; }
+.typing { display: inline-flex; gap: 4px; padding: 6px 0; }
+.typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite ease-in-out; }
+.typing i:nth-child(2) { animation-delay: .15s; }
+.typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .typing i { animation: none; } }

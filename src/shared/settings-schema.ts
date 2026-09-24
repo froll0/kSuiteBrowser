@@ -24,6 +24,10 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultZoom: 100,
   siteZoom: {},
 
+  aiEnabled: false,
+  aiProductId: null,
+  aiModel: null,
+  aiAutoAnswer: false,
   autoUpdate: true,
   notifyMail: true,
   notifyEvents: true,
@@ -110,6 +114,10 @@ export function sanitizeSettings(raw: unknown): Settings {
     defaultZoom: (ZOOM_STEPS as readonly number[]).includes(s.defaultZoom as number) ? (s.defaultZoom as number) : d.defaultZoom,
     siteZoom: siteZoom(s.siteZoom),
 
+    aiEnabled: bool(s.aiEnabled, d.aiEnabled),
+    aiProductId: positiveInt(s.aiProductId),
+    aiModel: typeof s.aiModel === 'string' && s.aiModel.trim() ? s.aiModel.trim().slice(0, 200) : null,
+    aiAutoAnswer: bool(s.aiAutoAnswer, d.aiAutoAnswer),
     autoUpdate: bool(s.autoUpdate, d.autoUpdate),
     notifyMail: bool(s.notifyMail, d.notifyMail),
     notifyEvents: bool(s.notifyEvents, d.notifyEvents),

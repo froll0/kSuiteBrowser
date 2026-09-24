@@ -1,10 +1,15 @@
 import { Menu, clipboard, type MenuItemConstructorOptions, type WebContents } from 'electron';
+import { PAGE_ACTIONS, TEXT_ACTIONS, type PageAction, type TextAction } from '../shared/ai-prompts';
 
 export interface ContextMenuActions {
   openInNewTab(url: string): void;
   saveUrlToDrive(url: string): void;
   savePageToDrive(contents: WebContents): void;
   mailLink(url: string, title: string): void;
+  /** AI actions, offered only when the assistant is enabled. */
+  aiEnabled(): boolean;
+  askAboutText(action: TextAction, text: string): void;
+  askAboutPage(action: PageAction): void;
 }
 
 /** Right-click menu for web pages, with the kSuite actions next to the usual browser ones. */
@@ -56,6 +61,17 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
       items.push({ role: 'copy', label: 'Copia' }, { type: 'separator' });
     }
 
+    const selection = params.selectionText.trim();
+    if (selection && actions.aiEnabled()) {
+      items.push(
+        {
+          label: 'Chiedi all’IA',
+          submenu: (Object.keys(TEXT_ACTIONS) as TextAction[]).map((a) => ({ label: TEXT_ACTIONS[a].label, click: () => actions.askAboutText(a, selection.slice(0, 8000)) })),
+        },
+        { type: 'separator' },
+      );
+    }
+
     if (!link && !params.isEditable && params.mediaType === 'none') {
       const history = contents.navigationHistory;
       items.push(
@@ -65,6 +81,9 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
         { type: 'separator' },
         { label: 'Salva pagina come PDF su kDrive', click: () => actions.savePageToDrive(contents) },
         { label: 'Invia pagina via Mail…', click: () => actions.mailLink(contents.getURL(), contents.getTitle()) },
+        ...(actions.aiEnabled() && /^https?:/i.test(contents.getURL())
+          ? [{ label: 'IA: pagina', submenu: (Object.keys(PAGE_ACTIONS) as PageAction[]).map((a) => ({ label: PAGE_ACTIONS[a].label, click: () => actions.askAboutPage(a) })) }]
+          : []),
         { type: 'separator' },
       );
     }

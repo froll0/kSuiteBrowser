@@ -1,11 +1,12 @@
 import { INTERNAL } from '../../shared/ipc';
-import type { AboutInfo, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
+import type { AiEvent, AboutInfo, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
 
 interface InternalBridge {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
   onSettings(listener: (settings: Settings) => void): () => void;
   onBookmarks(listener: (list: Bookmark[]) => void): () => void;
   onUpdate(listener: (status: UpdateStatus) => void): () => void;
+  onAi(listener: (event: AiEvent) => void): () => void;
 }
 
 declare global {
@@ -43,6 +44,15 @@ export const internal = {
     install: () => call<void>(INTERNAL.updateInstall),
     openRelease: () => call<void>(INTERNAL.updateOpenRelease),
     onChange: (fn: (s: UpdateStatus) => void) => bridge().onUpdate(fn),
+  },
+  ai: {
+    products: () => call<ApiResult<Array<{ id: number; name: string }>>>(INTERNAL.aiProducts),
+    models: () => call<ApiResult<Array<{ name: string; description: string | null }>>>(INTERNAL.aiModels),
+    test: () => call<ApiResult<string>>(INTERNAL.aiTest),
+    /** Answer for the search page: returns the stream id, deltas arrive via onEvent. */
+    searchAnswer: (query: string) => call<string>(INTERNAL.searchAi, query),
+    cancel: (id: string) => call<void>(INTERNAL.aiCancel, id),
+    onEvent: (fn: (e: AiEvent) => void) => bridge().onAi(fn),
   },
   passwordStatus: () => call<VaultStatus>(INTERNAL.pwStatus),
   passwords: {

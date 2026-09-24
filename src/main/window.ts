@@ -292,6 +292,9 @@ export class BrowserWindowController {
       saveUrlToDrive: (url) => void owner().runDriveAction('Salvataggio su kDrive', () => this.ctx.services.saveUrlToDrive(contents.session, url)),
       savePageToDrive: (wc) => void owner().savePageToDrive(wc),
       mailLink: (url, title) => owner().composeMail(url, title),
+      aiEnabled: () => this.ctx.settings.get().aiEnabled,
+      askAboutText: (action, text) => owner().send(IPC.evAiAsk, { action, text }),
+      askAboutPage: (action) => owner().send(IPC.evAiAsk, { page: action }),
     });
   }
 }

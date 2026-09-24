@@ -56,7 +56,7 @@ toastEl.addEventListener('click', () => (toastEl.hidden = true));
 const panel = new Panel($('panel-tabs'), $('panel-body'), toast, (count) => {
   unread = count;
   renderSidebar();
-});
+}, () => activeTab());
 
 async function setPanelOpen(open: boolean): Promise<void> {
   document.body.classList.toggle('panel-open', open);
@@ -340,9 +340,18 @@ omnibox.addEventListener('blur', () => window.setTimeout(hideSuggestions, 200));
 $('omnibox-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const tab = activeTab();
-  const choice = selected >= 0 ? suggestions[selected] : undefined;
+  const picked = selected;
+  const choice = picked >= 0 ? suggestions[picked] : undefined;
   hideSuggestions();
-  const value = choice ? choice.url : omnibox.value.trim();
+  const typed = omnibox.value.trim();
+  // "? question" asks the AI assistant instead of searching (unless a suggestion was picked with the arrows).
+  if (picked <= 0 && typed.startsWith('?') && typed.length > 1 && currentSettings?.aiEnabled) {
+    renderToolbar();
+    omnibox.blur();
+    void setPanelOpen(true).then(() => panel.askAi({ question: typed.slice(1).trim() }));
+    return;
+  }
+  const value = choice ? choice.url : typed;
   if (!value) return;
   if (tab) void ks.tabs.navigate(tab.id, value);
   else void ks.tabs.create(value);
@@ -584,7 +593,10 @@ ks.events.onFocusAddress(() => {
 ks.events.onTogglePanel(togglePanel);
 let tokenConfigured = false;
 ks.events.onSettings(async (settings) => {
+  const aiChanged = currentSettings?.aiEnabled !== settings.aiEnabled;
   currentSettings = settings;
+  // The assistant and the mail compose form show different controls with the AI on or off.
+  if (aiChanged && (panel.current() === 'assistant' || panel.current() === 'mail')) void panel.render();
   document.body.classList.toggle('bookmarks-bar', settings.showBookmarksBar);
   renderToolbar();
   applyTheme(settings.theme);
@@ -598,6 +610,7 @@ ks.events.onSettings(async (settings) => {
   }
 });
 ks.events.onComposeMail((mail) => void setPanelOpen(true).then(() => panel.compose(mail)));
+ks.events.onAiAsk((ask) => void setPanelOpen(true).then(() => panel.askAi(ask)));
 ks.events.onToast((t) => toast(t.kind, t.message));
 
 // ---------- Layout ----------

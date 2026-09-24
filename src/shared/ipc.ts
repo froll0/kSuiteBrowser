@@ -33,6 +33,9 @@ export const IPC = {
   bookmarkOpen: 'ui:bookmark-open',
   bookmarkMenu: 'ui:bookmark-menu',
   bookmarksMenu: 'ui:bookmarks-menu',
+  aiStatus: 'ui:ai-status',
+  aiChat: 'ui:ai-chat',
+  aiCancel: 'ui:ai-cancel',
   updateInstall: 'ui:update-install',
   updateStatus: 'ui:update-status',
   passwordAnswer: 'ui:password-answer',
@@ -73,6 +76,8 @@ export const IPC = {
   evPasswordUnlock: 'ev:password-unlock',
   evUnread: 'ev:unread',
   evUpdate: 'ev:update',
+  evAi: 'ev:ai',
+  evAiAsk: 'ev:ai-ask',
 } as const;
 
 /** Channels of the internal pages (ksuite://…), see src/preload/page.ts. */
@@ -131,7 +136,13 @@ export const INTERNAL = {
   searchOpenApp: 'internal:search:open-app',
   searchCompose: 'internal:search:compose',
   searchSetDefault: 'internal:search:set-default',
+  searchAi: 'internal:search:ai',
+  aiCancel: 'internal:ai:cancel',
+  aiProducts: 'internal:ai:products',
+  aiModels: 'internal:ai:models',
+  aiTest: 'internal:ai:test',
   evSettings: 'internal:ev:settings',
   evBookmarks: 'internal:ev:bookmarks',
   evUpdate: 'internal:ev:update',
+  evAi: 'internal:ev:ai',
 } as const;

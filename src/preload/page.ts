@@ -19,6 +19,11 @@ if (window.location.protocol === 'ksuite:' && window === window.top) {
       ipcRenderer.on('internal:ev:update', wrapped);
       return () => ipcRenderer.removeListener('internal:ev:update', wrapped);
     },
+    onAi: (listener: (event: unknown) => void) => {
+      const wrapped = (_e: unknown, event: unknown) => listener(event);
+      ipcRenderer.on('internal:ev:ai', wrapped);
+      return () => ipcRenderer.removeListener('internal:ev:ai', wrapped);
+    },
     onBookmarks: (listener: (list: unknown) => void) => {
       const wrapped = (_e: unknown, list: unknown) => listener(list);
       ipcRenderer.on('internal:ev:bookmarks', wrapped);

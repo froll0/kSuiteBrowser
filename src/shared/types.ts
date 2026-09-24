@@ -35,6 +35,31 @@ export interface UpdateStatus {
   checkedAt?: number;
 }
 
+export interface AiMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface AiStatus {
+  enabled: boolean;
+  configured: boolean;
+  productId: number | null;
+  model: string | null;
+}
+
+export interface AiChatRequest {
+  messages: AiMessage[];
+  /** Tab whose visible text is added as context. */
+  pageTabId?: number | null;
+}
+
+export interface AiEvent {
+  id: string;
+  delta?: string;
+  done?: boolean;
+  error?: string;
+}
+
 export interface TopSite {
   url: string;
   title: string;
@@ -144,6 +169,15 @@ export interface Settings {
   defaultZoom: number;
   /** Zoom chosen by the user per host, in percent. */
   siteZoom: Record<string, number>;
+
+  // Intelligenza artificiale (Infomaniak AI Services)
+  aiEnabled: boolean;
+  /** AI product of the account; null = the first one returned by the API. */
+  aiProductId: number | null;
+  /** Model name; null = a sensible default from the catalogue. */
+  aiModel: string | null;
+  /** Generate the AI answer on the search page without clicking (uses credits on every search). */
+  aiAutoAnswer: boolean;
 
   // Aggiornamenti
   /** Download updates in the background and install them at the next restart. */

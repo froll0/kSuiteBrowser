@@ -37,6 +37,24 @@ quindi funzionano senza sorprese.
 - Scorciatoie: `Ctrl+T`, `Ctrl+N`, `Ctrl+Shift+N` (finestra privata), `Ctrl+W`, `Ctrl+L`, `Ctrl+R`/`F5`, `Alt+←/→`, `Ctrl+Tab`, `Ctrl+,` (impostazioni), `Ctrl+Shift+Canc` (cancella dati), `F12` (su Mac: `⌘` al posto di `Ctrl`, cronologia con `⌘+Y`)
 - Download con cartella configurabile o "chiedi dove salvare"
 
+**Ricerca kSuite** (`ksuite://search`, motore predefinito)
+- Una sola ricerca dalla barra degli indirizzi trova insieme **preferiti e cronologia, file di kDrive, email, contatti ed eventi**, con le parole cercate evidenziate
+- **Calcolatrice** integrata (`12*(3+4)`), senza confondere date e numeri di telefono
+- Collegamenti per continuare **sul web** con il motore scelto (DuckDuckGo, Qwant, Ecosia, Startpage, Google)
+- Clic su un contatto per scrivergli dal pannello Mail, su un file per aprirlo in kDrive
+- Nelle finestre private la cronologia non viene mai mostrata
+
+**Assistente IA** (Infomaniak AI Services, modelli ospitati in Svizzera)
+- **Pannello IA** (`Ctrl+Shift+K` › IA): chat con risposte in streaming, azioni rapide sulla pagina aperta
+  (riassunto, punti chiave, traduzione), opzione "Usa la pagina" per fare domande sul contenuto
+- **Menu contestuale**: *Chiedi all'IA* sul testo selezionato (spiega, riassumi, traduci, migliora) e *IA: pagina* sulle pagine web
+- **Domande dalla barra degli indirizzi**: scrivi `?` seguito dalla domanda (es. `?come si cucina il risotto`)
+- **Risposta dell'IA nella ricerca kSuite**: su richiesta, o automatica se la attivi (mai automatica nelle finestre private)
+- **Scrivi con l'IA** nel pannello Mail: bozza dell'email partendo dall'oggetto e dai tuoi appunti
+- Le risposte sono mostrate come testo formattato costruito in modo sicuro (nessun HTML del modello viene eseguito);
+  il contenuto delle pagine è passato al modello come dato, non come istruzioni
+- Si attiva in Impostazioni › Intelligenza artificiale (prodotto, modello, "Prova")
+
 **Gestore password** (`ksuite://passwords`, menu File › Password)
 - Dopo un accesso compare una barra per **salvare o aggiornare** la password (con "Mai per questo sito")
 - **Compilazione automatica** quando per un sito c'è un solo accesso (solo su HTTPS); altrimenti clic nel campo e scelta dal menu, che il sito non può imitare perché è nativo
@@ -83,6 +101,9 @@ quindi funzionano senza sorprese.
 1. Vai su [Manager Infomaniak → Token API](https://manager.infomaniak.com/v3/ng/accounts/token/list).
 2. Crea un token con questi scope: `user_info`, `drive`, `workspace:mail`, `workspace:calendar`.
 3. Apri **Impostazioni** (`Ctrl+,`) → *Account kSuite* → incolla il token → *Salva e verifica*.
+
+Per l'**assistente IA** serve anche il prodotto **AI Services** attivo nel Manager Infomaniak
+(è a consumo) e un token che includa anche lo scope relativo all'IA (AI Services). Poi Impostazioni → *Intelligenza artificiale* → attiva → *Prova*.
 
 Il token è salvato cifrato con il portachiavi del sistema operativo (`safeStorage` di Electron)
 e viene usato solo dal processo principale: le pagine web non possono leggerlo.
@@ -156,11 +177,11 @@ L'app verifica comunque l'integrità di ogni aggiornamento (SHA-512 dal file `la
 
 ```
 src/
-  api/        Client REST Infomaniak (profilo, kDrive, Mail, Calendar) — senza dipendenze da Electron
+  api/        Client REST Infomaniak (profilo, kDrive, Mail, Calendar, Contatti, AI Services) — senza dipendenze da Electron
   main/       Processo principale: finestre, schede, privacy, download, permessi, menu, IPC
   preload/    Ponti sicuri (contextBridge): UI del browser e pagine interne ksuite://
   renderer/   Interfaccia del browser (barra schede, sidebar, pannello kSuite)
-  pages/      Pagine interne: ksuite://newtab, settings, history, bookmarks, passwords, https-only
+  pages/      Pagine interne: ksuite://newtab, search, settings, history, bookmarks, passwords, https-only
   shared/     Tipi, canali IPC, schema delle impostazioni, regole privacy, barra indirizzi
 test/         Test Vitest
 ```
@@ -173,6 +194,8 @@ test/         Test Vitest
 | kDrive | `GET /2/drive`, `GET /3/drive/{id}/files/{dir}/files`, `GET /3/drive/{id}/files/search`, `GET /2/drive/{id}/files/{file}/download`, `POST /3/drive/{id}/upload` |
 | Mail | `GET mail.infomaniak.com/api/mailbox`, `.../mail/{mailbox}/folder`, `.../folder/{id}/message`, `POST/PUT .../draft` |
 | Calendar | `GET /1/calendar/pim/calendar`, `GET/POST /1/calendar/pim/event` |
+| Contatti | `GET /1/calendar/pim/contact/all` |
+| AI Services | `GET /1/ai`, `GET /1/ai/models`, `POST /2/ai/{product_id}/openai/v1/chat/completions` (compatibile OpenAI, streaming SSE) |
 
 Sono gli stessi endpoint usati dai connettori MCP ufficiali di Infomaniak.
 
@@ -185,6 +208,8 @@ Sono gli stessi endpoint usati dai connettori MCP ufficiali di Infomaniak.
 
 - Il caricamento diretto su kDrive è limitato a 1 GB per file (per file più grandi usa l'app web).
 - Il pannello Mail usa la casella principale associata al token.
+- L'assistente IA usa i crediti di AI Services: i nomi dei modelli disponibili dipendono dal catalogo Infomaniak
+  (se "Automatico" non ti soddisfa scegli il modello nelle impostazioni).
 
 ## Crediti
 

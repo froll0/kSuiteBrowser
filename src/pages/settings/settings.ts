@@ -6,6 +6,7 @@ import { ZOOM_STEPS } from '../../shared/zoom';
 import { hydrateIcons, logoMark } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 
+const AI_PAGE = 'https://www.infomaniak.com/it/hosting/ai-services';
 const TOKEN_PAGE = 'https://manager.infomaniak.com/v3/ng/accounts/token/list';
 
 const PERMISSION_LABELS: Record<string, string> = {
@@ -284,6 +285,72 @@ function permissionsSection(): HTMLElement {
   );
 }
 
+async function aiSection(): Promise<HTMLElement> {
+  const status = await internal.tokenStatus();
+  const enable = h('input', { type: 'checkbox', role: 'switch', 'aria-label': 'Attiva assistente IA', checked: settings.aiEnabled });
+  // The rest of the section depends on this switch.
+  enable.addEventListener('change', () => void update({ aiEnabled: enable.checked }).then(render));
+  const rows: Array<Node | null> = [
+    row('Assistente IA', 'Attiva il pannello IA, le azioni “Chiedi all’IA” nel menu contestuale, le domande con “?” nella barra degli indirizzi e la bozza delle email.', h('label', { class: 'switch' }, enable, h('span', {}))),
+  ];
+  if (!status.configured) {
+    rows.push(row('Collega l’account kSuite', h('span', {}, 'L’assistente usa il token API. ', h('a', { href: '#ksuite' }, 'Configuralo qui.')), null));
+  } else if (settings.aiEnabled) {
+    const message = h('span', { class: 'message', role: 'status' });
+    const product = h('select', { 'aria-label': 'Prodotto AI Services', disabled: true }, h('option', { value: '' }, 'Caricamento…'));
+    const model = h('select', { 'aria-label': 'Modello', disabled: true }, h('option', { value: '' }, 'Caricamento…'));
+    product.addEventListener('change', () => void update({ aiProductId: product.value ? Number(product.value) : null }));
+    model.addEventListener('change', () => void update({ aiModel: model.value || null }));
+    void internal.ai.products().then((res) => {
+      if (!res.ok) {
+        product.replaceChildren(h('option', { value: '' }, 'Non disponibile'));
+        message.textContent = res.error;
+        message.className = 'message error';
+        return;
+      }
+      if (res.data.length === 0) {
+        product.replaceChildren(h('option', { value: '' }, 'Nessun prodotto'));
+        message.textContent = 'AI Services non è attivo su questo account: attivalo nel Manager Infomaniak.';
+        message.className = 'message error';
+        return;
+      }
+      product.replaceChildren(h('option', { value: '', selected: settings.aiProductId === null }, 'Automatico (il primo)'),
+        ...res.data.map((p) => h('option', { value: String(p.id), selected: settings.aiProductId === p.id }, `${p.name} (#${p.id})`)));
+      product.disabled = false;
+    });
+    void internal.ai.models().then((res) => {
+      const list = res.ok ? res.data : [];
+      model.replaceChildren(h('option', { value: '', selected: settings.aiModel === null }, 'Automatico (consigliato)'),
+        ...list.map((m) => h('option', { value: m.name, selected: settings.aiModel === m.name, title: m.description ?? '' }, m.name)));
+      // Keep a saved model visible even if the catalogue doesn't list it.
+      if (settings.aiModel && !list.some((m) => m.name === settings.aiModel)) model.append(h('option', { value: settings.aiModel, selected: true }, settings.aiModel));
+      model.disabled = false;
+    });
+    const test = h('button', {
+      onclick: async () => {
+        test.disabled = true;
+        message.textContent = 'Prova in corso…';
+        message.className = 'message';
+        const res = await internal.ai.test();
+        test.disabled = false;
+        message.textContent = res.ok ? `Funziona: ${res.data}` : res.error;
+        message.className = `message ${res.ok ? 'ok' : 'error'}`;
+      },
+    }, 'Prova');
+    rows.push(
+      row('Prodotto AI Services', 'Il prodotto del Manager Infomaniak a cui vengono addebitate le richieste.', product),
+      row('Modello', 'Il modello linguistico usato per le risposte.', model),
+      row('Risposta IA nella ricerca kSuite', 'Mostra subito una risposta dell’IA in cima ai risultati, senza premere “Chiedi all’IA”. Ogni ricerca consuma crediti.', toggle('aiAutoAnswer', 'Risposta automatica nella ricerca')),
+      row('Verifica la connessione', message, test),
+    );
+  }
+  rows.push(row('Come si attiva',
+    h('span', {}, 'Serve AI Services attivo nel Manager Infomaniak e un token API con lo scope per l’IA. ',
+      h('a', { href: AI_PAGE, target: '_blank' }, 'Scopri AI Services'), ' · ', h('a', { href: TOKEN_PAGE, target: '_blank' }, 'Crea un token')), null));
+  rows.push(row('Privacy', 'Il testo che scegli (una selezione, la pagina o la tua domanda) viene inviato ai server di Infomaniak in Svizzera solo quando chiedi qualcosa. Nelle finestre private la risposta automatica nella ricerca resta spenta.', null));
+  return section('ai', 'Intelligenza artificiale', ...rows);
+}
+
 async function ksuiteSection(): Promise<HTMLElement> {
   const status = await internal.tokenStatus();
   const rows: Array<Node | null> = [];
@@ -426,7 +493,7 @@ async function render(): Promise<void> {
   if (settings.theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
   const scroll = content.scrollTop || document.scrollingElement?.scrollTop || 0;
-  const sections = [await generalSection(), appearanceSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await ksuiteSection(), await aboutSection()];
+  const sections = [await generalSection(), appearanceSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await ksuiteSection(), await aiSection(), await aboutSection()];
   content.replaceChildren(...sections);
   applyFilter();
   if (document.scrollingElement) document.scrollingElement.scrollTop = scroll;

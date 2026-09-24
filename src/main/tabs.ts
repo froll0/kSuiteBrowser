@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContentsView, type NavigationEntry, type Session, type WebContents } from 'electron';
+import { BrowserWindow, WebContentsView, dialog, type NavigationEntry, type Session, type WebContents } from 'electron';
 import type { Rect, TabState } from '../shared/types';
 
 /** A tab. It can move to another window, so its listeners always go through `owner`. */
@@ -56,12 +56,20 @@ export class TabManager {
   private activeId: number | null = null;
   private bounds: Rect = { x: 0, y: 0, width: 0, height: 0 };
   private readonly closed: ClosedTab[] = [];
+  /** Tab showing an element in full screen (HTML fullscreen API), if any. */
+  fullscreenId: number | null = null;
 
   constructor(
-    private readonly window: BrowserWindow,
+    readonly window: BrowserWindow,
     readonly hooks: TabManagerHooks,
     private readonly options: TabManagerOptions,
-  ) {}
+  ) {
+    // Electron puts the window itself in full screen for the page (and restores it): only the layout is ours.
+    window.on('resize', () => {
+      if (this.fullscreenId !== null) this.layout();
+    });
+    window.on('leave-full-screen', () => this.exitPageFullscreen());
+  }
 
   get session(): Session {
     return this.options.session;
@@ -76,6 +84,8 @@ export class TabManager {
         contextIsolation: true,
         nodeIntegration: false,
         spellcheck: true,
+        // Built-in PDF viewer.
+        plugins: true,
       },
     });
     const tab: Tab = { id: nextTabId++, view, favicon: null, appId: options.appId ?? null, pinned: Boolean(options.pinned), failedUrl: null, owner: this };
@@ -101,7 +111,39 @@ export class TabManager {
       if (!isMainFrame || code === -3) return; // -3 = aborted (e.g. new navigation)
       const special = tab.owner.hooks.failurePage?.(wc, validatedUrl, code);
       tab.failedUrl = special ? special.display : validatedUrl;
-      void wc.loadURL(special ? special.load : errorPage(validatedUrl, description));
+      void wc.loadURL(special ? special.load : errorPage(validatedUrl, code, description));
+    });
+    wc.on('render-process-gone', (_e, details) => {
+      if (wc.isDestroyed() || details.reason === 'clean-exit') return;
+      if (tab.owner.fullscreenId === tab.id) tab.owner.leaveFullscreen();
+      const url = tab.failedUrl ?? wc.getURL();
+      tab.failedUrl = url;
+      void wc.loadURL(crashPage(url, details.reason));
+    });
+    let askingUnresponsive = false;
+    wc.on('unresponsive', async () => {
+      if (askingUnresponsive) return;
+      askingUnresponsive = true;
+      const { response } = await dialog.showMessageBox(tab.owner.window, {
+        type: 'warning',
+        message: 'La pagina non risponde',
+        detail: `«${wc.getTitle() || wc.getURL()}» è bloccata. Puoi aspettare che torni a rispondere o chiuderla.`,
+        buttons: ['Aspetta', 'Chiudi la pagina'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      });
+      askingUnresponsive = false;
+      if (response === 1 && !wc.isDestroyed()) wc.forcefullyCrashRenderer();
+    });
+    // Video and other elements in full screen take the whole window.
+    wc.on('enter-html-full-screen', () => tab.owner.enterFullscreen(tab.id));
+    wc.on('leave-html-full-screen', () => tab.owner.leaveFullscreen());
+    wc.on('before-input-event', (e, input) => {
+      if (input.type === 'keyDown' && input.key === 'Escape' && tab.owner.fullscreenId === tab.id) {
+        e.preventDefault();
+        tab.owner.exitPageFullscreen();
+      }
     });
     this.hooks.onWebContentsCreated(wc, this);
 
@@ -156,6 +198,7 @@ export class TabManager {
   detach(id: number): Tab | undefined {
     const index = this.tabs.findIndex((t) => t.id === id);
     if (index === -1) return undefined;
+    if (this.fullscreenId === id) this.leaveFullscreen();
     const [tab] = this.tabs.splice(index, 1);
     if (!this.window.isDestroyed()) this.window.contentView.removeChildView(tab.view);
     if (this.activeId === id) {
@@ -204,9 +247,10 @@ export class TabManager {
     if (!tab) return;
     const previous = this.activeId !== null ? this.find(this.activeId) : undefined;
     if (previous && previous !== tab) this.window.contentView.removeChildView(previous.view);
+    if (this.fullscreenId !== null && this.fullscreenId !== id) this.exitPageFullscreen();
     this.activeId = id;
     this.window.contentView.addChildView(tab.view);
-    tab.view.setBounds(this.bounds);
+    this.layout();
     tab.view.webContents.focus();
     this.emit();
   }
@@ -231,7 +275,37 @@ export class TabManager {
       width: Math.max(0, Math.round(rect.width)),
       height: Math.max(0, Math.round(rect.height)),
     };
-    this.active()?.view.setBounds(this.bounds);
+    this.layout();
+  }
+
+  enterFullscreen(id: number): void {
+    if (this.fullscreenId === id) return;
+    this.fullscreenId = id;
+    this.layout();
+  }
+
+  leaveFullscreen(): void {
+    if (this.fullscreenId === null) return;
+    this.fullscreenId = null;
+    this.layout();
+  }
+
+  /** Asks the page in full screen to leave it (tab switch, F11). */
+  exitPageFullscreen(): void {
+    const tab = this.fullscreenId !== null ? this.find(this.fullscreenId) : undefined;
+    this.leaveFullscreen();
+    if (tab) void tab.view.webContents.executeJavaScript('document.fullscreenElement && document.exitFullscreen()', true).catch(() => {});
+  }
+
+  private layout(): void {
+    const tab = this.active();
+    if (!tab) return;
+    if (this.fullscreenId === tab.id) {
+      const [width, height] = this.window.getContentSize();
+      tab.view.setBounds({ x: 0, y: 0, width, height });
+    } else {
+      tab.view.setBounds(this.bounds);
+    }
   }
 
   reload(id: number): void {
@@ -332,11 +406,65 @@ export class TabManager {
   }
 }
 
-function errorPage(url: string, description: string): string {
+interface ErrorText {
+  title: string;
+  hint: string;
+}
+
+/** Friendly Italian text for the most common network errors (Chromium net error codes). */
+export function describeError(code: number, description: string): ErrorText {
+  if (code === -106) return { title: 'Nessuna connessione a Internet', hint: 'Controlla il Wi-Fi o il cavo di rete, poi riprova.' };
+  if (code === -105 || code === -137) return { title: 'Impossibile trovare il sito', hint: 'Controlla di aver scritto bene l’indirizzo. Se è corretto, il sito potrebbe non esistere più o la rete potrebbe avere problemi.' };
+  if (code === -102) return { title: 'Il sito ha rifiutato la connessione', hint: 'Il server non accetta connessioni in questo momento. Riprova più tardi.' };
+  if (code === -7 || code === -118) return { title: 'Il sito impiega troppo tempo a rispondere', hint: 'Il server potrebbe essere sovraccarico. Riprova tra qualche istante.' };
+  if (code === -21) return { title: 'La rete è cambiata', hint: 'La connessione è cambiata durante il caricamento. Riprova.' };
+  if (code === -109 || code === -101 || code === -100) return { title: 'Connessione interrotta', hint: 'La connessione al sito si è interrotta. Riprova.' };
+  if (code === -324) return { title: 'Il sito non ha inviato dati', hint: 'Il server ha chiuso la connessione senza rispondere. Riprova più tardi.' };
+  if (code === -310) return { title: 'Troppi reindirizzamenti', hint: 'Il sito rimanda continuamente a sé stesso. Prova a cancellare i cookie del sito.' };
+  if (code <= -200 && code > -300) return { title: 'La connessione non è sicura', hint: 'Il certificato di sicurezza del sito non è valido: qualcuno potrebbe cercare di intercettare i tuoi dati. La pagina non è stata aperta.' };
+  if (code === -20) return { title: 'Pagina bloccata', hint: 'Questa pagina è stata bloccata.' };
+  return { title: 'Impossibile caricare la pagina', hint: description || 'Si è verificato un errore di rete.' };
+}
+
+const CRASH_REASONS: Record<string, string> = {
+  crashed: 'La pagina si è arrestata in modo imprevisto.',
+  oom: 'La pagina ha esaurito la memoria.',
+  killed: 'La pagina è stata chiusa dal sistema.',
+  'launch-failed': 'Non è stato possibile avviare la pagina.',
+  'integrity-failure': 'Controllo di integrità non riuscito.',
+  'abnormal-exit': 'La pagina si è chiusa in modo anomalo.',
+};
+
+function shellPage(title: string, heading: string, hint: string, url: string, glyph: string): string {
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-  const html = `<!doctype html><meta charset="utf-8"><title>Pagina non disponibile</title>
-<style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;height:100vh;margin:0;color:#333;background:#f6f7f9}
-main{max-width:520px;padding:24px}h1{font-size:20px}code{word-break:break-all;color:#666}</style>
-<main><h1>Impossibile caricare la pagina</h1><p>${esc(description)}</p><code>${esc(url)}</code></main>`;
+  const retry = /^(https?|file):/i.test(url) ? `<a class="btn" href="${esc(url)}">Riprova</a>` : '';
+  const html = `<!doctype html><html lang="it"><meta charset="utf-8"><title>${esc(title)}</title>
+<style>
+:root{color-scheme:light dark;--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#5f6878;--accent:#0f6fff;--soft:#e8f0ff}
+@media (prefers-color-scheme:dark){:root{--bg:#15171b;--card:#1d2026;--text:#e7e9ee;--muted:#9aa3b2;--accent:#5b9dff;--soft:#1c2a44}}
+body{font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;color:var(--text);background:var(--bg)}
+main{max-width:540px;padding:32px}
+.glyph{display:grid;place-items:center;width:56px;height:56px;border-radius:16px;background:var(--soft);color:var(--accent);margin-bottom:18px}
+h1{font-size:22px;margin:0 0 8px}p{margin:0 0 14px;color:var(--muted)}
+code{display:block;word-break:break-all;color:var(--muted);font-size:12.5px;margin-bottom:22px}
+.btn{display:inline-flex;align-items:center;height:36px;padding:0 18px;border-radius:9px;background:var(--accent);color:#fff;text-decoration:none;font-weight:600}
+</style>
+<main><div class="glyph">${glyph}</div><h1>${esc(heading)}</h1><p>${esc(hint)}</p><code>${esc(url)}</code>${retry}</main></html>`;
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+}
+
+const svg = (paths: string) => `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const GLYPH_OFFLINE = svg('<path d="M12 20h.01"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/><path d="M5 12.86a10 10 0 0 1 5.17-2.69"/><path d="M19 12.86a10 10 0 0 0-2-1.39"/><path d="M2 8.82a15 15 0 0 1 4.18-2.65"/><path d="M22 8.82a15 15 0 0 0-11.29-3.76"/><path d="m2 2 20 20"/>');
+const GLYPH_WARNING = svg('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>');
+const GLYPH_LOCK = svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m14.5 9.5-5 5"/><path d="m9.5 9.5 5 5"/>');
+const GLYPH_CRASH = svg('<circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><path d="M9 9h.01"/><path d="M15 9h.01"/>');
+
+function errorPage(url: string, code: number, description: string): string {
+  const text = describeError(code, description);
+  const glyph = code === -106 ? GLYPH_OFFLINE : code <= -200 && code > -300 ? GLYPH_LOCK : GLYPH_WARNING;
+  return shellPage('Pagina non disponibile', text.title, `${text.hint} (${description || code})`, url, glyph);
+}
+
+function crashPage(url: string, reason: string): string {
+  return shellPage('Scheda bloccata', 'Questa scheda si è bloccata', `${CRASH_REASONS[reason] ?? 'Si è verificato un problema.'} Ricaricala per riprovare.`, url, GLYPH_CRASH);
 }

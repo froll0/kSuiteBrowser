@@ -118,6 +118,17 @@ export interface VaultStatus {
   count: number | null;
 }
 
+/** A site (or proxy) asking for HTTP authentication. */
+export interface AuthPrompt {
+  id: string;
+  tabId: number | null;
+  host: string;
+  realm: string;
+  isProxy: boolean;
+  /** true when the prompt was withdrawn (tab closed or navigated away). */
+  cancelled?: boolean;
+}
+
 export interface PasswordPrompt {
   id: string;
   tabId: number;

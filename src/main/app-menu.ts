@@ -16,6 +16,9 @@ export interface AppMenuActions {
   togglePanel(): void;
   savePageToDrive(): void;
   mailPage(): void;
+  print(): void;
+  savePageAs(): void;
+  viewSource(): void;
   openSettings(): void;
   find(): void;
   findNext(backwards: boolean): void;
@@ -43,6 +46,9 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { label: 'Nuova finestra privata', accelerator: 'CmdOrCtrl+Shift+N', click: a.newPrivateWindow },
         { label: 'Chiudi scheda', accelerator: 'CmdOrCtrl+W', click: a.closeTab },
         { label: 'Riapri scheda chiusa', accelerator: 'CmdOrCtrl+Shift+T', click: a.reopenClosed },
+        { type: 'separator' },
+        { label: 'Salva pagina con nome…', accelerator: 'CmdOrCtrl+S', click: a.savePageAs },
+        { label: 'Stampa…', accelerator: 'CmdOrCtrl+P', click: a.print },
         { type: 'separator' },
         { label: 'Salva pagina come PDF su kDrive', accelerator: 'CmdOrCtrl+Shift+S', click: a.savePageToDrive },
         { label: 'Invia pagina via Mail…', accelerator: 'CmdOrCtrl+Shift+M', click: a.mailPage },
@@ -83,6 +89,8 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { type: 'separator' },
         { label: 'Scheda successiva', accelerator: 'Ctrl+Tab', click: a.nextTab },
         { label: 'Scheda precedente', accelerator: 'Ctrl+Shift+Tab', click: a.previousTab },
+        { label: 'Scheda successiva', accelerator: 'CmdOrCtrl+PageDown', click: a.nextTab, visible: false },
+        { label: 'Scheda precedente', accelerator: 'CmdOrCtrl+PageUp', click: a.previousTab, visible: false },
         ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ label: `Scheda ${n}`, accelerator: `CmdOrCtrl+${n}`, click: () => a.selectTab(n - 1), visible: false })),
         { label: 'Ultima scheda', accelerator: 'CmdOrCtrl+9', click: () => a.selectTab(-1), visible: false },
         { type: 'separator' },
@@ -96,6 +104,7 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { type: 'separator' },
         { label: 'Mostra/nascondi barra dei preferiti', accelerator: 'CmdOrCtrl+Shift+B', click: a.toggleBookmarksBar },
         { label: 'Mostra/nascondi pannello kSuite', accelerator: 'CmdOrCtrl+Shift+K', click: a.togglePanel },
+        { label: 'Sorgente pagina', accelerator: 'CmdOrCtrl+U', click: a.viewSource },
         { label: 'Strumenti per sviluppatori', accelerator: 'F12', click: a.devTools },
         { type: 'separator' },
         { role: 'togglefullscreen', label: 'Schermo intero' },

@@ -37,6 +37,10 @@ export const internal = {
   about: () => call<AboutInfo>(INTERNAL.about),
   httpsContinue: (url: string) => call<void>(INTERNAL.httpsContinue, url),
   testNotification: () => call<boolean>(INTERNAL.testNotification),
+  defaultBrowser: {
+    status: () => call<boolean>(INTERNAL.defaultBrowserStatus),
+    set: () => call<boolean>(INTERNAL.defaultBrowserSet),
+  },
   updates: {
     status: () => call<UpdateStatus>(INTERNAL.updateStatus),
     check: () => call<UpdateStatus>(INTERNAL.updateCheck),

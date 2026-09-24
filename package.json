@@ -76,7 +76,14 @@
         "entry": {
           "StartupWMClass": "ksuite-browser"
         }
-      }
+      },
+      "mimeTypes": [
+        "x-scheme-handler/http",
+        "x-scheme-handler/https",
+        "text/html",
+        "application/xhtml+xml",
+        "application/pdf"
+      ]
     },
     "artifactName": "kSuite-Browser-${version}-${os}-${arch}.${ext}",
     "publish": [
@@ -91,6 +98,31 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false
-    }
+    },
+    "protocols": [
+      {
+        "name": "Web",
+        "schemes": [
+          "http",
+          "https"
+        ],
+        "role": "Viewer"
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "html",
+          "htm"
+        ],
+        "name": "Pagina web",
+        "role": "Viewer"
+      },
+      {
+        "ext": "pdf",
+        "name": "Documento PDF",
+        "role": "Viewer"
+      }
+    ]
   }
 }

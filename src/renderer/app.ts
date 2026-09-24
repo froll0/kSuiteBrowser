@@ -479,6 +479,45 @@ ks.events.onPasswordUnlock(() => {
   input.focus();
 });
 
+// ---------- HTTP authentication ----------
+
+let authShown: string | null = null;
+
+ks.events.onAuthPrompt((prompt) => {
+  if (prompt.cancelled) {
+    if (authShown === prompt.id) {
+      authShown = null;
+      hideInfobar();
+    }
+    return;
+  }
+  // A newer request replaces the one on screen.
+  if (authShown) void ks.auth.answer(authShown, null);
+  authShown = prompt.id;
+  const user = h('input', { type: 'text', placeholder: 'Nome utente', 'aria-label': 'Nome utente', autocomplete: 'off' });
+  const pass = h('input', { type: 'password', placeholder: 'Password', 'aria-label': 'Password', autocomplete: 'off' });
+  const done = (credentials: { username: string; password: string } | null) => {
+    authShown = null;
+    void ks.auth.answer(prompt.id, credentials);
+    hideInfobar();
+  };
+  const form = h('form', { class: 'row' }, user, pass,
+    h('button', { class: 'primary', type: 'submit' }, 'Accedi'),
+    h('button', { type: 'button', onclick: () => done(null) }, 'Annulla'));
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    done({ username: user.value, password: pass.value });
+  });
+  const who = prompt.isProxy ? `Il proxy ${prompt.host}` : prompt.host;
+  infobar.replaceChildren(
+    barIcon('lock'),
+    h('span', { class: 'msg' }, `${who} richiede l’accesso${prompt.realm ? ` («${prompt.realm}»)` : ''}`),
+    form,
+  );
+  infobar.hidden = false;
+  user.focus();
+});
+
 // ---------- Updates ----------
 
 let announcedUpdate: string | null = null;

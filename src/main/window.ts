@@ -1,4 +1,6 @@
-import { BrowserWindow, nativeTheme, shell, type Session, type WebContents } from 'electron';
+import { BrowserWindow, app, dialog, nativeTheme, shell, type Session, type WebContents } from 'electron';
+import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { IPC } from '../shared/ipc';
 import type { DriveFile } from '../shared/types';
 import { attachContextMenu } from './context-menu';
@@ -51,6 +53,8 @@ export class BrowserWindowController {
   readonly tabs: TabManager;
   readonly suggestions: SuggestionsPopup;
   private refreshTimer: NodeJS.Timeout | null = null;
+  /** HTTP authentication requests waiting for the user. */
+  private readonly authRequests = new Map<string, { contents: WebContents; callback: (username?: string, password?: string) => void; cleanup: () => void }>();
 
   constructor(
     private readonly ctx: WindowContext,
@@ -98,7 +102,8 @@ export class BrowserWindowController {
         extraState: (contents) => ({
           blocked: guard.blockedCount(contents.id),
           protectionActive: guard.protectionActiveFor(contents.getURL() || null),
-          zoom: Math.round(contents.getZoomFactor() * 100),
+          // The PDF viewer fits the page by changing the zoom itself: no badge for that.
+          zoom: /\.pdf($|[?#])/i.test(contents.getURL()) ? ctx.settings.get().defaultZoom : Math.round(contents.getZoomFactor() * 100),
           bookmarked: /^(https?|file|ksuite):/i.test(contents.getURL()) && Boolean(ctx.bookmarks.find(contents.getURL())),
         }),
         failurePage: (contents, url) => {
@@ -225,6 +230,71 @@ export class BrowserWindowController {
     }
   }
 
+  /** Shows the sign-in bar for a site using HTTP authentication. */
+  requestAuth(contents: WebContents, info: Electron.AuthInfo, callback: (username?: string, password?: string) => void): void {
+    const id = randomUUID();
+    const onNavigation = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
+      if (details.isMainFrame && !details.isSameDocument) withdraw();
+    };
+    const cleanup = () => {
+      contents.off('did-start-navigation', onNavigation);
+      contents.off('destroyed', withdraw);
+    };
+    // A new page or a closed tab withdraws the request.
+    const withdraw = () => {
+      if (!this.authRequests.has(id)) return;
+      this.answerAuth(id, null);
+      this.send(IPC.evAuthPrompt, { id, tabId: null, host: '', realm: '', isProxy: false, cancelled: true });
+    };
+    this.authRequests.set(id, { contents, callback, cleanup });
+    contents.on('did-start-navigation', onNavigation);
+    contents.once('destroyed', withdraw);
+    const host = info.port && ![80, 443].includes(info.port) ? `${info.host}:${info.port}` : info.host;
+    this.send(IPC.evAuthPrompt, { id, tabId: this.tabs.idOf(contents), host, realm: info.realm ?? '', isProxy: info.isProxy });
+  }
+
+  answerAuth(id: string, credentials: { username: string; password: string } | null): void {
+    const request = this.authRequests.get(id);
+    if (!request) return;
+    this.authRequests.delete(id);
+    request.cleanup();
+    if (credentials && typeof credentials.username === 'string' && typeof credentials.password === 'string') request.callback(credentials.username, credentials.password);
+    else request.callback();
+  }
+
+  print(contents: WebContents): void {
+    contents.print({}, (success, reason) => {
+      if (!success && reason && reason !== 'Print job canceled' && reason !== 'cancelled') this.send(IPC.evToast, { kind: 'error', message: `Stampa non riuscita: ${reason}` });
+    });
+  }
+
+  /** "Save page as": complete HTML page (with its files) or a single MHTML file. */
+  async savePageAs(contents: WebContents): Promise<void> {
+    const url = contents.getURL();
+    if (!/^(https?|file):/i.test(url)) return;
+    const name = (contents.getTitle() || 'pagina').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 120) || 'pagina';
+    const { canceled, filePath } = await dialog.showSaveDialog(this.win, {
+      title: 'Salva pagina con nome',
+      defaultPath: join(this.ctx.settings.get().downloadDir ?? app.getPath('downloads'), `${name}.html`),
+      filters: [
+        { name: 'Pagina web completa', extensions: ['html', 'htm'] },
+        { name: 'Pagina web, file singolo (MHTML)', extensions: ['mhtml'] },
+      ],
+    });
+    if (canceled || !filePath) return;
+    try {
+      await contents.savePage(filePath, filePath.toLowerCase().endsWith('.mhtml') ? 'MHTML' : 'HTMLComplete');
+      this.send(IPC.evToast, { kind: 'success', message: 'Pagina salvata' });
+    } catch (err) {
+      this.send(IPC.evToast, { kind: 'error', message: `Salvataggio non riuscito: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  }
+
+  viewSource(contents: WebContents): void {
+    const url = contents.getURL();
+    if (/^(https?|file):/i.test(url)) this.tabs.create(`view-source:${url}`, { index: this.indexAfter(contents) });
+  }
+
   savePageToDrive(contents: WebContents): Promise<void> {
     return this.runDriveAction('Salvataggio pagina in PDF', () => this.ctx.services.savePageAsPdf(contents));
   }
@@ -251,6 +321,10 @@ export class BrowserWindowController {
     });
     contents.on('page-title-updated', (_e, title) => {
       if (visitId) this.ctx.history.setTitle(visitId, title);
+    });
+    contents.on('login', (event, _details, info, callback) => {
+      event.preventDefault();
+      owner().requestAuth(contents, info, callback);
     });
     contents.on('zoom-changed', (_e, direction) => this.ctx.stepZoom(owner(), contents, direction === 'in' ? 'in' : 'out'));
     contents.on('found-in-page', (_e, result) => {
@@ -292,6 +366,9 @@ export class BrowserWindowController {
       saveUrlToDrive: (url) => void owner().runDriveAction('Salvataggio su kDrive', () => this.ctx.services.saveUrlToDrive(contents.session, url)),
       savePageToDrive: (wc) => void owner().savePageToDrive(wc),
       mailLink: (url, title) => owner().composeMail(url, title),
+      print: (wc) => owner().print(wc),
+      savePageAs: (wc) => void owner().savePageAs(wc),
+      viewSource: (wc) => owner().viewSource(wc),
       aiEnabled: () => this.ctx.settings.get().aiEnabled,
       askAboutText: (action, text) => owner().send(IPC.evAiAsk, { action, text }),
       askAboutPage: (action) => owner().send(IPC.evAiAsk, { page: action }),

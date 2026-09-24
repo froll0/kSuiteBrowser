@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { PageAction, TextAction } from '../shared/ai-prompts';
 import { IPC } from '../shared/ipc';
 import type {
-  AiChatRequest, AiEvent, AiStatus, Bookmark, FindResult, PasswordPrompt, Suggestion, UpdateStatus,
+  AiChatRequest, AiEvent, AiStatus, AuthPrompt, Bookmark, FindResult, PasswordPrompt, Suggestion, UpdateStatus,
   ApiResult, CalendarEvent, DriveFile, DriveListing, DownloadItemState, MailOverview,
   NewEvent, OutgoingMail, Profile, Rect, Settings, TabState, TokenStatus,
 } from '../shared/types';
@@ -59,6 +59,9 @@ const api = {
     status: () => invoke<UpdateStatus>(IPC.updateStatus),
     install: () => invoke<void>(IPC.updateInstall),
   },
+  auth: {
+    answer: (id: string, credentials: { username: string; password: string } | null) => invoke<void>(IPC.authAnswer, id, credentials),
+  },
   passwords: {
     answer: (id: string, action: 'save' | 'never' | 'dismiss', username?: string) => invoke<void>(IPC.passwordAnswer, id, action, username),
     unlock: (primary: string) => invoke<ApiResult<void>>(IPC.passwordUnlock, primary),
@@ -106,6 +109,7 @@ const api = {
     onFindNext: (fn: (opts: { backwards: boolean }) => void) => on(IPC.evFindNext, fn),
     onFindResult: (fn: (result: FindResult) => void) => on(IPC.evFindResult, fn),
     onPasswordPrompt: (fn: (prompt: PasswordPrompt) => void) => on(IPC.evPasswordPrompt, fn),
+    onAuthPrompt: (fn: (prompt: AuthPrompt) => void) => on(IPC.evAuthPrompt, fn),
     onPasswordUnlock: (fn: (info: { reason: string }) => void) => on(IPC.evPasswordUnlock, fn),
     onUnread: (fn: (count: number | null) => void) => on(IPC.evUnread, fn),
     onUpdate: (fn: (status: UpdateStatus) => void) => on(IPC.evUpdate, fn),

@@ -2,8 +2,9 @@ import {
   BrowserWindow, Menu, app, dialog, ipcMain, nativeTheme, session as electronSession, shell,
   webContents as allWebContents, type IpcMainInvokeEvent, type Session,
 } from 'electron';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { INTERNAL, IPC } from '../shared/ipc';
 import { KSUITE_APPS } from '../shared/ksuite-apps';
 import { siteOf } from '../shared/privacy-rules';
@@ -79,10 +80,15 @@ const pendingUrls: SavedTab[] = urlsFromArgv(process.argv).map((url) => ({ url }
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', (_e, argv) => {
-    const target = normalWindow() ?? openWindow(false, [{ url: settings.get().homePage }]);
-    target.focus();
-    for (const url of urlsFromArgv(argv)) target.tabs.create(url);
+  app.on('second-instance', (_e, argv) => openFromSystem(urlsFromArgv(argv), true));
+  // macOS hands links and files over with events instead of the command line.
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    if (/^https?:\/\//i.test(url)) openFromSystem([url]);
+  });
+  app.on('open-file', (event, path) => {
+    event.preventDefault();
+    openFromSystem([pathToFileURL(path).href]);
   });
   app.whenReady().then(start).catch((err) => {
     dialog.showErrorBox('kSuite Browser', String(err));
@@ -108,8 +114,48 @@ app.on('before-quit', (event) => {
     .finally(() => app.quit());
 });
 
+/** Web addresses and local documents passed on the command line (e.g. when this is the default browser). */
 function urlsFromArgv(argv: string[]): string[] {
-  return argv.slice(1).filter((a) => /^https?:\/\//i.test(a));
+  const urls: string[] = [];
+  for (const arg of argv.slice(1)) {
+    if (/^https?:\/\//i.test(arg)) urls.push(arg);
+    else if (!arg.startsWith('-') && /\.(html?|xhtml|pdf|svg|txt)$/i.test(arg) && existsSync(arg)) urls.push(pathToFileURL(resolve(arg)).href);
+  }
+  return urls;
+}
+
+/** Opens links coming from other apps in a normal window (a new one if only private windows are open). */
+function openFromSystem(urls: string[], focus = urls.length === 0): void {
+  if (!app.isReady() || !settings) {
+    pendingUrls.push(...urls.map((url) => ({ url })));
+    return;
+  }
+  const target = normalWindow();
+  if (!target) {
+    const w = openWindow(false, urls.length ? urls.map((url) => ({ url })) : [{ url: settings.get().homePage }]);
+    w.focus();
+    return;
+  }
+  for (const url of urls) target.tabs.create(url);
+  if (focus || urls.length) target.focus();
+}
+
+// ---------- Default browser ----------
+
+/** Registers or checks http/https; in development Electron runs the app folder, which must be part of it. */
+function protocolClient<T>(fn: (protocol: string, path?: string, args?: string[]) => T, protocol: string): T {
+  return process.defaultApp && process.argv[1] ? fn(protocol, process.execPath, [resolve(process.argv[1])]) : fn(protocol);
+}
+
+function isDefaultBrowser(): boolean {
+  return ['http', 'https'].every((p) => protocolClient((...a) => app.isDefaultProtocolClient(...a), p));
+}
+
+async function makeDefaultBrowser(): Promise<boolean> {
+  for (const p of ['http', 'https']) protocolClient((...a) => app.setAsDefaultProtocolClient(...a), p);
+  // Windows 10+ only lets the user choose the default browser in its settings.
+  if (process.platform === 'win32' && !isDefaultBrowser()) await shell.openExternal('ms-settings:defaultapps');
+  return isDefaultBrowser();
 }
 
 // ---------- Startup ----------
@@ -171,10 +217,15 @@ function start(): void {
   registerAdblockIpc();
   Menu.setApplicationMenu(buildMenu());
 
+  // Links opened from other apps are added to the restored session, like other browsers do.
   const restored = settings.get().startup === 'restore' ? readSavedSession() : [];
-  if (pendingUrls.length) openWindow(false, pendingUrls);
-  else if (restored.length) for (const tabs of restored) openWindow(false, tabs);
-  else openWindow(false, []);
+  if (restored.length) {
+    restored[restored.length - 1].push(...pendingUrls);
+    for (const tabs of restored) openWindow(false, tabs);
+  } else {
+    openWindow(false, pendingUrls);
+  }
+  pendingUrls.length = 0;
 }
 
 function setupSession(ses: Session, isPrivate: boolean): void {
@@ -190,6 +241,13 @@ function setupSession(ses: Session, isPrivate: boolean): void {
   serveInternalPages(ses, PATHS.pages, faviconFor);
   ses.registerPreloadScript({ type: 'frame', id: 'ksuite-adblock', filePath: PATHS.adblockPreload });
   ses.registerPreloadScript({ type: 'frame', id: 'ksuite-passwords', filePath: PATHS.passwordsPreload });
+  // macOS uses the system spell checker; elsewhere pick Italian and English.
+  if (process.platform !== 'darwin') {
+    const available = ses.availableSpellCheckerLanguages;
+    const first = (...codes: string[]) => codes.find((l) => available.includes(l));
+    const wanted = [first('it-IT', 'it'), first('en-US', 'en-GB', 'en')].filter((l): l is string => Boolean(l));
+    if (wanted.length) ses.setSpellCheckerLanguages(wanted);
+  }
 }
 
 const windowContext: WindowContext = {
@@ -510,6 +568,21 @@ function buildMenu(): Menu {
       const wc = w?.activeContents();
       if (w && wc) w.composeMail(wc.getURL(), wc.getTitle());
     },
+    print: () => {
+      const w = current();
+      const wc = w?.activeContents();
+      if (w && wc) w.print(wc);
+    },
+    savePageAs: () => {
+      const w = current();
+      const wc = w?.activeContents();
+      if (w && wc) void w.savePageAs(wc);
+    },
+    viewSource: () => {
+      const w = current();
+      const wc = w?.activeContents();
+      if (w && wc) w.viewSource(wc);
+    },
     openSettings: () => current()?.openSettings(),
     find: () => current()?.focusChrome(IPC.evFind),
     findNext: (backwards) => current()?.send(IPC.evFindNext, { backwards }),
@@ -665,6 +738,7 @@ function registerChromeIpc(): void {
   handle(IPC.aiCancel, (_w, id: string) => ai.cancel(String(id)));
   handle(IPC.updateStatus, () => updates.get());
   handle(IPC.updateInstall, () => updates.install());
+  handle(IPC.authAnswer, (w, id: string, credentials: { username: string; password: string } | null) => w.answerAuth(String(id), credentials));
   handle(IPC.passwordAnswer, (w, id: string, action: 'save' | 'never' | 'dismiss', username?: string) => passwords.answer(w, String(id), action, username));
   handle(IPC.passwordUnlock, (w, primary: string) => wrap(() => passwords.unlock(w, String(primary ?? ''))));
 
@@ -736,6 +810,8 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only'], () => settings.get());
   handleInternal(INTERNAL.settingsSet, S, (_e, patch: Partial<Settings>) => settings.update(patch));
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
+  handleInternal(INTERNAL.defaultBrowserStatus, S, () => isDefaultBrowser());
+  handleInternal(INTERNAL.defaultBrowserSet, S, () => makeDefaultBrowser());
   handleInternal(INTERNAL.tokenSet, S, (_e, token: string) =>
     wrap(async () => {
       if (!token.trim()) throw new Error('Il token è vuoto.');

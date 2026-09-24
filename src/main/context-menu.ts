@@ -6,6 +6,9 @@ export interface ContextMenuActions {
   saveUrlToDrive(url: string): void;
   savePageToDrive(contents: WebContents): void;
   mailLink(url: string, title: string): void;
+  print(contents: WebContents): void;
+  savePageAs(contents: WebContents): void;
+  viewSource(contents: WebContents): void;
   /** AI actions, offered only when the assistant is enabled. */
   aiEnabled(): boolean;
   askAboutText(action: TextAction, text: string): void;
@@ -23,6 +26,7 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
       items.push(
         { label: 'Apri link in una nuova scheda', click: () => actions.openInNewTab(link) },
         { label: 'Copia indirizzo link', click: () => clipboard.writeText(link) },
+        { label: 'Salva link con nome…', click: () => contents.downloadURL(link) },
       );
       if (isHttp(link)) {
         items.push(
@@ -37,10 +41,23 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
       const src = params.srcURL;
       items.push(
         { label: 'Apri immagine in una nuova scheda', click: () => actions.openInNewTab(src) },
+        { label: 'Salva immagine con nome…', click: () => contents.downloadURL(src) },
         { label: 'Copia immagine', click: () => contents.copyImageAt(params.x, params.y) },
+        { label: 'Copia indirizzo immagine', click: () => clipboard.writeText(src) },
       );
       if (isHttp(src)) items.push({ label: 'Salva immagine su kDrive', click: () => actions.saveUrlToDrive(src) });
       items.push({ type: 'separator' });
+    }
+
+    if (params.isEditable && params.misspelledWord) {
+      const word = params.misspelledWord;
+      const suggestions = params.dictionarySuggestions.slice(0, 5);
+      if (suggestions.length === 0) items.push({ label: 'Nessun suggerimento', enabled: false });
+      for (const suggestion of suggestions) items.push({ label: suggestion, click: () => contents.replaceMisspelling(suggestion) });
+      items.push(
+        { label: `Aggiungi «${word}» al dizionario`, click: () => contents.session.addWordToSpellCheckerDictionary(word) },
+        { type: 'separator' },
+      );
     }
 
     if (params.isEditable) {
@@ -54,9 +71,6 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
         { role: 'selectAll', label: 'Seleziona tutto' },
         { type: 'separator' },
       );
-      for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
-        items.push({ label: suggestion, click: () => contents.replaceMisspelling(suggestion) });
-      }
     } else if (params.selectionText) {
       items.push({ role: 'copy', label: 'Copia' }, { type: 'separator' });
     }
@@ -79,6 +93,8 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
         { label: 'Avanti', enabled: history.canGoForward(), click: () => history.goForward() },
         { label: 'Ricarica', click: () => contents.reload() },
         { type: 'separator' },
+        { label: 'Salva pagina con nome…', click: () => actions.savePageAs(contents) },
+        { label: 'Stampa…', click: () => actions.print(contents) },
         { label: 'Salva pagina come PDF su kDrive', click: () => actions.savePageToDrive(contents) },
         { label: 'Invia pagina via Mail…', click: () => actions.mailLink(contents.getURL(), contents.getTitle()) },
         ...(actions.aiEnabled() && /^https?:/i.test(contents.getURL())
@@ -88,6 +104,9 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
       );
     }
 
+    if (!link && !params.isEditable && params.mediaType === 'none' && /^(https?|file):/i.test(contents.getURL())) {
+      items.push({ label: 'Visualizza sorgente pagina', click: () => actions.viewSource(contents) });
+    }
     items.push({ label: 'Ispeziona', click: () => contents.inspectElement(params.x, params.y) });
     Menu.buildFromTemplate(items).popup();
   });

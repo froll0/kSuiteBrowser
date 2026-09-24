@@ -75,6 +75,18 @@ async function generalSection(): Promise<HTMLElement> {
   engine.addEventListener('change', () => void update({ searchEngine: engine.value as Settings['searchEngine'] }));
 
   const folder = await internal.downloadDir();
+  const isDefault = await internal.defaultBrowser.status();
+  const defaultMsg = h('span', { class: 'message', role: 'status' });
+  const defaultBtn = isDefault
+    ? null
+    : h('button', {
+        onclick: async () => {
+          const ok = await internal.defaultBrowser.set();
+          defaultMsg.textContent = ok ? 'Fatto: i link delle altre app si apriranno qui.' : 'Scegli kSuite Browser nelle impostazioni del sistema che si sono aperte (App predefinite › Browser web).';
+          defaultMsg.className = `message ${ok ? 'ok' : ''}`;
+          if (ok) void render();
+        },
+      }, 'Imposta come predefinito');
   const folderControls = h(
     'div',
     { class: 'control' },
@@ -85,6 +97,7 @@ async function generalSection(): Promise<HTMLElement> {
   return section(
     'general',
     'Generale',
+    row('Browser predefinito', isDefault ? 'kSuite Browser è il tuo browser predefinito: i link delle altre app si aprono qui.' : h('span', {}, 'I link delle email e delle altre app si aprono in un altro browser. ', defaultMsg), defaultBtn),
     h('div', { class: 'row stack', 'data-search': 'avvio sessione schede pagina iniziale' },
       h('div', { class: 'title' }, 'All’avvio'),
       radios('startup', settings.startup, [

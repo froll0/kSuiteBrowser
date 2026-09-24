@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const watch = process.argv.includes('--watch');
-const PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only'];
+const PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked'];
 
 const common = { bundle: true, sourcemap: true, logLevel: 'info' };
 const node = { ...common, platform: 'node', format: 'cjs', target: 'node22', external: ['electron'] };

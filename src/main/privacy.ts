@@ -1,6 +1,7 @@
 import { webContents as allWebContents, type Session } from 'electron';
 import { deleteHeader, httpsUpgrade, isThirdParty, siteOf } from '../shared/privacy-rules';
 import type { TrackerBlocker } from './blocker';
+import type { ThreatKind } from '../shared/threat-match';
 import type { SettingsStore } from './settings';
 
 /**
@@ -13,12 +14,15 @@ export class PrivacyGuard {
   private readonly blocked = new Map<number, number>();
   /** https:// URLs we upgraded from http://, per WebContents id, to offer the HTTP fallback on failure. */
   private readonly upgraded = new Map<number, { https: string; http: string }>();
+  /** Main-frame loads stopped as phishing or malware, per WebContents id, to show the warning page. */
+  private readonly threats = new Map<number, { url: string; kind: ThreatKind }>();
 
   constructor(
     private readonly session: Session,
     private readonly settings: SettingsStore,
     private readonly blocker: TrackerBlocker,
     private readonly onBlockedChange: (webContentsId: number) => void,
+    private readonly threatCheck: (url: string) => ThreatKind | null = () => null,
   ) {}
 
   install(): void {
@@ -28,6 +32,15 @@ export class PrivacyGuard {
     ses.webRequest.onBeforeRequest(filter, (details, callback) => {
       const s = this.settings.get();
       const wcId = details.webContentsId;
+
+      // Known phishing and malware sites never load, in the page or in a frame.
+      if ((details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') && s.threatProtection) {
+        const kind = this.threatCheck(details.url);
+        if (kind) {
+          if (details.resourceType === 'mainFrame' && wcId !== undefined) this.threats.set(wcId, { url: details.url, kind });
+          return callback({ cancel: true });
+        }
+      }
 
       if (details.resourceType === 'mainFrame') {
         if (wcId !== undefined) this.resetCount(wcId);
@@ -108,6 +121,14 @@ export class PrivacyGuard {
     if (!entry || !sameUrl(entry.https, failedUrl)) return null;
     this.upgraded.delete(webContentsId);
     return entry.http;
+  }
+
+  /** When a page load was stopped as dangerous, what it was: the tab then shows the warning page. */
+  threatFor(webContentsId: number, failedUrl: string): { url: string; kind: ThreatKind } | null {
+    const entry = this.threats.get(webContentsId);
+    if (!entry || !sameUrl(entry.url, failedUrl)) return null;
+    this.threats.delete(webContentsId);
+    return entry;
   }
 
   private pageUrl(webContentsId: number | undefined, referrer: string | undefined): string | null {

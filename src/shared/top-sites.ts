@@ -44,6 +44,16 @@ export function letterIconSvg(host: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="${letterColor(host)}"/><text x="16" y="22" text-anchor="middle" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="17" font-weight="700" fill="#fff">${letter}</text></svg>`;
 }
 
+/**
+ * A saved favicon inside a 32×32 SVG, the same shape as the letter icons: a web page that loads
+ * ksuite://favicon/ URLs can't tell a visited site (real icon) from an unknown one by size or type.
+ */
+export function framedIconSvg(mime: string, body: Uint8Array): string {
+  const safeMime = /^image\/[a-z0-9.+-]+$/i.test(mime) ? mime : 'image/png';
+  const data = Buffer.from(body).toString('base64');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><image href="data:${safeMime};base64,${data}" width="32" height="32" preserveAspectRatio="xMidYMid meet"/></svg>`;
+}
+
 /** URL of a site's icon, served by the browser (cached favicon, or a letter icon). */
 export function faviconUrl(pageUrl: string): string {
   return `ksuite://favicon/?url=${encodeURIComponent(pageUrl)}`;

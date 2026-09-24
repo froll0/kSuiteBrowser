@@ -5,7 +5,7 @@ import { extname, join, normalize, sep } from 'node:path';
 export const INTERNAL_SCHEME = 'ksuite';
 
 /** Internal pages: ksuite://settings, ksuite://history, … Each host maps to a folder in dist/pages. */
-export const INTERNAL_PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'assets'] as const;
+export const INTERNAL_PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'assets'] as const;
 const PAGES = new Set<string>(INTERNAL_PAGES);
 
 const MIME: Record<string, string> = {
@@ -35,7 +35,7 @@ export function serveInternalPages(session: Session, pagesDir: string, favicon: 
     if (url.hostname === 'favicon') {
       const icon = favicon(url.searchParams.get('url') ?? '');
       return new Response(typeof icon.body === 'string' ? icon.body : new Uint8Array(icon.body), {
-        headers: { 'Content-Type': icon.mime, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'" },
+        headers: { 'Content-Type': icon.mime, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:" },
       });
     }
     if (!PAGES.has(url.hostname)) return new Response('Pagina non trovata', { status: 404 });

@@ -99,6 +99,8 @@ export const INTERNAL = {
   downloadDirInfo: 'internal:downloads:dir',
   about: 'internal:about',
   httpsContinue: 'internal:https-only:continue',
+  threatContinue: 'internal:blocked:continue',
+  threatStatus: 'internal:threats:status',
   historySearch: 'internal:history:search',
   historyRemove: 'internal:history:remove',
   historyClear: 'internal:history:clear',

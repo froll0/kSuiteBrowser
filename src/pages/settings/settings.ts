@@ -1,4 +1,5 @@
 import { h } from '../../renderer/dom';
+import { permissionLabel } from '../../shared/external-protocols';
 import { ASKABLE_PERMISSIONS, REMINDER_MINUTES, SLEEP_MINUTES } from '../../shared/settings-schema';
 import type { AskablePermission, BrowsingDataSelection, Settings, UpdateStatus } from '../../shared/types';
 import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from '../../shared/url';
@@ -216,6 +217,12 @@ async function passwordsSection(): Promise<HTMLElement> {
 }
 
 function privacySection(): HTMLElement {
+  const threatDesc = h('span', {}, 'Blocca i siti che rubano password e dati e i download di malware conosciuti, con gli elenchi pubblici usati da uBlock Origin, controllati sul tuo computer. ');
+  void internal.threatStatus().then((st) => {
+    threatDesc.append(h('span', { class: 'muted' }, st.entries
+      ? `${st.entries.toLocaleString('it-IT')} siti nell’elenco${st.loadedAt ? `, aggiornato il ${new Date(st.loadedAt).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}` : ''}.`
+      : 'Elenchi non ancora scaricati.'));
+  });
   const selection: BrowsingDataSelection = { history: true, cookies: true, cache: true, downloads: false, permissions: false };
   const check = (key: keyof BrowsingDataSelection, label: string) => {
     const input = h('input', { type: 'checkbox', checked: selection[key] });
@@ -249,6 +256,7 @@ function privacySection(): HTMLElement {
     ),
     row('Blocca i cookie di terze parti', 'I contenuti di altri siti incorporati in una pagina (pulsanti social, pubblicità, tracker) non ricevono né impostano cookie tramite la rete: è il modo principale in cui ti seguono da un sito all’altro. I servizi Infomaniak non sono toccati.', toggle('blockThirdPartyCookies', 'Blocca cookie di terze parti')),
     row('Chiedi ai siti di non tracciarti', 'Invia i segnali “Do Not Track” e Global Privacy Control (GPC). In alcuni Paesi il GPC ha valore legale.', toggle('doNotTrack', 'Invia DNT e GPC')),
+    row('Protezione da phishing e malware', threatDesc, toggle('threatProtection', 'Protezione da phishing e malware')),
     row('Modalità solo HTTPS', 'Carica sempre le pagine in modo cifrato. Se un sito non supporta HTTPS ti viene chiesto prima di continuare.', toggle('httpsOnly', 'Modalità solo HTTPS')),
     h('div', { class: 'row stack', 'data-search': 'eccezioni siti protezione disattivata scudo' },
       h('div', { class: 'title' }, 'Siti con protezione disattivata'),
@@ -290,7 +298,7 @@ function permissionsSection(): HTMLElement {
   const decisions = settings.sitePermissions.length
     ? h('ul', { class: 'list' }, ...settings.sitePermissions.map((sp) =>
         h('li', {},
-          h('span', {}, h('strong', {}, sp.host), ' · ', PERMISSION_LABELS[sp.permission] ?? sp.permission, ' ', h('span', { class: `tag ${sp.allowed ? 'allow' : 'block'}` }, sp.allowed ? 'Consentito' : 'Bloccato')),
+          h('span', {}, h('strong', {}, sp.host), ' · ', permissionLabel(sp.permission), ' ', h('span', { class: `tag ${sp.allowed ? 'allow' : 'block'}` }, sp.allowed ? 'Consentito' : 'Bloccato')),
           h('button', {
             class: 'link',
             onclick: () => void update({ sitePermissions: settings.sitePermissions.filter((x) => !(x.host === sp.host && x.permission === sp.permission)) }).then(render),

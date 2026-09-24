@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Sito pericoloso</title>
+  <link rel="stylesheet" href="page.css" />
+  <link rel="stylesheet" href="blocked.css" />
+</head>
+<body>
+  <main>
+    <div class="warn-icon" data-icon="shieldOff" data-size="32" aria-hidden="true"></div>
+    <h1 id="title">Sito pericoloso</h1>
+    <p id="lead"></p>
+    <p class="host" id="host"></p>
+    <div class="actions">
+      <button id="back" class="safe">Torna al sicuro</button>
+      <button id="details-btn" class="link" aria-expanded="false" aria-controls="details">Dettagli</button>
+    </div>
+    <div id="details" hidden>
+      <p>L’indirizzo compare negli elenchi pubblici di siti pericolosi del progetto malware-filter (gli stessi usati da uBlock Origin), che kSuite Browser controlla sul tuo computer: nessun indirizzo viene inviato ad altri.</p>
+      <p>Se sei sicuro che si tratti di un errore puoi aprirlo lo stesso, fino alla chiusura del browser.</p>
+      <button id="continue" class="link danger">Ignora il rischio e apri il sito</button>
+    </div>
+  </main>
+  <script src="blocked.js"></script>
+</body>
+</html>

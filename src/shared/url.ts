@@ -73,3 +73,26 @@ export function readableUrl(url: string): string {
   }
   return text.replace(/^https:\/\//i, '').replace(/^(?=[^/]+\/$)(.*)\/$/, '$1');
 }
+
+/** Default Electron user agent without the "Electron/x" and app name tokens. */
+export function chromeUserAgent(ua: string): string {
+  return ua
+    .replace(/\s+Electron\/\S+/gi, '')
+    .replace(/\s+(kSuiteBrowser|kSuite Browser|ksuite-browser)\/\S+/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/** Title of a popup window: the site first, with a lock or a warning, then the page title. */
+export function popupTitle(url: string, title: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return title || url || 'kSuite Browser';
+  }
+  const page = title && title !== url ? ` — ${title}` : '';
+  if (parsed.protocol === 'https:') return `🔒 ${parsed.host}${page}`;
+  if (parsed.protocol === 'http:') return `⚠ Non sicuro: ${parsed.host}${page}`;
+  return `${url}${page}`;
+}

@@ -36,6 +36,8 @@ export const internal = {
   downloadDir: () => call<string>(INTERNAL.downloadDirInfo),
   about: () => call<AboutInfo>(INTERNAL.about),
   httpsContinue: (url: string) => call<void>(INTERNAL.httpsContinue, url),
+  threatContinue: (url: string) => call<void>(INTERNAL.threatContinue, url),
+  threatStatus: () => call<{ entries: number; loadedAt: number | null }>(INTERNAL.threatStatus),
   testNotification: () => call<boolean>(INTERNAL.testNotification),
   defaultBrowser: {
     status: () => call<boolean>(INTERNAL.defaultBrowserStatus),

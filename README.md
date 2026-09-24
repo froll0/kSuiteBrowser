@@ -98,6 +98,17 @@ quindi funzionano senza sorprese.
 - **Blocco dei cookie di terze parti** sulle richieste di rete
 - **Do Not Track e Global Privacy Control** (`DNT: 1`, `Sec-GPC: 1`)
 - **Modalità solo HTTPS**: le pagine `http://` vengono caricate in `https://`; se il sito non lo supporta compare un avviso con "Continua con HTTP" (le reti locali sono escluse)
+- **Protezione da phishing e malware**: i siti che rubano password e dati e i file di malware conosciuti vengono bloccati
+  con una pagina di avviso, usando gli elenchi pubblici del progetto malware-filter (gli stessi di uBlock Origin),
+  aggiornati due volte al giorno e controllati **sul computer**: nessun indirizzo viene inviato ad altri
+- **Link ad app esterne** (`mailto:`, Zoom, Teams…): il browser chiede prima di aprirli (con "ricorda per questo sito");
+  i tipi usati per attacchi (`ms-msdt:`, `search-ms:`, `ms-appinstaller:`, `file:`…) sono sempre bloccati
+- **Download pericolosi** (programmi, script, immagini disco, documenti con macro): conferma prima di scaricarli,
+  con un avviso in più se arrivano da una connessione non cifrata
+- **Popup di accesso** (Google, Microsoft, banche): il titolo della finestra mostra il sito e se la connessione è sicura
+- **Identità del browser**: si presenta come un normale Chrome (senza "Electron" e il nome dell'app), più difficile da
+  riconoscere e compatibile con gli accessi che rifiutano i browser Electron
+- Le icone dei siti visitati non possono essere usate da una pagina web per scoprire la tua cronologia
 - **Cancella dati di navigazione** (cookie e dati dei siti, cache, elenco download, permessi) e cancellazione automatica alla chiusura
 - **Finestre private**: sessione solo in memoria (cookie, cache, permessi spariscono alla chiusura), i download non vengono caricati su kDrive
 - **Permessi dei siti**: valori predefiniti (chiedi/blocca) per fotocamera e microfono, notifiche e posizione; scelte ricordate e revocabili
@@ -220,6 +231,11 @@ test/         Test Vitest
 
 Sono gli stessi endpoint usati dai connettori MCP ufficiali di Infomaniak.
 
+## Sicurezza dell'app installata
+
+L'installer attiva i *fuse* di Electron: niente `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` o `--inspect`,
+codice caricato solo dall'archivio `app.asar` (verificato su Windows e macOS), cookie cifrati su disco.
+
 ## Limiti noti
 
 - Il blocco dei cookie di terze parti agisce sulle richieste di rete: uno script dentro un iframe di terze parti
@@ -229,6 +245,8 @@ Sono gli stessi endpoint usati dai connettori MCP ufficiali di Infomaniak.
 
 - Il caricamento diretto su kDrive è limitato a 1 GB per file (per file più grandi usa l'app web).
 - Il pannello Mail usa la casella principale associata al token.
+- L'app non è ancora firmata digitalmente: Windows mostra l'avviso di SmartScreen e macOS chiede conferma all'apertura
+  (sul Mac gli aggiornamenti automatici richiedono la firma).
 - L'assistente IA usa i crediti di AI Services: i nomi dei modelli disponibili dipendono dal catalogo Infomaniak
   (se "Automatico" non ti soddisfa scegli il modello nelle impostazioni).
 

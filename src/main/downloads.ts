@@ -1,4 +1,6 @@
-import { app, shell, type Session } from 'electron';
+import { app, dialog, shell, type BrowserWindow, type Session } from 'electron';
+import { dangerousFileKind } from '../shared/dangerous-files';
+import type { ThreatKind } from '../shared/threat-match';
 import { basename, join } from 'node:path';
 import type { DownloadItemState } from '../shared/types';
 import { uniquePath } from './files';
@@ -14,6 +16,7 @@ export class DownloadManager {
     private readonly settings: SettingsStore,
     private readonly services: KSuiteServices,
     private readonly onChange: (items: DownloadItemState[]) => void,
+    private readonly safety: { threatCheck(url: string): ThreatKind | null; window(): BrowserWindow | null } = { threatCheck: () => null, window: () => null },
   ) {}
 
   folder(): string {
@@ -42,6 +45,29 @@ export class DownloadManager {
       this.items = this.items.slice(0, 50);
       this.emit();
 
+      // Known malware (the download address or any redirect before it) never lands on disk.
+      if (s.threatProtection && [...item.getURLChain(), item.getURL()].some((u) => this.safety.threatCheck(u))) {
+        item.cancel();
+        state.state = 'cancelled';
+        state.blocked = 'Bloccato: il file è segnalato come malware';
+        this.emit();
+        return;
+      }
+      // Programs and scripts: confirm first, while the download waits.
+      const danger = dangerousFileKind(item.getFilename());
+      if (danger) {
+        item.pause();
+        void this.confirmDangerous(item.getFilename(), danger, item.getURL()).then((keep) => {
+          if (item.getState() !== 'progressing') return;
+          if (keep) item.resume();
+          else {
+            item.cancel();
+            state.blocked = 'Annullato: file potenzialmente pericoloso';
+            this.emit();
+          }
+        });
+      }
+
       const sync = () => {
         state.path = item.getSavePath() || state.path;
         if (state.path) state.filename = basename(state.path);
@@ -64,6 +90,30 @@ export class DownloadManager {
         }
       });
     });
+  }
+
+  private async confirmDangerous(filename: string, kind: string, url: string): Promise<boolean> {
+    let source = url;
+    let insecure = false;
+    try {
+      const u = new URL(url);
+      source = u.host || u.protocol;
+      insecure = u.protocol === 'http:';
+    } catch {
+      /* keep the raw address */
+    }
+    const options = {
+      type: 'warning' as const,
+      buttons: ['Annulla', 'Scarica comunque'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+      message: `«${filename}» è ${kind} e potrebbe danneggiare il computer.`,
+      detail: `${insecure ? 'Arriva da una connessione non cifrata, quindi potrebbe essere stato modificato lungo la strada. ' : ''}Scaricalo solo se ti fidi di ${source} e sai cosa contiene.`,
+    };
+    const win = this.safety.window();
+    const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
+    return response === 1;
   }
 
   list(): DownloadItemState[] {

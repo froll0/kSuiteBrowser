@@ -153,7 +153,7 @@ export class TabManager {
     wc.on('did-stop-loading', emit);
     wc.on('audio-state-changed', emit);
     wc.on('did-navigate', (_e, navUrl) => {
-      if (!navUrl.startsWith('data:') && !navUrl.startsWith('ksuite://https-only')) tab.failedUrl = null;
+      if (!navUrl.startsWith('data:') && !navUrl.startsWith('ksuite://https-only') && !navUrl.startsWith('ksuite://blocked')) tab.failedUrl = null;
       tab.favicon = null;
       emit();
     });
@@ -573,7 +573,7 @@ interface ErrorText {
 }
 
 /** Friendly Italian text for the most common network errors (Chromium net error codes). */
-export function describeError(code: number, description: string): ErrorText {
+export function describeError(code: number): ErrorText {
   if (code === -106) return { title: 'Nessuna connessione a Internet', hint: 'Controlla il Wi-Fi o il cavo di rete, poi riprova.' };
   if (code === -105 || code === -137) return { title: 'Impossibile trovare il sito', hint: 'Controlla di aver scritto bene l’indirizzo. Se è corretto, il sito potrebbe non esistere più o la rete potrebbe avere problemi.' };
   if (code === -102) return { title: 'Il sito ha rifiutato la connessione', hint: 'Il server non accetta connessioni in questo momento. Riprova più tardi.' };
@@ -584,7 +584,7 @@ export function describeError(code: number, description: string): ErrorText {
   if (code === -310) return { title: 'Troppi reindirizzamenti', hint: 'Il sito rimanda continuamente a sé stesso. Prova a cancellare i cookie del sito.' };
   if (code <= -200 && code > -300) return { title: 'La connessione non è sicura', hint: 'Il certificato di sicurezza del sito non è valido: qualcuno potrebbe cercare di intercettare i tuoi dati. La pagina non è stata aperta.' };
   if (code === -20) return { title: 'Pagina bloccata', hint: 'Questa pagina è stata bloccata.' };
-  return { title: 'Impossibile caricare la pagina', hint: description || 'Si è verificato un errore di rete.' };
+  return { title: 'Impossibile caricare la pagina', hint: 'Si è verificato un errore di rete.' };
 }
 
 const CRASH_REASONS: Record<string, string> = {
@@ -621,7 +621,7 @@ const GLYPH_LOCK = svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><p
 const GLYPH_CRASH = svg('<circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><path d="M9 9h.01"/><path d="M15 9h.01"/>');
 
 function errorPage(url: string, code: number, description: string): string {
-  const text = describeError(code, description);
+  const text = describeError(code);
   const glyph = code === -106 ? GLYPH_OFFLINE : code <= -200 && code > -300 ? GLYPH_LOCK : GLYPH_WARNING;
   return shellPage('Pagina non disponibile', text.title, `${text.hint} (${description || code})`, url, glyph);
 }

@@ -14,12 +14,14 @@ import type {
   AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
 } from '../shared/types';
 import { searchAnswerMessages } from '../shared/ai-prompts';
+import { permissionLabel } from '../shared/external-protocols';
 import { generatePassword } from '../shared/password-gen';
-import { letterIconSvg, topSites } from '../shared/top-sites';
-import { resolveOmniboxInput } from '../shared/url';
+import { framedIconSvg, letterIconSvg, topSites } from '../shared/top-sites';
+import { chromeUserAgent, resolveOmniboxInput } from '../shared/url';
 import { stepZoom, withSiteZoom, zoomFor } from '../shared/zoom';
 import { buildAppMenu } from './app-menu';
 import { TrackerBlocker } from './blocker';
+import { ThreatProtection } from './threats';
 import type { HoverInfo } from './hover-card';
 import { clearBrowsingData } from './browsing-data';
 import { DownloadManager } from './downloads';
@@ -71,6 +73,7 @@ let ai: AiService;
 /** A tab to open: `open` ones (links from other apps) load and come to the front, the others start asleep. */
 type SavedTab = { url: string; pinned?: boolean; title?: string; open?: boolean };
 const blocker = new TrackerBlocker();
+const threats = new ThreatProtection();
 const guards = new Map<Session, PrivacyGuard>();
 const windows = new Set<BrowserWindowController>();
 let lastFocused: BrowserWindowController | null = null;
@@ -165,12 +168,19 @@ async function makeDefaultBrowser(): Promise<boolean> {
 // ---------- Startup ----------
 
 function start(): void {
+  // Look like a regular Chrome: the default user agent names Electron and this app, which makes the
+  // browser easy to fingerprint and gets sign-ins refused by some sites (e.g. Google).
+  app.userAgentFallback = chromeUserAgent(app.userAgentFallback);
+
   // In development the app runs inside the Electron binary: give the Dock our icon instead of Electron's.
   if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(join(__dirname, '../icon.png'));
 
   settings = new SettingsStore();
   services = new KSuiteServices(settings);
-  downloads = new DownloadManager(settings, services, (items) => broadcast(IPC.evDownloads, items));
+  downloads = new DownloadManager(settings, services, (items) => broadcast(IPC.evDownloads, items), {
+    threatCheck: (url) => threats.match(url),
+    window: () => lastFocused?.win ?? null,
+  });
   history = new HistoryStore(join(app.getPath('userData'), 'history.json'));
   bookmarks = new BookmarksStore(join(app.getPath('userData'), 'bookmarks.json'));
   favicons = new FaviconStore(join(app.getPath('userData'), 'favicons.json'));
@@ -213,6 +223,7 @@ function start(): void {
     for (const w of windows) w.applyTitleBarTheme();
   });
   void blocker.setLevel(settings.get().trackingProtection);
+  threats.start();
   settings.onChange(onSettingsChanged);
 
   setupSession(electronSession.defaultSession, false);
@@ -243,7 +254,7 @@ function setupSession(ses: Session, isPrivate: boolean): void {
     const wc = allWebContents.fromId(wcId);
     if (!wc) return;
     for (const w of windows) if (w.tabs.idOf(wc) !== null) w.scheduleRefresh();
-  });
+  }, (url) => threats.match(url));
   guard.install();
   guards.set(ses, guard);
   downloads.attach(ses, { isPrivate });
@@ -315,7 +326,7 @@ function openWindow(isPrivate: boolean, tabs: SavedTab[] | null, options: { sess
 function faviconFor(pageUrl: string): { mime: string; body: Buffer | string } {
   const origin = originOf(pageUrl) ?? originOf(`https://${pageUrl}`);
   const cached = origin ? favicons.get(origin) : null;
-  if (cached) return cached;
+  if (cached) return { mime: 'image/svg+xml', body: framedIconSvg(cached.mime, cached.body) };
   let host = pageUrl;
   try {
     host = new URL(pageUrl).hostname;
@@ -660,12 +671,6 @@ function showShieldMenu(w: BrowserWindowController, tabId: number): void {
   Menu.buildFromTemplate(items).popup({ window: w.win });
 }
 
-const PERMISSION_NAMES: Record<string, string> = {
-  media: 'Fotocamera e microfono',
-  notifications: 'Notifiche',
-  geolocation: 'Posizione',
-  'clipboard-read': 'Lettura appunti',
-};
 
 /** Menu of the lock / "Non sicuro" button: connection, the site's permissions and data, protections. */
 function showSiteMenu(w: BrowserWindowController, tabId: number): void {
@@ -695,7 +700,7 @@ function showSiteMenu(w: BrowserWindowController, tabId: number): void {
         settings.update({ sitePermissions: allowed === null ? others : [...others, { ...p, allowed }] });
       };
       items.push({
-        label: `${PERMISSION_NAMES[p.permission] ?? p.permission}: ${p.allowed ? 'consentito' : 'bloccato'}`,
+        label: `${permissionLabel(p.permission)}: ${p.allowed ? 'consentito' : 'bloccato'}`,
         submenu: [
           { label: 'Consenti', type: 'radio', checked: p.allowed, click: () => set(true) },
           { label: 'Blocca', type: 'radio', checked: !p.allowed, click: () => set(false) },
@@ -988,7 +993,7 @@ function handleInternal<A extends unknown[], R>(channel: string, hosts: string[]
 function registerInternalIpc(): void {
   const S = ['settings'];
   // Every internal page reads the settings (theme); only the settings page changes them.
-  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only'], () => settings.get());
+  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked'], () => settings.get());
   handleInternal(INTERNAL.settingsSet, S, (_e, patch: Partial<Settings>) => settings.update(patch));
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
   handleInternal(INTERNAL.defaultBrowserStatus, S, () => isDefaultBrowser());
@@ -1113,6 +1118,13 @@ function registerInternalIpc(): void {
     return buildSuggestions(String(input ?? '').slice(0, 500), s.searchEngine, useHistory ? history.summaries() : [], bookmarks.list());
   });
   registerSearchIpc();
+  handleInternal(INTERNAL.threatContinue, ['blocked'], (event, url: string) => {
+    const parsed = new URL(String(url));
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('URL non valido');
+    threats.allow(parsed.href);
+    void event.sender.loadURL(parsed.href);
+  });
+  handleInternal(INTERNAL.threatStatus, ['settings'], () => threats.status());
   handleInternal(INTERNAL.httpsContinue, ['https-only'], (event, url: string) => {
     const parsed = new URL(url);
     if (parsed.protocol !== 'http:') throw new Error('URL non valido');

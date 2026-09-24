@@ -1,0 +1,14 @@
+:root, :root[data-theme] { --warn-bg: #b3261e; --warn-text: #fff; --warn-muted: rgba(255, 255, 255, 0.82); }
+body { display: grid; place-items: center; min-height: 100vh; margin: 0; background: var(--warn-bg); color: var(--warn-text); }
+main { max-width: 600px; padding: 32px 24px; }
+.warn-icon { display: grid; place-items: center; width: 68px; height: 68px; border-radius: 20px; background: rgba(255, 255, 255, 0.16); color: #fff; }
+h1 { font-size: 26px; line-height: 1.25; margin: 22px 0 12px; }
+p { color: var(--warn-muted); line-height: 1.55; }
+.host { font-family: ui-monospace, monospace; font-size: 13px; word-break: break-all; color: #fff; opacity: .9; }
+.actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 24px 0 12px; }
+button.safe { height: 40px; padding: 0 22px; border: none; border-radius: 10px; background: #fff; color: var(--warn-bg); font-weight: 700; font-size: 14px; }
+button.safe:hover { background: #f3f3f3; }
+button.link { border: none; background: none; padding: 0; color: #fff; text-decoration: underline; font-weight: 500; }
+button.link.danger { margin-top: 4px; }
+#details { border-top: 1px solid rgba(255, 255, 255, 0.25); margin-top: 12px; padding-top: 8px; }
+#details[hidden] { display: none; }

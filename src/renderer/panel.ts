@@ -497,6 +497,7 @@ function mailItem(t: { subject: string; from: string; date: string; preview: str
 }
 
 function downloadLabel(d: DownloadItemState): string {
+  if (d.blocked) return d.blocked;
   switch (d.state) {
     case 'progressing':
       return d.total > 0 ? `${formatBytes(d.received)} / ${formatBytes(d.total)}` : formatBytes(d.received);

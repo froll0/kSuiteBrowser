@@ -1,9 +1,10 @@
-import { BrowserWindow, app, dialog, nativeTheme, shell, type Session, type WebContents } from 'electron';
+import { BrowserWindow, app, dialog, nativeTheme, type Session, type WebContents } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { IPC } from '../shared/ipc';
 import type { DriveFile } from '../shared/types';
 import { attachContextMenu } from './context-menu';
+import { popupTitle } from '../shared/url';
 import { isInternalUrl } from './internal-pages';
 import type { PrivacyGuard } from './privacy';
 import type { KSuiteServices } from './services';
@@ -118,6 +119,8 @@ export class BrowserWindowController {
           bookmarked: /^(https?|file|ksuite):/i.test(url) && Boolean(ctx.bookmarks.find(url)),
         }),
         failurePage: (contents, url) => {
+          const threat = guard.threatFor(contents.id, url);
+          if (threat) return { load: `ksuite://blocked/?kind=${threat.kind}&url=${encodeURIComponent(threat.url)}`, display: threat.url };
           const http = guard.httpFallbackFor(contents.id, url);
           return http ? { load: `ksuite://https-only/?url=${encodeURIComponent(http)}`, display: http } : null;
         },
@@ -328,6 +331,26 @@ export class BrowserWindowController {
     return this.runDriveAction('Salvataggio pagina in PDF', () => this.ctx.services.savePageAsPdf(contents));
   }
 
+  /**
+   * Popup windows (sign-in with Google, Microsoft, a bank…) have no address bar: their title shows
+   * the site and whether the connection is secure, so a fake login page can be spotted. They get
+   * the same protections as tabs (context menu, external apps, HTTP sign-in, internal pages).
+   */
+  private setupPopup(popup: BrowserWindow): void {
+    const wc = popup.webContents;
+    this.setupPage(wc);
+    const refresh = () => {
+      if (!popup.isDestroyed()) popup.setTitle(popupTitle(wc.getURL(), wc.getTitle()));
+    };
+    popup.on('page-title-updated', (e) => {
+      e.preventDefault();
+      refresh();
+    });
+    wc.on('did-navigate', refresh);
+    wc.on('did-navigate-in-page', refresh);
+    refresh();
+  }
+
   private setupPage(contents: WebContents): void {
     // The tab may move to another window: always act on the window that holds it now.
     const owner = () => this.ctx.ownerOf(contents) ?? this;
@@ -373,13 +396,15 @@ export class BrowserWindowController {
           action: 'allow',
           overrideBrowserWindowOptions: {
             autoHideMenuBar: true,
-            webPreferences: { session: this.session, sandbox: true, contextIsolation: true, nodeIntegration: false },
+            icon: this.ctx.paths.appIcon,
+            webPreferences: { session: this.session, sandbox: true, contextIsolation: true, nodeIntegration: false, plugins: true },
           },
         };
       }
       owner().tabs.create(url, { background: disposition === 'background-tab', index: owner().indexAfter(contents) });
       return { action: 'deny' };
     });
+    contents.on('did-create-window', (popup) => this.setupPopup(popup));
 
     contents.on('will-navigate', (e, url) => {
       // Web pages may not open the browser's internal pages.
@@ -387,11 +412,8 @@ export class BrowserWindowController {
         if (!isInternalUrl(contents.getURL())) e.preventDefault();
         return;
       }
-      // Hand mailto:, tel:, etc. to the system instead of failing inside the tab.
-      if (!/^(https?|file|about|data|blob|view-source):/i.test(url)) {
-        e.preventDefault();
-        void shell.openExternal(url);
-      }
+      // mailto:, tel:, zoommtg:… go through Chromium's external protocol handling, which asks for the
+      // "openExternal" permission: see permissions.ts (dangerous schemes are refused there).
     });
 
     attachContextMenu(contents, {

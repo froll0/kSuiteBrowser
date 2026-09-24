@@ -219,6 +219,8 @@ export interface Settings {
   blockThirdPartyCookies: boolean;
   /** Sends the DNT and Sec-GPC headers. */
   doNotTrack: boolean;
+  /** Stop known phishing and malware sites and downloads. */
+  threatProtection: boolean;
   httpsOnly: boolean;
   clearCookiesOnExit: boolean;
   clearCacheOnExit: boolean;
@@ -352,6 +354,8 @@ export interface DownloadItemState {
   total: number;
   drive: 'idle' | 'uploading' | 'uploaded' | 'error';
   driveError?: string;
+  /** Why the browser stopped it (known malware, refused dangerous file). */
+  blocked?: string;
 }
 
 /** Result envelope used by every API call exposed to the renderer. */

@@ -1,5 +1,6 @@
 import { desktopCapturer, dialog, type BrowserWindow, type Session } from 'electron';
 import { isTrustedSuiteHost } from '../shared/ksuite-apps';
+import { externalAppName, externalScheme, externalVerdict } from '../shared/external-protocols';
 import { ASKABLE_PERMISSIONS } from '../shared/settings-schema';
 import type { AskablePermission } from '../shared/types';
 import type { SettingsStore } from './settings';
@@ -63,6 +64,10 @@ export function configurePermissions(session: Session, settings: SettingsStore, 
 
   session.setPermissionRequestHandler((contents, permission, callback, details) => {
     const host = hostOf(details.requestingUrl || contents.getURL());
+    if (permission === 'openExternal') {
+      void confirmExternal(host, 'externalURL' in details ? String(details.externalURL ?? '') : '').then(callback);
+      return;
+    }
     const decision = decide(host, permission);
     if (decision !== 'ask') return callback(decision);
 
@@ -83,6 +88,33 @@ export function configurePermissions(session: Session, settings: SettingsStore, 
       callback(allowed);
     });
   });
+
+  /** Links to other programs: dangerous schemes never open, the others after a question (remembered per site). */
+  async function confirmExternal(host: string, url: string): Promise<boolean> {
+    const scheme = externalScheme(url);
+    if (!scheme || externalVerdict(url) === 'blocked') {
+      console.warn('[sicurezza] link a programma esterno bloccato:', url.slice(0, 200));
+      return false;
+    }
+    const key = `external:${scheme}`;
+    const remembered = host ? memory.get(host, key) : undefined;
+    if (remembered !== undefined) return remembered;
+    const win = getWindow();
+    const options = {
+      type: 'question' as const,
+      buttons: ['Apri', 'Annulla'],
+      defaultId: 1,
+      cancelId: 1,
+      message: `${host || 'Questa pagina'} vuole aprire ${externalAppName(scheme)}.`,
+      detail: url.length > 300 ? `${url.slice(0, 300)}…` : url,
+      checkboxLabel: 'Ricorda la scelta per questo sito',
+      checkboxChecked: false,
+    };
+    const { response, checkboxChecked } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
+    const allowed = response === 0;
+    if (checkboxChecked && host) memory.set(host, key, allowed);
+    return allowed;
+  }
 
   // Synchronous checks (e.g. Notification.permission): only a remembered or trusted "allow" counts.
   session.setPermissionCheckHandler((_contents, permission, requestingOrigin) => {

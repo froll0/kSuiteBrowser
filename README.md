@@ -42,6 +42,8 @@ quindi funzionano senza sorprese.
   HTML dell'articolo ricostruito in modo sicuro
 - **Cerca tra le schede** (`Ctrl+Shift+A` o la freccia in fondo alla barra delle schede): tutte le schede delle finestre aperte,
   dalla più recente, con ricerca, chiusura (`Shift+Canc`) e schede chiuse di recente da riaprire
+- **Sincronizzazione cifrata su kDrive**: preferiti, password, cronologia e schede aperte tra i tuoi computer, cifrati
+  end-to-end con una passphrase che conosci solo tu (vedi sotto)
 - **Schede dormienti**: le schede non usate da un po' (1 ora, configurabile in Impostazioni › Generale) chiudono la pagina
   per liberare memoria e si ricaricano quando le apri, con la cronologia avanti/indietro intatta. Mai quelle fissate,
   delle app kSuite, con audio in riproduzione o con moduli compilati. Anche "Metti in pausa" nel menu della scheda
@@ -173,6 +175,26 @@ nell'URL dell'app web: `.../kdrive/app/drive/<ID>`).
 - Le pagine web non possono leggere le password salvate di altri siti: l'origine di ogni richiesta è stabilita dal browser,
   non dalla pagina, e la compilazione avviene solo nel frame dello stesso sito.
 
+## Sincronizzazione cifrata su kDrive
+
+Preferiti, password, cronologia (ultimi 90 giorni) e schede aperte si sincronizzano tra i tuoi computer
+attraverso il tuo kDrive (Impostazioni → *Sincronizzazione*), senza server di terzi.
+
+- **Cifratura end-to-end**: i dati sono cifrati sul computer con AES-256-GCM, con una chiave derivata con scrypt da una
+  **passphrase** che scegli tu (almeno 10 caratteri). Su kDrive finiscono solo file illeggibili: Infomaniak non vede
+  i contenuti e **non può recuperare la passphrase**. Se la perdi, dalle impostazioni puoi eliminare i dati remoti e ricominciare.
+- **Dove**: cartella `kSuite Browser Sync` nella radice del kDrive, con `sync-key.json` (parametri della chiave e un
+  controllo per riconoscere la passphrase giusta, nessun segreto) e un file `device-<id>.ksync` per ogni computer.
+  Ogni computer scrive solo il proprio file, così non ci sono conflitti di scrittura.
+- **Unione**: per ogni elemento vince la modifica più recente; le cancellazioni si propagano (e vengono dimenticate dopo
+  90 giorni). Al primo collegamento contano le date degli elementi, così un computer con copie vecchie non sovrascrive
+  modifiche più recenti fatte altrove.
+- **Quando**: all'avvio, ogni 10 minuti, poco dopo una modifica a preferiti o password, oppure con *Sincronizza ora*.
+- Le **password** si sincronizzano solo quando il portachiavi è sbloccato (con la password principale, dopo averla inserita).
+- Le **schede aperte** degli altri computer compaiono nella ricerca tra le schede (`Ctrl+Shift+A`). Le finestre private
+  non vengono mai sincronizzate.
+- La chiave viene ricordata con il portachiavi del sistema; dove non c'è (alcuni Linux) la passphrase viene chiesta a ogni avvio.
+
 ## Sviluppo
 
 Requisiti: Node.js 22+.
@@ -245,7 +267,7 @@ test/         Test Vitest
 | Servizio | Endpoint |
 | --- | --- |
 | Profilo | `GET api.infomaniak.com/2/profile` |
-| kDrive | `GET /2/drive`, `GET /3/drive/{id}/files/{dir}/files`, `GET /3/drive/{id}/files/search`, `GET /2/drive/{id}/files/{file}/download`, `POST /3/drive/{id}/upload` |
+| kDrive | `GET /2/drive`, `GET /3/drive/{id}/files/{dir}/files`, `GET /3/drive/{id}/files/search`, `GET /2/drive/{id}/files/{file}/download`, `POST /3/drive/{id}/upload`, `POST /3/drive/{id}/files/{dir}/directory`, `DELETE /2/drive/{id}/files/{file}` |
 | Mail | `GET mail.infomaniak.com/api/mailbox`, `.../mail/{mailbox}/folder`, `.../folder/{id}/message`, `POST/PUT .../draft` |
 | Calendar | `GET /1/calendar/pim/calendar`, `GET/POST /1/calendar/pim/event` |
 | Contatti | `GET /1/calendar/pim/contact/all` |

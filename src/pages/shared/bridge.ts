@@ -1,5 +1,5 @@
 import { INTERNAL } from '../../shared/ipc';
-import type { AiEvent, AboutInfo, BreachReport, ReaderArticle, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
+import type { AiEvent, AboutInfo, BreachReport, ReaderArticle, SyncCollectionOption, SyncStatus, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
 
 interface InternalBridge {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -7,6 +7,7 @@ interface InternalBridge {
   onBookmarks(listener: (list: Bookmark[]) => void): () => void;
   onUpdate(listener: (status: UpdateStatus) => void): () => void;
   onAi(listener: (event: AiEvent) => void): () => void;
+  onSync(listener: (status: SyncStatus) => void): () => void;
 }
 
 declare global {
@@ -42,6 +43,17 @@ export const internal = {
     prefs: (patch: Partial<Settings>) => call<Settings>(INTERNAL.readerPrefs, patch),
     exit: () => call<void>(INTERNAL.readerExit),
     askAi: (action: 'summary' | 'keypoints') => call<void>(INTERNAL.readerAskAi, action),
+  },
+  sync: {
+    status: () => call<SyncStatus>(INTERNAL.syncStatus),
+    probe: () => call<ApiResult<{ exists: boolean }>>(INTERNAL.syncProbe),
+    enable: (passphrase: string, deviceName?: string) => call<ApiResult<void>>(INTERNAL.syncEnable, passphrase, deviceName),
+    unlock: (passphrase: string) => call<ApiResult<void>>(INTERNAL.syncUnlock, passphrase),
+    now: () => call<ApiResult<void>>(INTERNAL.syncNow),
+    disable: () => call<ApiResult<void>>(INTERNAL.syncDisable),
+    reset: () => call<ApiResult<void>>(INTERNAL.syncReset),
+    options: (options: { deviceName?: string; collections?: Partial<Record<SyncCollectionOption, boolean>> }) => call<void>(INTERNAL.syncOptions, options),
+    onChange: (fn: (s: SyncStatus) => void) => bridge().onSync(fn),
   },
   drmStatus: () => call<{ supported: boolean; ready: boolean; version: string | null; status: string }>(INTERNAL.drmStatus),
   threatStatus: () => call<{ entries: number; loadedAt: number | null }>(INTERNAL.threatStatus),

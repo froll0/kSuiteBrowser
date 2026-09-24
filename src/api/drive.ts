@@ -73,6 +73,8 @@ export async function uploadFile(
   directoryId: number,
   fileName: string,
   content: Uint8Array,
+  /** "rename" keeps the existing file; "version" replaces it (kDrive keeps the old one as a version). */
+  conflict: 'rename' | 'version' = 'rename',
 ): Promise<DriveFile> {
   if (content.byteLength > MAX_DIRECT_UPLOAD_BYTES) {
     throw new InfomaniakApiError('File troppo grande per il caricamento diretto (max 1 GB).', 413);
@@ -81,12 +83,42 @@ export async function uploadFile(
     directory_id: String(directoryId),
     file_name: fileName,
     total_size: String(content.byteLength),
-    conflict: 'rename',
+    conflict,
   });
   const env = await client.request<RawFile>(`${API_BASE}/3/drive/${driveId}/upload?${params}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
     body: content as Uint8Array<ArrayBuffer>,
+  });
+  return mapFile(env.data as RawFile);
+}
+
+/** Every entry of a folder (all pages). */
+export async function listAll(client: InfomaniakClient, driveId: number, directoryId: number): Promise<DriveFile[]> {
+  const all: DriveFile[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < 50; page++) {
+    const listing = await listDirectory(client, driveId, directoryId, cursor);
+    all.push(...listing.files);
+    if (!listing.hasMore || !listing.cursor) break;
+    cursor = listing.cursor;
+  }
+  return all;
+}
+
+/** Moves a file to the kDrive trash. */
+export async function trashFile(client: InfomaniakClient, driveId: number, fileId: number): Promise<void> {
+  await client.request(`${API_BASE}/2/drive/${driveId}/files/${fileId}`, { method: 'DELETE' });
+}
+
+/** Creates a folder (or returns the existing one with that name). */
+export async function ensureDirectory(client: InfomaniakClient, driveId: number, parentId: number, name: string): Promise<DriveFile> {
+  const existing = (await listAll(client, driveId, parentId)).find((f) => f.type === 'dir' && f.name === name);
+  if (existing) return existing;
+  const env = await client.request<RawFile>(`${API_BASE}/3/drive/${driveId}/files/${parentId}/directory`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
   });
   return mapFile(env.data as RawFile);
 }

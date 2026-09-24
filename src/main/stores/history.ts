@@ -87,6 +87,28 @@ export class HistoryStore {
     return [...map.values()];
   }
 
+  /** A visit made on another device (sync): kept in time order, merged with a close visit to the same page. */
+  importVisit(url: string, title: string, visitedAt: number): void {
+    const close = this.visits.find((v) => v.url === url && Math.abs(v.visitedAt - visitedAt) < MERGE_WINDOW_MS);
+    if (close) {
+      if (visitedAt > close.visitedAt) close.visitedAt = visitedAt;
+      if (title && !close.title) close.title = title;
+    } else {
+      this.visits.push({ id: randomUUID(), url, title, visitedAt });
+      this.visits.sort((a, b) => a.visitedAt - b.visitedAt);
+      if (this.visits.length > MAX_VISITS) this.visits.splice(0, this.visits.length - MAX_VISITS);
+    }
+    this.file.changed();
+  }
+
+  /** Forgets a page (deleted on another device). */
+  removeUrl(url: string): void {
+    const kept = this.visits.filter((v) => v.url !== url);
+    if (kept.length === this.visits.length) return;
+    this.file.data.visits = kept;
+    this.file.changed();
+  }
+
   remove(ids: string[]): void {
     const set = new Set(ids);
     this.file.data.visits = this.visits.filter((v) => !set.has(v.id));

@@ -99,6 +99,12 @@ export class BookmarksStore {
     return added;
   }
 
+  /** Replaces the whole list (sync), keeping the given order. */
+  replaceAll(list: Bookmark[]): void {
+    this.file.data.bookmarks = list.filter((b) => isValidUrl(b.url));
+    this.changed();
+  }
+
   onChange(listener: (list: Bookmark[]) => void): void {
     this.listeners.add(listener);
   }

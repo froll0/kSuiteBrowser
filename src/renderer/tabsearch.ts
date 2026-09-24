@@ -10,17 +10,21 @@ interface TabSearchBridge {
   choose(tabId: number): void;
   close(tabId: number): void;
   reopen(index: number): void;
+  open(url: string): void;
   dismiss(): void;
 }
 
-type Row = { kind: 'tab'; tab: TabSearchItem } | { kind: 'closed'; index: number; title: string; url: string };
+type Row =
+  | { kind: 'tab'; tab: TabSearchItem }
+  | { kind: 'closed'; index: number; title: string; url: string }
+  | { kind: 'remote'; device: string; title: string; url: string };
 
 const bridge = (window as unknown as { tabSearch: TabSearchBridge }).tabSearch;
 const input = document.getElementById('q') as HTMLInputElement;
 const list = document.getElementById('list')!;
 document.getElementById('search-icon')!.append(icon('search', 16));
 
-let data: TabSearchData = { tabs: [], closed: [], theme: 'system', reset: true };
+let data: TabSearchData = { tabs: [], closed: [], remote: [], theme: 'system', reset: true };
 let rows: Row[] = [];
 let selected = 0;
 
@@ -62,7 +66,8 @@ function favicon(url: string, favicon: string | null): Element {
 function choose(row: Row | undefined): void {
   if (!row) return;
   if (row.kind === 'tab') bridge.choose(row.tab.tabId);
-  else bridge.reopen(row.index);
+  else if (row.kind === 'closed') bridge.reopen(row.index);
+  else bridge.open(row.url);
 }
 
 function render(): void {
@@ -73,13 +78,16 @@ function render(): void {
     // Most recently used first, like switching back and forth.
     .sort((a, b) => b.lastActiveAt - a.lastActiveAt);
   const closed = data.closed.filter((c) => matches(c.title, c.url)).slice(0, query ? 10 : 5);
-  rows = [...tabs.map((tab): Row => ({ kind: 'tab', tab })), ...closed.map((c): Row => ({ kind: 'closed', ...c }))];
+  const remote = data.remote.flatMap((d) => d.tabs.filter((t) => matches(t.title, t.url)).slice(0, query ? 20 : 8).map((t): Row => ({ kind: 'remote', device: d.device, ...t })));
+  rows = [...tabs.map((tab): Row => ({ kind: 'tab', tab })), ...closed.map((c): Row => ({ kind: 'closed', ...c })), ...remote];
   selected = Math.min(selected, Math.max(0, rows.length - 1));
 
   const nodes: Node[] = [];
   if (tabs.length) nodes.push(h('h2', {}, `Schede aperte · ${tabs.length}`));
   rows.forEach((row, i) => {
     if (row.kind === 'closed' && (i === 0 || rows[i - 1].kind === 'tab')) nodes.push(h('h2', {}, 'Chiuse di recente'));
+    const prev = rows[i - 1];
+    if (row.kind === 'remote' && !(prev?.kind === 'remote' && prev.device === row.device)) nodes.push(h('h2', {}, `Su ${row.device}`));
     const title = h('div', { class: 'title' });
     const sub = h('div', { class: 'sub' });
     let el: HTMLElement;
@@ -105,7 +113,7 @@ function render(): void {
       title.append(highlight(row.title || row.url));
       sub.append(highlight(readableUrl(row.url)));
       const reopen = h('span', { class: 'icon' });
-      reopen.append(icon('history', 15));
+      reopen.append(icon(row.kind === 'remote' ? 'monitor' : 'history', 15));
       el = h('div', { class: 'row', role: 'option' }, favicon(row.url, null), h('div', { class: 'text' }, title, sub), reopen);
     }
     if (i === selected) el.classList.add('selected');

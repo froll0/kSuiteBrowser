@@ -181,6 +181,25 @@ export class Vault {
     this.persist();
   }
 
+  /** Login coming from another device (sync): its dates are kept. */
+  putSynced(origin: string, username: string, password: string, createdAt: number, updatedAt: number): void {
+    const data = this.data();
+    const existing = data.logins.find((l) => l.origin === origin && l.username === username);
+    if (existing) {
+      existing.password = password;
+      existing.updatedAt = updatedAt;
+    } else {
+      data.logins.push({ id: randomUUID(), origin, username, password, createdAt, updatedAt, lastUsedAt: null, timesUsed: 0 });
+    }
+    this.persist();
+  }
+
+  removeSynced(origin: string, username: string): void {
+    const data = this.data();
+    data.logins = data.logins.filter((l) => !(l.origin === origin && l.username === username));
+    this.persist();
+  }
+
   isNever(origin: string): boolean {
     return this.data().never.includes(origin);
   }
@@ -249,8 +268,16 @@ export class Vault {
     this.writeFile({ keychain: this.keychain.encrypt(this.key!).toString('base64') });
   }
 
+  private readonly listeners = new Set<() => void>();
+
+  /** Called after every saved change (e.g. to sync). */
+  onChange(listener: () => void): void {
+    this.listeners.add(listener);
+  }
+
   private persist(): void {
     if (!this.key || !this.payload) throw new VaultLockedError();
+    queueMicrotask(() => this.listeners.forEach((l) => l()));
     if (this.file?.primary) this.writeFile({ primary: this.file.primary });
     else if (this.keychain.available()) this.writeFile({ keychain: this.keychain.encrypt(this.key).toString('base64') });
     else throw new Error('Imposta una password principale per salvare le password.');

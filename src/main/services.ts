@@ -56,6 +56,11 @@ export class KSuiteServices {
     return first.id;
   }
 
+  /** API client and drive for features that talk to kDrive directly (sync). */
+  async driveContext(): Promise<{ client: InfomaniakClient; driveId: number }> {
+    return { client: this.client(), driveId: await this.driveId() };
+  }
+
   async listDirectory(directoryId: number, cursor?: string | null): Promise<DriveListing & { driveId: number }> {
     const id = await this.driveId();
     return { ...(await drive.listDirectory(this.client(), id, directoryId, cursor)), driveId: id };

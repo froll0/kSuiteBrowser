@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('tabSearch', {
   choose: (tabId: number) => ipcRenderer.send('tabsearch:choose', tabId),
   close: (tabId: number) => ipcRenderer.send('tabsearch:close', tabId),
   reopen: (index: number) => ipcRenderer.send('tabsearch:reopen', index),
+  open: (url: string) => ipcRenderer.send('tabsearch:open', url),
   dismiss: () => ipcRenderer.send('tabsearch:dismiss'),
 });

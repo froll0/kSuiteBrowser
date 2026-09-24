@@ -47,7 +47,7 @@ export class TabSearchPopup {
     await this.ready;
     if (this.window.isDestroyed()) return;
     const [width, height] = this.window.getContentSize();
-    const rows = data.tabs.length + Math.min(5, data.closed.length);
+    const rows = data.tabs.length + Math.min(5, data.closed.length) + data.remote.reduce((n, d) => n + Math.min(8, d.tabs.length) + 1, 0);
     const wanted = 58 + rows * 44 + (data.closed.length ? 64 : 32) + 12;
     const h = Math.max(160, Math.min(MAX_HEIGHT, wanted, height - this.top - 8));
     // Right-aligned under the tab strip, like the button that opens it.

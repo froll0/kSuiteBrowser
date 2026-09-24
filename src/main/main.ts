@@ -27,6 +27,7 @@ import { ThreatProtection } from './threats';
 import { ReaderCache, extractArticle, readerOriginal, readerUrl } from './reader';
 import { pageMedia, pageMediaAction } from './media';
 import { widevineReady, widevineStatus } from './widevine';
+import { SyncEngine } from './sync/engine';
 import type { HoverInfo } from './hover-card';
 import { clearBrowsingData } from './browsing-data';
 import { DownloadManager } from './downloads';
@@ -70,6 +71,7 @@ let downloads: DownloadManager;
 let history: HistoryStore;
 let bookmarks: BookmarksStore;
 let passwords: PasswordManager;
+let sync: SyncEngine;
 let favicons: FaviconStore;
 let notifications: NotificationCenter;
 let updates: UpdateService;
@@ -197,6 +199,23 @@ async function start(): Promise<void> {
     }
     return null;
   });
+  sync = new SyncEngine({
+    userData: app.getPath('userData'),
+    services,
+    tokenConfigured: () => settings.tokenStatus().configured,
+    bookmarks,
+    history,
+    vault: passwords.vault,
+    openTabs: () => [...windows]
+      .filter((w) => !w.isPrivate)
+      .flatMap((w) => w.tabs.states())
+      .filter((t) => /^https?:/i.test(t.url))
+      .map((t) => ({ title: t.title, url: t.url })),
+    onStatus: (status) => sendToInternalPages(INTERNAL.evSync, status),
+  });
+  bookmarks.onChange(() => sync.soon());
+  passwords.vault.onChange(() => sync.soon());
+  sync.start();
   passwords.register();
   notifications = new NotificationCenter(settings, services, {
     openApp: (appId) => {
@@ -782,6 +801,7 @@ function tabSearchData(w: BrowserWindowController): Omit<TabSearchData, 'reset'>
       lastActiveAt: t.lastActiveAt,
     }))),
     closed: w.tabs.recentlyClosed(),
+    remote: w.isPrivate ? [] : sync.remoteTabs(),
     theme: w.isPrivate ? 'dark' : settings.get().theme,
   };
 }
@@ -912,6 +932,12 @@ function registerChromeIpc(): void {
     if (!w) return;
     w.tabSearch.hide();
     w.tabs.reopenClosedAt(Number(index));
+  });
+  ipcMain.on('tabsearch:open', (event, url: string) => {
+    const w = searcher(event.sender);
+    if (!w || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return;
+    w.tabSearch.hide();
+    w.tabs.create(url);
   });
   ipcMain.on('tabsearch:dismiss', (event) => {
     const w = searcher(event.sender);
@@ -1216,6 +1242,14 @@ function registerInternalIpc(): void {
   });
   handleInternal(INTERNAL.threatStatus, ['settings'], () => threats.status());
   handleInternal(INTERNAL.drmStatus, ['settings'], () => widevineStatus());
+  handleInternal(INTERNAL.syncStatus, S, () => sync.status());
+  handleInternal(INTERNAL.syncProbe, S, () => wrap(() => sync.probe()));
+  handleInternal(INTERNAL.syncEnable, S, (_e, passphrase: string, deviceName?: string) => wrap(() => sync.enable(String(passphrase ?? ''), typeof deviceName === 'string' ? deviceName : undefined)));
+  handleInternal(INTERNAL.syncUnlock, S, (_e, passphrase: string) => wrap(() => sync.unlock(String(passphrase ?? ''))));
+  handleInternal(INTERNAL.syncNow, S, () => wrap(() => sync.syncNow()));
+  handleInternal(INTERNAL.syncDisable, S, () => wrap(() => sync.disable()));
+  handleInternal(INTERNAL.syncReset, S, () => wrap(() => sync.resetRemote()));
+  handleInternal(INTERNAL.syncOptions, S, (_e, options: Parameters<SyncEngine['setOptions']>[0]) => sync.setOptions(options ?? {}));
   const R = ['reader'];
   handleInternal(INTERNAL.readerArticle, R, (_e, url: string) => readerCache.get(String(url)));
   handleInternal(INTERNAL.readerPrefs, R, (_e, patch: Partial<Settings>) => {

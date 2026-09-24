@@ -429,7 +429,34 @@ export interface TabSearchData {
   tabs: TabSearchItem[];
   /** Recently closed tabs of this window, most recent first; `index` is what reopen() takes. */
   closed: Array<{ index: number; title: string; url: string }>;
+  /** Open tabs of the other devices (sync). */
+  remote: RemoteTabs[];
   theme: string;
   /** Focus the search field (first open) or keep the current query (refresh after closing a tab). */
   reset: boolean;
+}
+
+export type SyncCollectionOption = 'bookmarks' | 'logins' | 'history' | 'tabs';
+
+/** State of the encrypted kDrive sync, for the settings page. */
+export interface SyncStatus {
+  /** kSuite account connected (sync needs kDrive). */
+  available: boolean;
+  enabled: boolean;
+  /** off · needs-passphrase (key not stored on this computer) · idle · syncing · error */
+  state: 'off' | 'needs-passphrase' | 'idle' | 'syncing' | 'error';
+  deviceName: string;
+  collections: Record<SyncCollectionOption, boolean>;
+  lastSync: number | null;
+  lastError: string | null;
+  devices: Array<{ id: string; name: string; updatedAt: number; current: boolean; tabs: number }>;
+  /** Password vault locked: passwords wait for the next sync after unlocking. */
+  passwordsWaiting: boolean;
+}
+
+/** Open tabs of another device, from the last sync. */
+export interface RemoteTabs {
+  device: string;
+  updatedAt: number;
+  tabs: Array<{ title: string; url: string }>;
 }

@@ -2,7 +2,7 @@ import { h } from '../../renderer/dom';
 import { permissionLabel } from '../../shared/external-protocols';
 import { SECURE_DNS_PROVIDERS, validDohTemplate, type SecureDnsChoice } from '../../shared/secure-dns';
 import { ASKABLE_PERMISSIONS, REMINDER_MINUTES, SLEEP_MINUTES } from '../../shared/settings-schema';
-import type { AskablePermission, BrowsingDataSelection, Settings, UpdateStatus } from '../../shared/types';
+import type { SyncStatus, SyncCollectionOption, AskablePermission, BrowsingDataSelection, Settings, UpdateStatus } from '../../shared/types';
 import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from '../../shared/url';
 import { ZOOM_STEPS } from '../../shared/zoom';
 import { hydrateIcons, logoMark } from '../../renderer/icons';
@@ -379,6 +379,148 @@ function permissionsSection(): HTMLElement {
   );
 }
 
+// ---------- Sync ----------
+
+const SYNC_COLLECTIONS: Array<[SyncCollectionOption, string]> = [
+  ['bookmarks', 'Preferiti'],
+  ['logins', 'Password'],
+  ['history', 'Cronologia (ultimi 90 giorni)'],
+  ['tabs', 'Schede aperte (per riaprirle da un altro dispositivo)'],
+];
+
+function when(ms: number): string {
+  const d = new Date(ms);
+  const today = new Date().toDateString() === d.toDateString();
+  return today ? `oggi alle ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}` : d.toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+/** Encrypted sync through kDrive: the card redraws itself (no full page render while syncing). */
+function syncSection(): HTMLElement {
+  const card = h('div', { class: 'card' });
+  const el = h('section', { id: 'sync' }, h('h2', {}, 'Sincronizzazione'), card);
+  const message = h('p', { class: 'message', role: 'status' });
+  let setup: 'none' | 'create' | 'join' = 'none';
+  let busy = false;
+
+  const say = (text: string, ok = false) => {
+    message.textContent = text;
+    message.className = `message${text ? (ok ? ' ok' : ' error') : ''}`;
+  };
+  const act = async (fn: () => Promise<{ ok: boolean; error?: string } | void>, done?: string) => {
+    busy = true;
+    say('');
+    await draw();
+    const res = await fn();
+    busy = false;
+    if (res && 'ok' in res && !res.ok) say(res.error ?? 'Operazione non riuscita');
+    else if (done) say(done, true);
+    await draw();
+  };
+
+  const intro = () => h('div', { class: 'row stack', 'data-search': 'sincronizzazione kdrive cifrata dispositivi passphrase' },
+    h('div', { class: 'text' },
+      h('div', { class: 'title' }, 'Preferiti, password e schede su tutti i tuoi computer'),
+      h('div', { class: 'desc' }, 'I dati vengono cifrati su questo computer con una passphrase che conosci solo tu, poi salvati nella cartella «kSuite Browser Sync» del tuo kDrive. Infomaniak vede solo dati illeggibili e non può recuperare la passphrase.')));
+
+  const passphraseForm = (mode: 'create' | 'join' | 'unlock', status: SyncStatus) => {
+    const pass = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Passphrase di sincronizzazione', 'aria-label': 'Passphrase di sincronizzazione' });
+    const confirm = mode === 'create' ? h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Ripeti la passphrase', 'aria-label': 'Ripeti la passphrase' }) : null;
+    const device = mode === 'unlock' ? null : h('input', { type: 'text', value: status.deviceName, placeholder: 'Nome di questo computer', 'aria-label': 'Nome di questo computer' });
+    const form = h('form', { class: 'sync-form' },
+      h('p', { class: 'desc' },
+        mode === 'create'
+          ? 'Scegli una passphrase di almeno 10 caratteri, diversa dalle altre password. Annotala in un posto sicuro: senza, i dati sincronizzati non si possono recuperare.'
+          : mode === 'join'
+            ? 'La sincronizzazione è già attiva su un altro dispositivo: inserisci la stessa passphrase.'
+            : 'Questo computer non ha un portachiavi di sistema: inserisci la passphrase per riprendere la sincronizzazione.'),
+      pass, confirm, device,
+      h('div', { class: 'control' },
+        h('button', { class: 'primary', type: 'submit', disabled: busy }, mode === 'create' ? 'Attiva la sincronizzazione' : mode === 'join' ? 'Collega questo computer' : 'Sblocca'),
+        mode === 'unlock' ? null : h('button', { type: 'button', onclick: () => { setup = 'none'; void draw(); } }, 'Annulla')));
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (confirm && confirm.value !== pass.value) return say('Le due passphrase non coincidono.');
+      if (pass.value.length < 10) return say('La passphrase deve avere almeno 10 caratteri.');
+      void act(() => (mode === 'unlock' ? internal.sync.unlock(pass.value) : internal.sync.enable(pass.value, device?.value)), 'Sincronizzazione attiva.').then(() => {
+        setup = 'none';
+      });
+    });
+    queueMicrotask(() => pass.focus());
+    return form;
+  };
+
+  async function draw(): Promise<void> {
+    const status = await internal.sync.status();
+    const rows: Node[] = [];
+    if (!status.available) {
+      rows.push(intro(), row('Collega l’account kSuite', h('span', {}, 'La sincronizzazione usa il tuo kDrive. ', h('a', { href: '#ksuite' }, 'Configura il token.')), null));
+    } else if (!status.enabled) {
+      rows.push(intro());
+      if (setup === 'none') {
+        rows.push(row('Attiva su questo computer', 'Serve una passphrase: la stessa su tutti i dispositivi.', h('button', {
+          class: 'primary',
+          disabled: busy,
+          onclick: () => void act(async () => {
+            const res = await internal.sync.probe();
+            if (res.ok) setup = res.data.exists ? 'join' : 'create';
+            return res;
+          }),
+        }, busy ? 'Controllo kDrive…' : 'Attiva la sincronizzazione')));
+      } else {
+        rows.push(passphraseForm(setup, status));
+      }
+    } else if (status.state === 'needs-passphrase') {
+      rows.push(intro(), passphraseForm('unlock', status));
+    } else {
+      const line = status.state === 'syncing'
+        ? 'Sincronizzazione in corso…'
+        : status.state === 'error'
+          ? `Errore: ${status.lastError ?? 'sconosciuto'}`
+          : status.lastSync ? `Ultima sincronizzazione ${when(status.lastSync)}` : 'Non ancora sincronizzato';
+      rows.push(row('Stato', h('span', { class: status.state === 'error' ? 'danger-text' : '' }, line),
+        h('button', { disabled: busy || status.state === 'syncing', onclick: () => void act(() => internal.sync.now(), 'Sincronizzato.') }, 'Sincronizza ora')));
+      if (status.passwordsWaiting) rows.push(row('Password in attesa', 'Le password sono bloccate dalla password principale: si sincronizzano dopo averle sbloccate.', null));
+      rows.push(h('div', { class: 'row stack', 'data-search': 'cosa sincronizzare preferiti password cronologia schede' },
+        h('div', { class: 'title' }, 'Cosa sincronizzare'),
+        h('div', { class: 'checks' }, ...SYNC_COLLECTIONS.map(([key, label]) => {
+          const input = h('input', { type: 'checkbox', checked: status.collections[key] });
+          input.addEventListener('change', () => void internal.sync.options({ collections: { [key]: input.checked } }));
+          return h('label', {}, input, label);
+        }))));
+      const name = h('input', { type: 'text', value: status.deviceName, 'aria-label': 'Nome di questo computer' });
+      name.addEventListener('change', () => void internal.sync.options({ deviceName: name.value }));
+      rows.push(row('Nome di questo computer', 'Come appare sugli altri dispositivi.', name));
+      rows.push(h('div', { class: 'row stack' },
+        h('div', { class: 'title' }, 'Dispositivi collegati'),
+        status.devices.length
+          ? h('ul', { class: 'list' }, ...status.devices.map((d) => h('li', {},
+              h('span', {}, h('strong', {}, d.name), d.current ? ' (questo computer)' : '', ` · ${when(d.updatedAt)}${d.tabs ? ` · ${d.tabs} schede aperte` : ''}`))))
+          : h('p', { class: 'muted small' }, 'Compariranno dopo la prima sincronizzazione.')));
+      rows.push(row('Disattiva su questo computer', 'I dati restano su questo computer e sugli altri dispositivi.', h('button', { disabled: busy, onclick: () => void act(() => internal.sync.disable(), 'Sincronizzazione disattivata.') }, 'Disattiva')));
+      rows.push(row('Elimina i dati da kDrive', 'Cancella i file sincronizzati (vanno nel cestino di kDrive). Tutti i dispositivi dovranno riattivarla, anche con una nuova passphrase.', h('button', {
+        class: 'danger',
+        disabled: busy,
+        onclick: () => {
+          if (confirm('Eliminare i dati sincronizzati da kDrive? I dati su questo computer restano.')) void act(() => internal.sync.reset(), 'Dati eliminati da kDrive.');
+        },
+      }, 'Elimina')));
+    }
+    rows.push(message);
+    card.replaceChildren(...rows);
+    applyFilter();
+  }
+
+  void draw();
+  // Syncs in the background (or from another page) update the card.
+  const off = internal.sync.onChange(() => {
+    if (!el.isConnected) return off();
+    // Don't redraw under the user's typing (a form is open).
+    const typing = card.contains(document.activeElement) && document.activeElement?.tagName === 'INPUT';
+    if (!busy && !typing) void draw();
+  });
+  return el;
+}
+
 async function aiSection(): Promise<HTMLElement> {
   const status = await internal.tokenStatus();
   const enable = h('input', { type: 'checkbox', role: 'switch', 'aria-label': 'Attiva assistente IA', checked: settings.aiEnabled });
@@ -587,7 +729,7 @@ async function render(): Promise<void> {
   if (settings.theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
   const scroll = content.scrollTop || document.scrollingElement?.scrollTop || 0;
-  const sections = [await generalSection(), appearanceSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await ksuiteSection(), await aiSection(), await aboutSection()];
+  const sections = [await generalSection(), appearanceSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await ksuiteSection(), syncSection(), await aiSection(), await aboutSection()];
   content.replaceChildren(...sections);
   applyFilter();
   if (document.scrollingElement) document.scrollingElement.scrollTop = scroll;
@@ -603,7 +745,7 @@ function applyFilter(): void {
       r.classList.toggle('hidden-by-filter', !match);
       if (match) visible++;
     }
-    sectionEl.classList.toggle('hidden-by-filter', visible === 0);
+    sectionEl.classList.toggle('hidden-by-filter', !!q && visible === 0);
   }
 }
 

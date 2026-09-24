@@ -44,7 +44,7 @@ export function buildSuggestions(
   const target = resolveOmniboxInput(text, engine);
   const isSearch = target.startsWith((SEARCH_ENGINES[engine] ?? SEARCH_ENGINES.duckduckgo).template.split('%s')[0]);
   const first: Suggestion = isSearch
-    ? { kind: 'search', title: `${text} — Cerca con ${SEARCH_ENGINES[engine]?.name ?? 'DuckDuckGo'}`, url: target }
+    ? { kind: 'search', title: `${text} — ${engine === 'ksuite' ? 'Cerca in kSuite e sul web' : `Cerca con ${SEARCH_ENGINES[engine]?.name ?? 'DuckDuckGo'}`}`, url: target }
     : { kind: 'url', title: target, url: target };
 
   const tokens = text.toLowerCase().split(/\s+/).filter(Boolean);

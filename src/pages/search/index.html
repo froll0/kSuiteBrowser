@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Ricerca kSuite</title>
+  <link rel="stylesheet" href="page.css" />
+  <link rel="stylesheet" href="search.css" />
+</head>
+<body>
+  <header class="search-header">
+    <a class="brand" href="ksuite://newtab/" id="logo" aria-label="Nuova scheda"></a>
+    <form id="search-form" role="search" autocomplete="off">
+      <span class="search-icon" data-icon="search" data-size="18"></span>
+      <input id="q" type="search" spellcheck="false" aria-label="Cerca in kSuite e sul web" placeholder="Cerca in kSuite e sul web" />
+    </form>
+  </header>
+  <div class="layout">
+    <main id="results" aria-live="polite"></main>
+    <aside id="side"></aside>
+  </div>
+  <script src="search.js"></script>
+</body>
+</html>

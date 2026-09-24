@@ -1,12 +1,23 @@
-export type SearchEngineId = 'duckduckgo' | 'qwant' | 'ecosia' | 'startpage' | 'google';
+export type WebSearchEngineId = 'duckduckgo' | 'qwant' | 'ecosia' | 'startpage' | 'google';
+/** "ksuite" is the unified search page (your kSuite data + a link to the web engine). */
+export type SearchEngineId = WebSearchEngineId | 'ksuite';
 
-export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; template: string }> = {
+export const WEB_SEARCH_ENGINES: Record<WebSearchEngineId, { name: string; template: string }> = {
   duckduckgo: { name: 'DuckDuckGo', template: 'https://duckduckgo.com/?q=%s' },
   qwant: { name: 'Qwant', template: 'https://www.qwant.com/?q=%s' },
   ecosia: { name: 'Ecosia', template: 'https://www.ecosia.org/search?q=%s' },
   startpage: { name: 'Startpage', template: 'https://www.startpage.com/do/search?q=%s' },
   google: { name: 'Google', template: 'https://www.google.com/search?q=%s' },
 };
+
+export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; template: string }> = {
+  ksuite: { name: 'kSuite (ricerca unificata)', template: 'ksuite://search/?q=%s' },
+  ...WEB_SEARCH_ENGINES,
+};
+
+export function webSearchUrl(query: string, engine: WebSearchEngineId): string {
+  return (WEB_SEARCH_ENGINES[engine] ?? WEB_SEARCH_ENGINES.duckduckgo).template.replace('%s', encodeURIComponent(query));
+}
 
 const SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
 const ALLOWED_SCHEMES = new Set(['http:', 'https:', 'file:', 'about:', 'view-source:', 'ksuite:']);

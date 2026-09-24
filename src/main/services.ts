@@ -7,10 +7,12 @@ import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { InfomaniakApiError, InfomaniakClient } from '../api/client';
 import * as calendar from '../api/calendar';
+import { listContacts, type Contact } from '../api/contacts';
 import * as drive from '../api/drive';
 import * as mail from '../api/mail';
 import { getProfile } from '../api/profile';
 import type { CalendarEvent, Drive, DriveFile, DriveListing, MailOverview, NewEvent, OutgoingMail, Profile } from '../shared/types';
+import { matchesAll } from '../shared/search-match';
 import { fileNameFromContentDisposition, fileNameFromUrl, safeFileName, uniquePath } from './files';
 import type { SettingsStore } from './settings';
 
@@ -25,6 +27,8 @@ export class KSuiteServices {
   resetCache(): void {
     this.cachedDriveId = null;
     this.cachedProfile = null;
+    this.contactsCache = null;
+    this.eventsCache = null;
   }
 
   private client(): InfomaniakClient {
@@ -100,6 +104,37 @@ export class KSuiteServices {
     if (!res.ok) throw new InfomaniakApiError(`Download fallito (${res.status}) per ${url}`, res.status);
     const name = fileNameFromContentDisposition(res.headers.get('content-disposition')) ?? fileNameFromUrl(url);
     return this.uploadBytes(name, new Uint8Array(await res.arrayBuffer()));
+  }
+
+  // ---------- Unified search ----------
+
+  private contactsCache: { at: number; list: Contact[] } | null = null;
+  private eventsCache: { at: number; list: CalendarEvent[] } | null = null;
+  private static readonly CACHE_MS = 5 * 60_000;
+
+  searchMail(query: string): Promise<mail.MailSearchHit[]> {
+    return mail.searchMail(this.client(), query);
+  }
+
+  async searchContacts(query: string): Promise<Contact[]> {
+    if (!this.contactsCache || Date.now() - this.contactsCache.at > KSuiteServices.CACHE_MS) {
+      this.contactsCache = { at: Date.now(), list: await listContacts(this.client()) };
+    }
+    return this.contactsCache.list.filter((c) => matchesAll(query, c.name, ...c.emails)).slice(0, 8);
+  }
+
+  /** Events from a month ago to six months ahead whose title or place match; upcoming ones first. */
+  async searchEvents(query: string): Promise<CalendarEvent[]> {
+    if (!this.eventsCache || Date.now() - this.eventsCache.at > KSuiteServices.CACHE_MS) {
+      const from = new Date(Date.now() - 30 * 86_400_000);
+      const to = new Date(Date.now() + 182 * 86_400_000);
+      this.eventsCache = { at: Date.now(), list: await calendar.upcomingEvents(this.client(), from, to) };
+    }
+    const now = Date.now();
+    const hits = this.eventsCache.list.filter((e) => matchesAll(query, e.title, e.location));
+    const upcoming = hits.filter((e) => Date.parse(e.end) >= now);
+    const past = hits.filter((e) => Date.parse(e.end) < now).reverse();
+    return [...upcoming, ...past].slice(0, 8);
   }
 
   mailOverview(): Promise<MailOverview> {

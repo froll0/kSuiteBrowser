@@ -128,3 +128,30 @@ export async function sendMail(client: InfomaniakClient, mail: OutgoingMail): Pr
     action: 'send',
   });
 }
+
+export interface MailSearchHit {
+  uid: string;
+  subject: string;
+  from: string;
+  date: string;
+  preview: string;
+  unseen: boolean;
+}
+
+/** Full-text search in every folder of the primary mailbox (newest first). */
+export async function searchMail(client: InfomaniakClient, query: string, limit = 8): Promise<MailSearchHit[]> {
+  const [mailbox] = await listMailboxes(client);
+  if (!mailbox) throw new InfomaniakApiError('Nessuna casella di posta trovata per questo token.', 404);
+  const inbox = findFolderByRole(await folders(client, mailbox.uuid), 'INBOX');
+  if (!inbox) throw new InfomaniakApiError('Cartella Posta in arrivo non trovata.', 404);
+  const params = new URLSearchParams({ offset: '0', limit: String(limit), thread: 'off', severywhere: '1', scontains: query });
+  const data = await client.get<{ threads?: RawThread[] }>(`${MAIL_API_BASE}/mail/${mailbox.uuid}/folder/${inbox.id}/message?${params}`);
+  return (data?.threads ?? []).map((t) => ({
+    uid: t.uid,
+    subject: t.subject || '(nessun oggetto)',
+    from: formatSender(t.from),
+    date: t.date ?? '',
+    preview: t.messages?.[0]?.preview ?? '',
+    unseen: (t.unseen_messages ?? 0) > 0,
+  }));
+}

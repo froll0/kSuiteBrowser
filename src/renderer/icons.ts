@@ -1,5 +1,5 @@
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bell, Bookmark, BookUser, Calendar, CalendarClock, CaseSensitive, ChevronDown,
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bell, Bookmark, BookUser, Calculator, Calendar, CalendarClock, CaseSensitive, ChevronDown,
   ChevronRight, ChevronUp, CircleAlert, CircleCheck, Clock, Cloud, Copy, Download, EllipsisVertical, ExternalLink, Eye, EyeOff,
   File, FileArchive, FileAudio, FileCode, FileSpreadsheet, FileText, FileVideo, Folder, FolderOpen, Globe, History, Image,
   Inbox, Info, KeyRound, LayoutGrid, Lock, Mail, MapPin, MessagesSquare, Monitor, Moon, PanelRight, Pencil, Pin, Plus,
@@ -10,7 +10,7 @@ import {
 /** Icons used by the browser UI and the internal pages (Lucide, ISC license). */
 export const ICONS = {
   arrowDown: ArrowDown, arrowLeft: ArrowLeft, arrowRight: ArrowRight, arrowUp: ArrowUp, bell: Bell, bookmark: Bookmark,
-  bookUser: BookUser, calendar: Calendar, calendarClock: CalendarClock, caseSensitive: CaseSensitive, chevronDown: ChevronDown,
+  bookUser: BookUser, calculator: Calculator, calendar: Calendar, calendarClock: CalendarClock, caseSensitive: CaseSensitive, chevronDown: ChevronDown,
   chevronRight: ChevronRight, chevronUp: ChevronUp, alert: CircleAlert, check: CircleCheck, clock: Clock, cloud: Cloud,
   copy: Copy, download: Download, more: EllipsisVertical, external: ExternalLink, eye: Eye, eyeOff: EyeOff, file: File,
   fileArchive: FileArchive, fileAudio: FileAudio, fileCode: FileCode, fileSheet: FileSpreadsheet, fileText: FileText,

@@ -5,7 +5,7 @@ import { extname, join, normalize, sep } from 'node:path';
 export const INTERNAL_SCHEME = 'ksuite';
 
 /** Internal pages: ksuite://settings, ksuite://history, … Each host maps to a folder in dist/pages. */
-export const INTERNAL_PAGES = ['newtab', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'assets'] as const;
+export const INTERNAL_PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'assets'] as const;
 const PAGES = new Set<string>(INTERNAL_PAGES);
 
 const MIME: Record<string, string> = {

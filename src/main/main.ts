@@ -7,9 +7,10 @@ import { join } from 'node:path';
 import { INTERNAL, IPC } from '../shared/ipc';
 import { KSUITE_APPS } from '../shared/ksuite-apps';
 import { siteOf } from '../shared/privacy-rules';
+import { matchesAll } from '../shared/search-match';
 import { buildSuggestions } from '../shared/suggest';
 import type {
-  AboutInfo, ApiResult, BookmarkFolder, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion,
+  AboutInfo, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion,
 } from '../shared/types';
 import { generatePassword } from '../shared/password-gen';
 import { letterIconSvg, topSites } from '../shared/top-sites';
@@ -715,7 +716,7 @@ function handleInternal<A extends unknown[], R>(channel: string, hosts: string[]
 function registerInternalIpc(): void {
   const S = ['settings'];
   // Every internal page reads the settings (theme); only the settings page changes them.
-  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'history', 'bookmarks', 'passwords', 'https-only'], () => settings.get());
+  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only'], () => settings.get());
   handleInternal(INTERNAL.settingsSet, S, (_e, patch: Partial<Settings>) => settings.update(patch));
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
   handleInternal(INTERNAL.tokenSet, S, (_e, token: string) =>
@@ -833,6 +834,7 @@ function registerInternalIpc(): void {
     const useHistory = event.sender.session.isPersistent() && s.saveHistory;
     return buildSuggestions(String(input ?? '').slice(0, 500), s.searchEngine, useHistory ? history.summaries() : [], bookmarks.list());
   });
+  registerSearchIpc();
   handleInternal(INTERNAL.httpsContinue, ['https-only'], (event, url: string) => {
     const parsed = new URL(url);
     if (parsed.protocol !== 'http:') throw new Error('URL non valido');
@@ -840,6 +842,50 @@ function registerInternalIpc(): void {
     if (!settings.get().httpExceptions.includes(host)) settings.update({ httpExceptions: [...settings.get().httpExceptions, host] });
     void event.sender.loadURL(parsed.href);
   });
+}
+
+// ---------- IPC: unified search (ksuite://search) ----------
+
+function registerSearchIpc(): void {
+  const H = ['search'];
+  const q = (value: unknown) => String(value ?? '').trim().slice(0, 300);
+  const ownerOf = (sender: Electron.WebContents) => [...windows].find((w) => w.tabs.idOf(sender) !== null) ?? null;
+
+  handleInternal(INTERNAL.searchMeta, H, () => {
+    const s = settings.get();
+    return { tokenConfigured: settings.tokenStatus().configured, webSearchEngine: s.webSearchEngine, isDefault: s.searchEngine === 'ksuite' };
+  });
+  handleInternal(INTERNAL.searchLocal, H, (event, query: string) => {
+    const text = q(query);
+    if (!text) return { bookmarks: [], history: [] };
+    const found = bookmarks.list().filter((b) => matchesAll(text, b.title, b.url)).slice(0, 5);
+    const seen = new Set(found.map((b) => b.url));
+    const visits: HistoryVisit[] = [];
+    // Private windows never show history.
+    if (event.sender.session.isPersistent() && settings.get().saveHistory) {
+      for (const v of history.search(text, 60)) {
+        if (seen.has(v.url)) continue;
+        seen.add(v.url);
+        visits.push(v);
+        if (visits.length === 6) break;
+      }
+    }
+    return { bookmarks: found, history: visits };
+  });
+  handleInternal(INTERNAL.searchDrive, H, (_e, query: string) => wrap(async () => (await services.search(q(query))).slice(0, 8)));
+  handleInternal(INTERNAL.searchMail, H, (_e, query: string) => wrap(() => services.searchMail(q(query))));
+  handleInternal(INTERNAL.searchContacts, H, (_e, query: string) => wrap(() => services.searchContacts(q(query))));
+  handleInternal(INTERNAL.searchEvents, H, (_e, query: string) => wrap(() => services.searchEvents(q(query))));
+  handleInternal(INTERNAL.searchOpenDrive, H, (_e, file: DriveFile) => wrap(() => services.driveWebUrl(file)));
+  handleInternal(INTERNAL.searchOpenApp, H, (event, appId: string) => {
+    const appDef = KSUITE_APPS.find((a) => a.id === appId);
+    const w = ownerOf(event.sender);
+    if (appDef && w) w.tabs.openApp(appDef.id, appDef.url);
+  });
+  handleInternal(INTERNAL.searchCompose, H, (event, to: string) => {
+    ownerOf(event.sender)?.send(IPC.evComposeMail, { to: String(to ?? ''), subject: '', body: '' });
+  });
+  handleInternal(INTERNAL.searchSetDefault, H, () => settings.update({ searchEngine: 'ksuite' }));
 }
 
 // ---------- IPC: cosmetic filtering (strict mode) ----------

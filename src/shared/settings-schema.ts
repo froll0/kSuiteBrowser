@@ -1,5 +1,5 @@
 import type { AskablePermission, PermissionDefault, Settings, SitePermission } from './types';
-import { SEARCH_ENGINES } from './url';
+import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from './url';
 import { ZOOM_STEPS } from './zoom';
 
 export const REMINDER_MINUTES = [5, 10, 15, 30, 60] as const;
@@ -8,7 +8,8 @@ export const ASKABLE_PERMISSIONS: readonly AskablePermission[] = ['media', 'noti
 
 export const DEFAULT_SETTINGS: Settings = {
   startup: 'restore',
-  searchEngine: 'duckduckgo',
+  searchEngine: 'ksuite',
+  webSearchEngine: 'duckduckgo',
   homePage: 'https://ksuite.infomaniak.com/',
   downloadDir: null,
   askDownloadLocation: false,
@@ -89,6 +90,12 @@ export function sanitizeSettings(raw: unknown): Settings {
   return {
     startup: oneOf(s.startup, ['home', 'restore'] as const, d.startup),
     searchEngine: oneOf(s.searchEngine, Object.keys(SEARCH_ENGINES) as Array<keyof typeof SEARCH_ENGINES>, d.searchEngine),
+    // Older settings only had searchEngine: reuse it as the web engine.
+    webSearchEngine: oneOf(
+      s.webSearchEngine,
+      Object.keys(WEB_SEARCH_ENGINES) as Array<keyof typeof WEB_SEARCH_ENGINES>,
+      oneOf(s.searchEngine, Object.keys(WEB_SEARCH_ENGINES) as Array<keyof typeof WEB_SEARCH_ENGINES>, d.webSearchEngine),
+    ),
     homePage: typeof s.homePage === 'string' && s.homePage.trim() ? s.homePage.trim() : d.homePage,
     downloadDir: typeof s.downloadDir === 'string' && s.downloadDir ? s.downloadDir : null,
     askDownloadLocation: bool(s.askDownloadLocation, d.askDownloadLocation),

@@ -1,4 +1,4 @@
-import type { SearchEngineId } from './url';
+import type { SearchEngineId, WebSearchEngineId } from './url';
 
 export interface TabState {
   id: number;
@@ -123,6 +123,8 @@ export interface Settings {
   // Generale
   startup: StartupMode;
   searchEngine: SearchEngineId;
+  /** Engine for the web part of the kSuite search (and when kSuite search is off). */
+  webSearchEngine: WebSearchEngineId;
   homePage: string;
   /** null = the system Downloads folder. */
   downloadDir: string | null;

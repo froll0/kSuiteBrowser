@@ -136,10 +136,10 @@ function renderTabs(): void {
       const el = h(
         'div',
         {
-          class: `tab${t.active ? ' active' : ''}${t.loading ? ' loading' : ''}${t.pinned ? ' pinned' : ''}`,
+          class: `tab${t.active ? ' active' : ''}${t.loading ? ' loading' : ''}${t.pinned ? ' pinned' : ''}${t.sleeping ? ' sleeping' : ''}`,
           role: 'tab',
           'aria-selected': String(t.active),
-          title: `${t.title}\n${t.url}`,
+          title: `${t.title}\n${t.url}${t.sleeping ? '\nIn pausa per risparmiare memoria: si ricarica quando la apri' : ''}`,
           draggable: 'true',
           'data-id': String(t.id),
         },
@@ -177,7 +177,15 @@ function renderTabs(): void {
     }),
     iconButton('plus', { class: 'icon-btn small new-tab', title: 'Nuova scheda (Ctrl+T)', 'aria-label': 'Nuova scheda', onclick: () => void ks.tabs.create() }, 18),
   );
+  tabstrip.querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
+
+// With more tabs than fit, the mouse wheel scrolls the tab strip.
+tabstrip.addEventListener('wheel', (e) => {
+  if (tabstrip.scrollWidth <= tabstrip.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  e.preventDefault();
+  tabstrip.scrollLeft += e.deltaY;
+}, { passive: false });
 
 tabstrip.addEventListener('dragover', (e) => {
   if (!e.dataTransfer?.types.includes(TAB_MIME)) return;
@@ -616,6 +624,7 @@ reloadBtn.addEventListener('click', () => {
   void (t.loading ? ks.tabs.stop(t.id) : ks.tabs.reload(t.id));
 });
 $('btn-panel').addEventListener('click', togglePanel);
+$('btn-tab-search').addEventListener('click', () => void ks.tabSearch());
 $('panel-close').addEventListener('click', () => void setPanelOpen(false));
 $('btn-settings').addEventListener('click', () => void ks.openSettingsPage());
 siteInfo.addEventListener('click', () => {

@@ -17,14 +17,16 @@ const targets = [
   { ...node, entryPoints: ['src/preload/page.ts'], outfile: 'dist/preload/page.js' },
   { ...web, entryPoints: ['src/renderer/app.ts'], outfile: 'dist/renderer/app.js' },
   { ...node, entryPoints: ['src/preload/suggest.ts'], outfile: 'dist/preload/suggest.js' },
+  { ...node, entryPoints: ['src/preload/tabsearch.ts'], outfile: 'dist/preload/tabsearch.js' },
   { ...node, entryPoints: ['src/preload/passwords.ts'], outfile: 'dist/preload/passwords.js' },
   { ...web, entryPoints: ['src/renderer/suggest.ts'], outfile: 'dist/renderer/suggest.js' },
+  { ...web, entryPoints: ['src/renderer/tabsearch.ts'], outfile: 'dist/renderer/tabsearch.js' },
   ...PAGES.map((page) => ({ ...web, entryPoints: [`src/pages/${page}/${page}.ts`], outfile: `dist/pages/${page}/${page}.js` })),
 ];
 
 function copyStatic() {
   for (const dir of ['dist/renderer', 'dist/preload', ...PAGES.map((p) => `dist/pages/${p}`)]) mkdirSync(dir, { recursive: true });
-  for (const file of ['index.html', 'styles.css', 'suggest.html', 'suggest.css']) cpSync(`src/renderer/${file}`, `dist/renderer/${file}`);
+  for (const file of ['index.html', 'styles.css', 'suggest.html', 'suggest.css', 'tabsearch.html', 'tabsearch.css']) cpSync(`src/renderer/${file}`, `dist/renderer/${file}`);
   cpSync('src/renderer/fonts', 'dist/renderer/fonts', { recursive: true });
   cpSync('build/icon-256.png', 'dist/icon.png');
   cpSync('build/icon.ico', 'dist/icon.ico');

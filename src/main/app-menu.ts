@@ -20,6 +20,7 @@ export interface AppMenuActions {
   savePageAs(): void;
   viewSource(): void;
   openSettings(): void;
+  searchTabs(): void;
   find(): void;
   findNext(backwards: boolean): void;
   zoom(direction: 'in' | 'out' | 'reset'): void;
@@ -87,6 +88,7 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { label: 'Indietro', accelerator: 'Alt+Left', click: a.back },
         { label: 'Avanti', accelerator: 'Alt+Right', click: a.forward },
         { type: 'separator' },
+        { label: 'Cerca tra le schede…', accelerator: 'CmdOrCtrl+Shift+A', click: a.searchTabs },
         { label: 'Scheda successiva', accelerator: 'Ctrl+Tab', click: a.nextTab },
         { label: 'Scheda precedente', accelerator: 'Ctrl+Shift+Tab', click: a.previousTab },
         { label: 'Scheda successiva', accelerator: 'CmdOrCtrl+PageDown', click: a.nextTab, visible: false },

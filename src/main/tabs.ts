@@ -4,13 +4,26 @@ import type { Rect, TabState } from '../shared/types';
 /** A tab. It can move to another window, so its listeners always go through `owner`. */
 export interface Tab {
   id: number;
-  view: WebContentsView;
+  /** null while the tab sleeps: its page is closed to free memory. */
+  view: WebContentsView | null;
+  sleep: SleepState | null;
+  /** When the tab was last in front (for sleeping and "recent" ordering). */
+  lastActiveAt: number;
   favicon: string | null;
   appId: string | null;
   pinned: boolean;
   /** URL that failed to load while the error page is shown. */
   failedUrl: string | null;
   owner: TabManager;
+}
+
+/** What a sleeping tab keeps to come back as it was. */
+export interface SleepState {
+  url: string;
+  title: string;
+  entries: NavigationEntry[];
+  index: number;
+  muted: boolean;
 }
 
 export interface ClosedTab {
@@ -25,7 +38,7 @@ export interface TabManagerHooks {
   /** Called once for every new page WebContents, to attach context menus, window handlers, etc. */
   onWebContentsCreated(contents: WebContents, tabs: TabManager): void;
   /** Extra per-tab state shown in the toolbar: shield, zoom badge, bookmark star. */
-  extraState(contents: WebContents): Pick<TabState, 'blocked' | 'protectionActive' | 'zoom' | 'bookmarked'>;
+  extraState(contents: WebContents | null, url: string): Pick<TabState, 'blocked' | 'protectionActive' | 'zoom' | 'bookmarked'>;
   /** Page to show instead of the generic error page (e.g. the HTTPS-only warning), with the URL to display. */
   failurePage?(contents: WebContents, url: string, code: number): { load: string; display: string } | null;
 }
@@ -44,7 +57,22 @@ export interface CreateOptions {
   index?: number;
   /** Navigation history to restore instead of loading `url` (reopened or duplicated tabs). */
   history?: { entries: NavigationEntry[]; index: number };
+  /** Start asleep: the page loads when the tab is first shown (restored sessions). */
+  asleep?: boolean;
+  /** Title to show while asleep. */
+  title?: string;
 }
+
+/** True when the page has form fields changed by the user: sleeping would lose them. */
+const HAS_EDITS = `(() => {
+  for (const el of document.querySelectorAll('input, textarea, select')) {
+    if (el.disabled || ['hidden', 'submit', 'button', 'reset', 'image', 'file'].includes(el.type)) continue;
+    if (el.tagName === 'SELECT') { if ([...el.options].some((o) => o.selected !== o.defaultSelected)) return true; continue; }
+    if (el.type === 'checkbox' || el.type === 'radio') { if (el.checked !== el.defaultChecked) return true; continue; }
+    if (el.value !== el.defaultValue) return true;
+  }
+  return Boolean(document.activeElement && document.activeElement.isContentEditable);
+})()`;
 
 // Global so tab ids stay unique when tabs move between windows.
 let nextTabId = 1;
@@ -76,6 +104,35 @@ export class TabManager {
   }
 
   create(url: string, options: CreateOptions = {}): number {
+    const tab: Tab = {
+      id: nextTabId++,
+      view: null,
+      sleep: null,
+      lastActiveAt: Date.now(),
+      favicon: null,
+      appId: options.appId ?? null,
+      pinned: Boolean(options.pinned),
+      failedUrl: null,
+      owner: this,
+    };
+    this.insert(tab, options.index);
+    if (options.asleep) {
+      tab.sleep = { url, title: options.title || url, entries: options.history?.entries ?? [], index: options.history?.index ?? 0, muted: false };
+    } else {
+      const wc = this.attachView(tab).webContents;
+      if (options.history?.entries.length) {
+        wc.navigationHistory.restore({ entries: options.history.entries, index: options.history.index }).catch(() => void wc.loadURL(url));
+      } else {
+        void wc.loadURL(url);
+      }
+    }
+    if (!options.background || (this.activeId === null && !options.asleep)) this.activate(tab.id);
+    else this.emit();
+    return tab.id;
+  }
+
+  /** Creates the page of a tab (new, or waking up) with all its listeners. */
+  private attachView(tab: Tab): WebContentsView {
     const view = new WebContentsView({
       webPreferences: {
         session: this.options.session,
@@ -88,9 +145,7 @@ export class TabManager {
         plugins: true,
       },
     });
-    const tab: Tab = { id: nextTabId++, view, favicon: null, appId: options.appId ?? null, pinned: Boolean(options.pinned), failedUrl: null, owner: this };
-    this.insert(tab, options.index);
-
+    tab.view = view;
     const wc = view.webContents;
     const emit = () => tab.owner.emit();
     wc.on('page-title-updated', emit);
@@ -145,16 +200,55 @@ export class TabManager {
         tab.owner.exitPageFullscreen();
       }
     });
-    this.hooks.onWebContentsCreated(wc, this);
+    tab.owner.hooks.onWebContentsCreated(wc, tab.owner);
+    return view;
+  }
 
-    if (options.history?.entries.length) {
-      wc.navigationHistory.restore({ entries: options.history.entries, index: options.history.index }).catch(() => void wc.loadURL(url));
-    } else {
-      void wc.loadURL(url);
+  /** Brings a sleeping tab back: same history, same position in it. */
+  private wake(tab: Tab): void {
+    const state = tab.sleep;
+    if (!state) return;
+    tab.sleep = null;
+    const wc = this.attachView(tab).webContents;
+    wc.setAudioMuted(state.muted);
+    if (state.entries.length) wc.navigationHistory.restore({ entries: state.entries, index: state.index }).catch(() => void wc.loadURL(state.url));
+    else void wc.loadURL(state.url);
+  }
+
+  /** Puts a background tab to sleep. Returns false when it can't (active, already asleep). */
+  sleepTab(id: number): boolean {
+    const tab = this.find(id);
+    if (!tab || !tab.view || tab.id === this.activeId) return false;
+    const wc = tab.view.webContents;
+    const url = tab.failedUrl ?? wc.getURL();
+    if (!url) return false;
+    tab.sleep = {
+      url,
+      title: wc.getTitle() || url,
+      entries: tab.failedUrl ? [] : wc.navigationHistory.getAllEntries(),
+      index: wc.navigationHistory.getActiveIndex(),
+      muted: wc.isAudioMuted(),
+    };
+    if (tab.view && !this.window.isDestroyed()) this.window.contentView.removeChildView(tab.view);
+    tab.view = null;
+    tab.failedUrl = null;
+    wc.close();
+    this.emit();
+    return true;
+  }
+
+  /** Sleeps background tabs unused for `idleMs`, skipping those that would lose something. */
+  async sleepIdle(idleMs: number, now = Date.now()): Promise<number> {
+    let count = 0;
+    for (const tab of [...this.tabs]) {
+      if (!tab.view || tab.id === this.activeId || tab.pinned || tab.appId || now - tab.lastActiveAt < idleMs) continue;
+      const wc = tab.view.webContents;
+      if (!/^https?:/i.test(wc.getURL()) || wc.isLoading() || wc.isCurrentlyAudible() || wc.isDevToolsOpened() || this.fullscreenId === tab.id) continue;
+      const edited = await wc.executeJavaScriptInIsolatedWorld(1998, [{ code: HAS_EDITS }]).catch(() => true);
+      if (edited || !tab.view || tab.id === this.activeId) continue;
+      if (this.sleepTab(tab.id)) count++;
     }
-    if (!options.background || this.activeId === null) this.activate(tab.id);
-    else this.emit();
-    return tab.id;
+    return count;
   }
 
   /** Focuses an existing tab of a kSuite app, or opens it. */
@@ -167,13 +261,17 @@ export class TabManager {
   close(id: number): void {
     const tab = this.detach(id);
     if (!tab) return;
-    const wc = tab.view.webContents;
-    const url = tab.failedUrl ?? wc.getURL();
-    if (url && !url.startsWith('data:')) {
-      this.closed.push({ url, pinned: tab.pinned, entries: wc.navigationHistory.getAllEntries(), index: wc.navigationHistory.getActiveIndex() });
+    const wc = tab.view?.webContents;
+    const closed: ClosedTab | null = tab.sleep
+      ? { url: tab.sleep.url, pinned: tab.pinned, entries: tab.sleep.entries, index: tab.sleep.index }
+      : wc
+        ? { url: tab.failedUrl ?? wc.getURL(), pinned: tab.pinned, entries: wc.navigationHistory.getAllEntries(), index: wc.navigationHistory.getActiveIndex() }
+        : null;
+    if (closed?.url && !closed.url.startsWith('data:')) {
+      this.closed.push(closed);
       if (this.closed.length > MAX_CLOSED) this.closed.shift();
     }
-    wc.close();
+    wc?.close();
   }
 
   /** Reopens the last closed tab with its back/forward history. */
@@ -187,9 +285,14 @@ export class TabManager {
   duplicate(id: number): void {
     const tab = this.find(id);
     if (!tab) return;
-    const wc = tab.view.webContents;
+    const index = this.tabs.indexOf(tab) + 1;
+    if (tab.sleep) {
+      this.create(tab.sleep.url, { index, history: { entries: tab.sleep.entries, index: tab.sleep.index } });
+      return;
+    }
+    const wc = tab.view!.webContents;
     this.create(tab.failedUrl ?? wc.getURL(), {
-      index: this.tabs.indexOf(tab) + 1,
+      index,
       history: { entries: wc.navigationHistory.getAllEntries(), index: wc.navigationHistory.getActiveIndex() },
     });
   }
@@ -200,7 +303,7 @@ export class TabManager {
     if (index === -1) return undefined;
     if (this.fullscreenId === id) this.leaveFullscreen();
     const [tab] = this.tabs.splice(index, 1);
-    if (!this.window.isDestroyed()) this.window.contentView.removeChildView(tab.view);
+    if (tab.view && !this.window.isDestroyed()) this.window.contentView.removeChildView(tab.view);
     if (this.activeId === id) {
       this.activeId = null;
       const next = this.tabs[index] ?? this.tabs[index - 1];
@@ -236,9 +339,9 @@ export class TabManager {
   }
 
   setMuted(id: number, muted: boolean): void {
-    const wc = this.contents(id);
-    if (!wc) return;
-    wc.setAudioMuted(muted);
+    const tab = this.find(id);
+    if (tab?.sleep) tab.sleep.muted = muted;
+    else tab?.view?.webContents.setAudioMuted(muted);
     this.emit();
   }
 
@@ -246,12 +349,17 @@ export class TabManager {
     const tab = this.find(id);
     if (!tab) return;
     const previous = this.activeId !== null ? this.find(this.activeId) : undefined;
-    if (previous && previous !== tab) this.window.contentView.removeChildView(previous.view);
+    if (previous && previous !== tab) {
+      previous.lastActiveAt = Date.now();
+      if (previous.view) this.window.contentView.removeChildView(previous.view);
+    }
+    tab.lastActiveAt = Date.now();
+    if (tab.sleep) this.wake(tab);
     if (this.fullscreenId !== null && this.fullscreenId !== id) this.exitPageFullscreen();
     this.activeId = id;
-    this.window.contentView.addChildView(tab.view);
+    this.window.contentView.addChildView(tab.view!);
     this.layout();
-    tab.view.webContents.focus();
+    tab.view!.webContents.focus();
     this.emit();
   }
 
@@ -303,12 +411,12 @@ export class TabManager {
   exitPageFullscreen(): void {
     const tab = this.fullscreenId !== null ? this.find(this.fullscreenId) : undefined;
     this.leaveFullscreen();
-    if (tab) void tab.view.webContents.executeJavaScript('document.fullscreenElement && document.exitFullscreen()', true).catch(() => {});
+    if (tab?.view) void tab.view.webContents.executeJavaScript('document.fullscreenElement && document.exitFullscreen()', true).catch(() => {});
   }
 
   private layout(): void {
     const tab = this.active();
-    if (!tab) return;
+    if (!tab?.view) return;
     if (this.fullscreenId === tab.id) {
       const [width, height] = this.window.getContentSize();
       tab.view.setBounds({ x: 0, y: 0, width, height });
@@ -320,12 +428,20 @@ export class TabManager {
   reload(id: number): void {
     const tab = this.find(id);
     if (!tab) return;
-    if (tab.failedUrl) void tab.view.webContents.loadURL(tab.failedUrl);
-    else tab.view.webContents.reload();
+    if (tab.sleep) this.wake(tab);
+    else if (tab.failedUrl) void tab.view?.webContents.loadURL(tab.failedUrl);
+    else tab.view?.webContents.reload();
   }
 
   navigate(id: number, url: string): void {
-    void this.find(id)?.view.webContents.loadURL(url);
+    const tab = this.find(id);
+    if (!tab) return;
+    if (tab.sleep) {
+      tab.sleep = { ...tab.sleep, entries: [], url };
+      this.wake(tab);
+    } else {
+      void tab.view?.webContents.loadURL(url);
+    }
   }
 
   active(): Tab | undefined {
@@ -333,11 +449,11 @@ export class TabManager {
   }
 
   activeContents(): WebContents | undefined {
-    return this.active()?.view.webContents;
+    return this.active()?.view?.webContents;
   }
 
   contents(id: number): WebContents | undefined {
-    return this.find(id)?.view.webContents;
+    return this.find(id)?.view?.webContents;
   }
 
   ids(): number[] {
@@ -346,6 +462,20 @@ export class TabManager {
 
   count(): number {
     return this.tabs.length;
+  }
+
+  /** Recently closed tabs, most recent first, with the index reopenClosedAt() takes. */
+  recentlyClosed(): Array<{ index: number; title: string; url: string }> {
+    return this.closed
+      .map((c, index) => ({ index, url: c.url, title: c.entries[c.index]?.title || c.url }))
+      .reverse();
+  }
+
+  reopenClosedAt(index: number): boolean {
+    const [entry] = Number.isInteger(index) && index >= 0 ? this.closed.splice(index, 1) : [];
+    if (!entry) return false;
+    this.create(entry.url, { pinned: entry.pinned, history: { entries: entry.entries, index: entry.index } });
+    return true;
   }
 
   hasClosed(): boolean {
@@ -359,25 +489,45 @@ export class TabManager {
 
   /** Tab id owning a WebContents, if any. */
   idOf(contents: WebContents): number | null {
-    return this.tabs.find((t) => t.view.webContents === contents)?.id ?? null;
+    return this.tabs.find((t) => t.view?.webContents === contents)?.id ?? null;
   }
 
   /** Tabs to reopen at the next start. */
-  saved(): Array<{ url: string; pinned: boolean }> {
+  saved(): Array<{ url: string; pinned: boolean; title: string }> {
     return this.states()
       .filter((t) => t.url && !t.url.startsWith('data:'))
-      .map((t) => ({ url: t.url, pinned: t.pinned }));
+      .map((t) => ({ url: t.url, pinned: t.pinned, title: t.title }));
   }
 
   /** Closes every tab; used when the window goes away. */
   destroy(): void {
-    for (const tab of this.tabs) if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close();
+    for (const tab of this.tabs) if (tab.view && !tab.view.webContents.isDestroyed()) tab.view.webContents.close();
     this.tabs = [];
     this.activeId = null;
   }
 
   states(): TabState[] {
     return this.tabs.map((t) => {
+      if (t.sleep || !t.view) {
+        const sleep = t.sleep ?? { url: '', title: '', entries: [], index: 0, muted: false };
+        return {
+          id: t.id,
+          title: sleep.title || sleep.url || 'Nuova scheda',
+          url: sleep.url,
+          favicon: t.favicon,
+          loading: false,
+          canGoBack: sleep.index > 0,
+          canGoForward: sleep.index < sleep.entries.length - 1,
+          active: false,
+          appId: t.appId,
+          pinned: t.pinned,
+          audible: false,
+          muted: sleep.muted,
+          sleeping: true,
+          lastActiveAt: t.lastActiveAt,
+          ...this.hooks.extraState(null, sleep.url),
+        };
+      }
       const wc = t.view.webContents;
       const url = t.failedUrl ?? wc.getURL();
       return {
@@ -393,7 +543,9 @@ export class TabManager {
         pinned: t.pinned,
         audible: wc.isCurrentlyAudible(),
         muted: wc.isAudioMuted(),
-        ...this.hooks.extraState(wc),
+        sleeping: false,
+        lastActiveAt: t.id === this.activeId ? Date.now() : t.lastActiveAt,
+        ...this.hooks.extraState(wc, url),
       };
     });
   }

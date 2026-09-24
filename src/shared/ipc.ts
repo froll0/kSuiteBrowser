@@ -20,6 +20,7 @@ export const IPC = {
   showAppMenu: 'ui:app-menu',
   showShieldMenu: 'ui:shield-menu',
   showSiteMenu: 'ui:site-menu',
+  tabSearch: 'ui:tab-search',
   openSettingsPage: 'ui:open-settings',
   windowInfo: 'ui:window-info',
   suggest: 'ui:suggest',

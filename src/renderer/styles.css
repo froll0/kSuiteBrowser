@@ -238,12 +238,16 @@ body.private #private-badge { display: inline-flex; }
   display: flex; align-items: flex-end; gap: 4px;
   min-width: 0; flex: 1 1 auto; height: 100%;
   padding-top: 8px;
-  overflow: hidden;
+  /* With many tabs they shrink to the icon, then the strip scrolls (wheel or active tab). */
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
 }
+#tabstrip::-webkit-scrollbar { display: none; }
+#btn-tab-search { align-self: center; margin-top: 3px; -webkit-app-region: no-drag; }
 .tab {
   position: relative;
   display: flex; align-items: center; gap: 8px;
-  flex: 0 1 220px; min-width: 56px; max-width: 240px;
+  flex: 0 1 220px; min-width: 36px; max-width: 240px;
+  container-type: inline-size;
   height: 34px; padding: 0 6px 0 12px;
   border-radius: var(--r-md) var(--r-md) 0 0;
   color: var(--text-2);
@@ -272,6 +276,14 @@ body.private .tab.active, :root[data-theme="dark"] .tab.active { box-shadow: non
 .tab-close { opacity: 0; }
 .tab:hover .tab-close, .tab.active .tab-close, .tab-close:focus-visible { opacity: 1; }
 .tab-close:hover, .tab-audio:hover { background: var(--active); color: var(--text); }
+/* Narrow tabs keep only the icon (and the close button on the active one). */
+@container (max-width: 76px) {
+  .tab-title { display: none; }
+  .tab:not(.active) .tab-close { display: none; }
+}
+@container (max-width: 56px) {
+  .tab-close { display: none; }
+}
 .tab.pinned { flex: 0 0 44px; min-width: 44px; max-width: 44px; justify-content: center; padding: 0; }
 .tab.pinned .tab-audio { position: absolute; top: 2px; right: 0; width: 16px; height: 16px; background: var(--surface); }
 .tab.dragging { opacity: .45; }
@@ -289,7 +301,9 @@ body.private .tab.active, :root[data-theme="dark"] .tab.active { box-shadow: non
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
 
-.new-tab { align-self: center; margin: 3px 0 0 2px; -webkit-app-region: no-drag; }
+.new-tab { align-self: center; margin: 3px 0 0 2px; -webkit-app-region: no-drag; flex: none; }
+/* Stays visible at the end of the strip when the tabs scroll. */
+#tabstrip .new-tab { position: sticky; right: 0; background: var(--titlebar); }
 
 /* ---------- Toolbar ---------- */
 
@@ -603,3 +617,7 @@ progress { width: 100%; height: 6px; accent-color: var(--accent); }
 .icon-btn.send { background: var(--accent); color: var(--on-accent); width: 32px; height: 32px; flex: none; }
 .icon-btn.send:hover:not(:disabled) { background: var(--accent-hover); color: var(--on-accent); }
 .icon-btn.send.stop { background: var(--text-2); }
+
+/* Sleeping tabs: page closed to save memory */
+.tab.sleeping .favicon, .tab.sleeping .tab-title { opacity: .5; }
+.tab.sleeping .favicon { filter: grayscale(.6); }

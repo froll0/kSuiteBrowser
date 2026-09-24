@@ -3,6 +3,8 @@ import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from './url';
 import { ZOOM_STEPS } from './zoom';
 
 export const REMINDER_MINUTES = [5, 10, 15, 30, 60] as const;
+/** Minutes before an unused tab goes to sleep; 0 = never. */
+export const SLEEP_MINUTES = [0, 15, 30, 60, 120, 240] as const;
 
 export const ASKABLE_PERMISSIONS: readonly AskablePermission[] = ['media', 'notifications', 'geolocation'];
 
@@ -32,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyMail: true,
   notifyEvents: true,
   eventReminderMinutes: 10,
+  sleepTabsAfter: 60,
   offerToSavePasswords: true,
   autofillPasswords: true,
   saveHistory: true,
@@ -121,6 +124,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     autoUpdate: bool(s.autoUpdate, d.autoUpdate),
     notifyMail: bool(s.notifyMail, d.notifyMail),
     notifyEvents: bool(s.notifyEvents, d.notifyEvents),
+    sleepTabsAfter: (SLEEP_MINUTES as readonly number[]).includes(s.sleepTabsAfter as number) ? (s.sleepTabsAfter as number) : d.sleepTabsAfter,
     eventReminderMinutes: (REMINDER_MINUTES as readonly number[]).includes(s.eventReminderMinutes as number) ? (s.eventReminderMinutes as number) : d.eventReminderMinutes,
     offerToSavePasswords: bool(s.offerToSavePasswords, d.offerToSavePasswords),
     autofillPasswords: bool(s.autofillPasswords, d.autofillPasswords),

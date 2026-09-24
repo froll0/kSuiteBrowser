@@ -11,7 +11,7 @@ import { siteOf } from '../shared/privacy-rules';
 import { matchesAll } from '../shared/search-match';
 import { buildSuggestions } from '../shared/suggest';
 import type {
-  AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion,
+  AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData,
 } from '../shared/types';
 import { searchAnswerMessages } from '../shared/ai-prompts';
 import { generatePassword } from '../shared/password-gen';
@@ -49,6 +49,8 @@ const PATHS = {
   chromeHtml: join(__dirname, '../renderer/index.html'),
   suggestHtml: join(__dirname, '../renderer/suggest.html'),
   suggestPreload: join(__dirname, '../preload/suggest.js'),
+  tabSearchHtml: join(__dirname, '../renderer/tabsearch.html'),
+  tabSearchPreload: join(__dirname, '../preload/tabsearch.js'),
   // Windows wants a multi-size .ico for crisp taskbar and title bar icons.
   appIcon: join(__dirname, process.platform === 'win32' ? '../icon.ico' : '../icon.png'),
   pages: join(__dirname, '../pages'),
@@ -65,7 +67,8 @@ let notifications: NotificationCenter;
 let updates: UpdateService;
 let ai: AiService;
 
-type SavedTab = { url: string; pinned?: boolean };
+/** A tab to open: `open` ones (links from other apps) load and come to the front, the others start asleep. */
+type SavedTab = { url: string; pinned?: boolean; title?: string; open?: boolean };
 const blocker = new TrackerBlocker();
 const guards = new Map<Session, PrivacyGuard>();
 const windows = new Set<BrowserWindowController>();
@@ -75,7 +78,7 @@ let quitting = false;
 let dataCleared = false;
 
 const sessionFile = () => join(app.getPath('userData'), 'session.json');
-const pendingUrls: SavedTab[] = urlsFromArgv(process.argv).map((url) => ({ url }));
+const pendingUrls: SavedTab[] = urlsFromArgv(process.argv).map((url) => ({ url, open: true }));
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -127,12 +130,12 @@ function urlsFromArgv(argv: string[]): string[] {
 /** Opens links coming from other apps in a normal window (a new one if only private windows are open). */
 function openFromSystem(urls: string[], focus = urls.length === 0): void {
   if (!app.isReady() || !settings) {
-    pendingUrls.push(...urls.map((url) => ({ url })));
+    pendingUrls.push(...urls.map((url) => ({ url, open: true })));
     return;
   }
   const target = normalWindow();
   if (!target) {
-    const w = openWindow(false, urls.length ? urls.map((url) => ({ url })) : [{ url: settings.get().homePage }]);
+    const w = openWindow(false, urls.length ? urls.map((url) => ({ url, open: true })) : [{ url: settings.get().homePage }]);
     w.focus();
     return;
   }
@@ -226,6 +229,12 @@ function start(): void {
     openWindow(false, pendingUrls);
   }
   pendingUrls.length = 0;
+
+  // Unused background tabs go to sleep to free memory.
+  setInterval(() => {
+    const minutes = settings.get().sleepTabsAfter;
+    if (minutes > 0) for (const w of windows) void w.tabs.sleepIdle(minutes * 60_000);
+  }, 60_000).unref();
 }
 
 function setupSession(ses: Session, isPrivate: boolean): void {
@@ -351,6 +360,11 @@ function tabContextMenu(w: BrowserWindowController, tabId: number): void {
     { label: 'Duplica', click: () => w.tabs.duplicate(tabId) },
     { label: state.pinned ? 'Sblocca scheda' : 'Fissa scheda', click: () => w.tabs.setPinned(tabId, !state.pinned) },
     { label: state.muted ? 'Riattiva audio del sito' : 'Disattiva audio del sito', click: () => w.tabs.setMuted(tabId, !state.muted) },
+    {
+      label: state.sleeping ? 'In pausa per risparmiare memoria' : 'Metti in pausa (libera memoria)',
+      enabled: !state.sleeping && !state.active,
+      click: () => w.tabs.sleepTab(tabId),
+    },
     { type: 'separator' },
     { label: 'Sposta in una nuova finestra', enabled: ids.length > 1, click: () => moveTab(w, tabId, 'new') },
     ...(others.length
@@ -407,7 +421,7 @@ function readSavedSession(): SavedTab[][] {
           // Older sessions stored plain URLs.
           .map((t) => (typeof t === 'string' ? { url: t } : (t as SavedTab)))
           .filter((t) => t && typeof t.url === 'string' && /^(https?|ksuite|file):/i.test(t.url))
-          .map((t) => ({ url: t.url, pinned: Boolean(t.pinned) })),
+          .map((t) => ({ url: t.url, pinned: Boolean(t.pinned), title: typeof t.title === 'string' ? t.title.slice(0, 300) : undefined })),
       )
       .filter((tabs) => tabs.length > 0);
   } catch {
@@ -583,6 +597,7 @@ function buildMenu(): Menu {
       const wc = w?.activeContents();
       if (w && wc) w.viewSource(wc);
     },
+    searchTabs: () => toggleTabSearch(current()),
     openSettings: () => current()?.openSettings(),
     find: () => current()?.focusChrome(IPC.evFind),
     findNext: (backwards) => current()?.send(IPC.evFindNext, { backwards }),
@@ -707,6 +722,35 @@ function showSiteMenu(w: BrowserWindowController, tabId: number): void {
   Menu.buildFromTemplate(items).popup({ window: w.win });
 }
 
+/** Tabs listed by "search tabs": every normal window, or only this one for a private window. */
+function tabSearchData(w: BrowserWindowController): Omit<TabSearchData, 'reset'> {
+  const scope = [...windows].filter((x) => (w.isPrivate ? x === w : !x.isPrivate));
+  return {
+    tabs: scope.flatMap((x) => x.tabs.states().map((t) => ({
+      tabId: t.id,
+      title: t.title,
+      url: t.url,
+      favicon: t.favicon,
+      active: t.active,
+      sleeping: t.sleeping,
+      audible: t.audible,
+      otherWindow: x !== w,
+      lastActiveAt: t.lastActiveAt,
+    }))),
+    closed: w.tabs.recentlyClosed(),
+    theme: w.isPrivate ? 'dark' : settings.get().theme,
+  };
+}
+
+function toggleTabSearch(w: BrowserWindowController | null): void {
+  if (!w) return;
+  if (w.tabSearch.isVisible()) w.tabSearch.hide();
+  else if (!w.tabSearch.justHidden()) {
+    w.suggestions.hide();
+    void w.tabSearch.show(tabSearchData(w));
+  }
+}
+
 // ---------- IPC: browser UI ----------
 
 async function wrap<T>(fn: () => Promise<T> | T): Promise<ApiResult<T>> {
@@ -727,6 +771,34 @@ function handle<A extends unknown[], R>(channel: string, fn: (w: BrowserWindowCo
 }
 
 function registerChromeIpc(): void {
+  const searcher = (sender: Electron.WebContents) => [...windows].find((c) => c.tabSearch.contents === sender);
+  ipcMain.on('tabsearch:choose', (event, tabId: number) => {
+    const w = searcher(event.sender);
+    const owner = [...windows].find((x) => x.tabs.ids().includes(Number(tabId)));
+    if (!w || !owner || owner.isPrivate !== w.isPrivate) return;
+    w.tabSearch.hide();
+    owner.tabs.activate(Number(tabId));
+    owner.focus();
+  });
+  ipcMain.on('tabsearch:close', (event, tabId: number) => {
+    const w = searcher(event.sender);
+    const owner = [...windows].find((x) => x.tabs.ids().includes(Number(tabId)));
+    if (!w || !owner || owner.isPrivate !== w.isPrivate) return;
+    owner.closeTab(Number(tabId));
+    if (!w.win.isDestroyed()) w.tabSearch.refresh(tabSearchData(w));
+  });
+  ipcMain.on('tabsearch:reopen', (event, index: number) => {
+    const w = searcher(event.sender);
+    if (!w) return;
+    w.tabSearch.hide();
+    w.tabs.reopenClosedAt(Number(index));
+  });
+  ipcMain.on('tabsearch:dismiss', (event) => {
+    const w = searcher(event.sender);
+    if (!w) return;
+    w.tabSearch.hide();
+    w.activeContents()?.focus();
+  });
   ipcMain.on('suggest:choose', (event, index: number) => {
     const w = [...windows].find((c) => c.suggestions.contents === event.sender);
     if (w && Number.isInteger(index)) w.suggestions.choose(index);
@@ -759,6 +831,7 @@ function registerChromeIpc(): void {
   handle(IPC.setContentBounds, (w, rect: Rect) => w.tabs.setBounds(rect));
   handle(IPC.showAppMenu, (w) => Menu.getApplicationMenu()?.popup({ window: w.win }));
   handle(IPC.showShieldMenu, (w, tabId: number) => showShieldMenu(w, tabId));
+  handle(IPC.tabSearch, (w) => toggleTabSearch(w));
   handle(IPC.showSiteMenu, (w, tabId: number) => showSiteMenu(w, Number(tabId)));
   handle(IPC.openSettingsPage, (w, section?: string) => w.openSettings(section));
 

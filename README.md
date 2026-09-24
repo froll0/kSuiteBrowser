@@ -36,6 +36,13 @@ quindi funzionano senza sorprese.
 - Riapertura delle schede della sessione precedente (anche quelle fissate)
 - Scorciatoie: `Ctrl+T`, `Ctrl+N`, `Ctrl+Shift+N` (finestra privata), `Ctrl+W`, `Ctrl+L`, `Ctrl+R`/`F5`, `Alt+←/→`, `Ctrl+Tab`, `Ctrl+,` (impostazioni), `Ctrl+Shift+Canc` (cancella dati), `Ctrl+PagSu/PagGiù` (schede), `F12` (su Mac: `⌘` al posto di `Ctrl`, cronologia con `⌘+Y`)
 - Download con cartella configurabile o "chiedi dove salvare"
+- **Cerca tra le schede** (`Ctrl+Shift+A` o la freccia in fondo alla barra delle schede): tutte le schede delle finestre aperte,
+  dalla più recente, con ricerca, chiusura (`Shift+Canc`) e schede chiuse di recente da riaprire
+- **Schede dormienti**: le schede non usate da un po' (1 ora, configurabile in Impostazioni › Generale) chiudono la pagina
+  per liberare memoria e si ricaricano quando le apri, con la cronologia avanti/indietro intatta. Mai quelle fissate,
+  delle app kSuite, con audio in riproduzione o con moduli compilati. Anche "Metti in pausa" nel menu della scheda
+- **Avvio veloce**: le schede della sessione precedente partono in pausa, si carica solo quella in primo piano
+- Con molte schede aperte la barra le riduce all'icona e poi scorre (rotellina del mouse)
 - **Completamento automatico** nella barra degli indirizzi (scrivi `git` → `github.com/`) dai siti visitati e dai preferiti
 - **Anteprima del link** in basso a sinistra al passaggio del mouse
 - **Informazioni sul sito** (clic sul lucchetto o su "Non sicuro"): stato della connessione, permessi concessi al sito, cancellazione di cookie e dati del sito

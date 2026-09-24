@@ -11,6 +11,7 @@ import type { SettingsStore } from './settings';
 import type { BookmarksStore } from './stores/bookmarks';
 import type { HistoryStore } from './stores/history';
 import { StatusBubble } from './status-bubble';
+import { TabSearchPopup } from './tab-search-popup';
 import { SuggestionsPopup } from './suggestions-popup';
 import { TabManager } from './tabs';
 
@@ -23,7 +24,7 @@ export interface WindowContext {
   /** Applies the zoom saved for the page's site (or the default zoom). */
   applyZoom(contents: WebContents): void;
   stepZoom(controller: BrowserWindowController, contents: WebContents, direction: 'in' | 'out'): void;
-  paths: { chromePreload: string; pagePreload: string; chromeHtml: string; suggestHtml: string; suggestPreload: string; appIcon: string };
+  paths: { chromePreload: string; pagePreload: string; chromeHtml: string; suggestHtml: string; suggestPreload: string; tabSearchHtml: string; tabSearchPreload: string; appIcon: string };
   onTabsChanged(controller: BrowserWindowController): void;
   /** Window currently holding a tab's page (tabs can move between windows). */
   ownerOf(contents: WebContents): BrowserWindowController | null;
@@ -54,6 +55,7 @@ export class BrowserWindowController {
   readonly tabs: TabManager;
   readonly suggestions: SuggestionsPopup;
   readonly statusBubble: StatusBubble;
+  readonly tabSearch: TabSearchPopup;
   private refreshTimer: NodeJS.Timeout | null = null;
   private lastActive: number | null = null;
   /** HTTP authentication requests waiting for the user. */
@@ -64,7 +66,7 @@ export class BrowserWindowController {
     readonly session: Session,
     readonly isPrivate: boolean,
     /** null: start without tabs (a tab moved from another window is about to arrive). */
-    initialTabs: Array<{ url: string; pinned?: boolean }> | null,
+    initialTabs: Array<{ url: string; pinned?: boolean; title?: string; open?: boolean }> | null,
     bounds?: Partial<Electron.Rectangle>,
   ) {
     this.win = new BrowserWindow({
@@ -104,12 +106,12 @@ export class BrowserWindowController {
           ctx.onTabsChanged(this);
         },
         onWebContentsCreated: (contents) => this.setupPage(contents),
-        extraState: (contents) => ({
-          blocked: guard.blockedCount(contents.id),
-          protectionActive: guard.protectionActiveFor(contents.getURL() || null),
+        extraState: (contents, url) => ({
+          blocked: contents ? guard.blockedCount(contents.id) : 0,
+          protectionActive: guard.protectionActiveFor(url || null),
           // The PDF viewer fits the page by changing the zoom itself: no badge for that.
-          zoom: /\.pdf($|[?#])/i.test(contents.getURL()) ? ctx.settings.get().defaultZoom : Math.round(contents.getZoomFactor() * 100),
-          bookmarked: /^(https?|file|ksuite):/i.test(contents.getURL()) && Boolean(ctx.bookmarks.find(contents.getURL())),
+          zoom: !contents || /\.pdf($|[?#])/i.test(url) ? ctx.settings.get().defaultZoom : Math.round(contents.getZoomFactor() * 100),
+          bookmarked: /^(https?|file|ksuite):/i.test(url) && Boolean(ctx.bookmarks.find(url)),
         }),
         failurePage: (contents, url) => {
           const http = guard.httpFallbackFor(contents.id, url);
@@ -126,6 +128,7 @@ export class BrowserWindowController {
       this.activeContents()?.focus();
     });
 
+    this.tabSearch = new TabSearchPopup(this.win, { html: ctx.paths.tabSearchHtml, preload: ctx.paths.tabSearchPreload }, TITLEBAR_HEIGHT);
     this.statusBubble = new StatusBubble(this.win, () => this.tabs.pageArea(), () => {
       const theme = ctx.settings.get().theme;
       return isPrivate || theme === 'dark' || (theme === 'system' && nativeTheme.shouldUseDarkColors);
@@ -135,14 +138,17 @@ export class BrowserWindowController {
     this.win.webContents.once('did-finish-load', () => {
       if (initialTabs === null) return;
       const tabs = initialTabs.length ? initialTabs : [{ url: ctx.settings.get().homePage }];
-      for (const t of tabs) this.tabs.create(t.url, { pinned: t.pinned, background: true });
-      const firstUnpinned = this.tabs.states().find((t) => !t.pinned) ?? this.tabs.states()[0];
-      if (firstUnpinned) this.tabs.activate(firstUnpinned.id);
+      // Restored tabs start asleep and load when first shown: the window opens fast even with many tabs.
+      const opened = tabs.some((t) => t.open);
+      const front = opened ? tabs.map((t) => Boolean(t.open)).lastIndexOf(true) : Math.max(0, tabs.findIndex((t) => !t.pinned));
+      const ids = tabs.map((t, i) => this.tabs.create(t.url, { pinned: t.pinned, background: true, asleep: i !== front && !t.open, title: t.title }));
+      if (ids[front] !== undefined) this.tabs.activate(ids[front]);
     });
     this.win.on('closed', () => {
       if (this.refreshTimer) clearTimeout(this.refreshTimer);
       this.suggestions.destroy();
       this.statusBubble.destroy();
+      this.tabSearch.destroy();
       this.tabs.destroy();
       ctx.onClosed(this);
     });

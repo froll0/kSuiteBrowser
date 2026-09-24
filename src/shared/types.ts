@@ -21,6 +21,9 @@ export interface TabState {
   pinned: boolean;
   audible: boolean;
   muted: boolean;
+  /** Page closed to save memory; it reloads when shown. */
+  sleeping: boolean;
+  lastActiveAt: number;
 }
 
 export interface UpdateStatus {
@@ -199,6 +202,8 @@ export interface Settings {
   notifyEvents: boolean;
   /** Minutes before an event starts when the reminder shows up. */
   eventReminderMinutes: number;
+  /** Minutes before an unused background tab sleeps (0 = never). */
+  sleepTabsAfter: number;
 
   // Password
   offerToSavePasswords: boolean;
@@ -349,3 +354,26 @@ export interface DownloadItemState {
 
 /** Result envelope used by every API call exposed to the renderer. */
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+/** An open tab in the tab search popup. */
+export interface TabSearchItem {
+  tabId: number;
+  title: string;
+  url: string;
+  favicon: string | null;
+  active: boolean;
+  sleeping: boolean;
+  audible: boolean;
+  /** In another window than the one searching. */
+  otherWindow: boolean;
+  lastActiveAt: number;
+}
+
+export interface TabSearchData {
+  tabs: TabSearchItem[];
+  /** Recently closed tabs of this window, most recent first; `index` is what reopen() takes. */
+  closed: Array<{ index: number; title: string; url: string }>;
+  theme: string;
+  /** Focus the search field (first open) or keep the current query (refresh after closing a tab). */
+  reset: boolean;
+}

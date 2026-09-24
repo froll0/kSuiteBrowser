@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src ksuite: https: http: data:; font-src 'self'" />
+  <link rel="stylesheet" href="tabsearch.css" />
+</head>
+<body>
+  <div class="card" role="dialog" aria-label="Cerca tra le schede">
+    <div class="search">
+      <span id="search-icon"></span>
+      <input id="q" type="search" placeholder="Cerca tra le schede" aria-label="Cerca tra le schede" spellcheck="false" autocomplete="off" />
+    </div>
+    <div id="list" role="listbox" aria-label="Schede"></div>
+  </div>
+  <script src="tabsearch.js"></script>
+</body>
+</html>

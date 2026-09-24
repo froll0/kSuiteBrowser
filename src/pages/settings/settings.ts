@@ -1,5 +1,5 @@
 import { h } from '../../renderer/dom';
-import { ASKABLE_PERMISSIONS, REMINDER_MINUTES } from '../../shared/settings-schema';
+import { ASKABLE_PERMISSIONS, REMINDER_MINUTES, SLEEP_MINUTES } from '../../shared/settings-schema';
 import type { AskablePermission, BrowsingDataSelection, Settings, UpdateStatus } from '../../shared/types';
 import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from '../../shared/url';
 import { ZOOM_STEPS } from '../../shared/zoom';
@@ -116,6 +116,7 @@ async function generalSection(): Promise<HTMLElement> {
     row('Siti più visitati nella nuova scheda', 'Calcolati dalla cronologia, solo su questo computer.', toggle('showTopSites', 'Mostra siti più visitati')),
     row('Motore di ricerca', 'Usato nella barra degli indirizzi. “kSuite” cerca insieme nei tuoi dati (kDrive, email, contatti, eventi, preferiti, cronologia) e ti porta sul web con un clic.', engine),
     row('Motore per il web', 'Usato dalla ricerca kSuite per i risultati sul web.', webEngineSelect()),
+    row('Metti in pausa le schede inattive', 'Le schede non usate da un po’ chiudono la pagina per liberare memoria e si ricaricano quando le apri. Mai quelle fissate, delle app kSuite, con audio in riproduzione o con moduli compilati.', sleepSelect()),
     row('Cartella dei download', folder, folderControls),
     row('Chiedi dove salvare ogni file', 'Mostra la finestra “Salva con nome” per ogni download.', toggle('askDownloadLocation', 'Chiedi dove salvare')),
   );
@@ -158,6 +159,13 @@ function appearanceSection(): HTMLElement {
 function webEngineSelect(): HTMLElement {
   const select = h('select', { 'aria-label': 'Motore per il web' }, ...Object.entries(WEB_SEARCH_ENGINES).map(([id, e]) => h('option', { value: id, selected: settings.webSearchEngine === id }, e.name)));
   select.addEventListener('change', () => void update({ webSearchEngine: select.value as Settings['webSearchEngine'] }));
+  return select;
+}
+
+function sleepSelect(): HTMLElement {
+  const label = (m: number) => (m === 0 ? 'Mai' : m < 60 ? `Dopo ${m} minuti` : m === 60 ? 'Dopo 1 ora' : `Dopo ${m / 60} ore`);
+  const select = h('select', { 'aria-label': 'Metti in pausa le schede inattive' }, ...SLEEP_MINUTES.map((m) => h('option', { value: String(m), selected: settings.sleepTabsAfter === m }, label(m))));
+  select.addEventListener('change', () => void update({ sleepTabsAfter: Number(select.value) }));
   return select;
 }
 

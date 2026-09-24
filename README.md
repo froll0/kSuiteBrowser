@@ -107,6 +107,8 @@ quindi funzionano senza sorprese.
 - **Modalità solo HTTPS**: le pagine `http://` vengono caricate in `https://`; se il sito non lo supporta compare un avviso con "Continua con HTTP" (le reti locali sono escluse)
 - **DNS cifrato** (DNS over HTTPS): automatico, oppure Quad9 (Svizzera), Mullvad, Cloudflare o un indirizzo a scelta,
   così la rete (Wi-Fi pubblico, provider) non vede quali siti apri
+- **Protezione dell'IP con WebRTC**: standard, protetta (predefinita: solo la connessione principale, l'IP reale resta
+  nascosto dietro una VPN) o massima (nessun collegamento diretto); le chiamate di kMeet funzionano sempre
 - **Link puliti**: i parametri di tracciamento (`utm_…`, `fbclid`, `gclid`, `msclkid`, `si` di YouTube…) vengono tolti dagli
   indirizzi prima di aprire la pagina; "Copia link senza tracciamento" nel menu contestuale dei link
 - **Protezione da phishing e malware**: i siti che rubano password e dati e i file di malware conosciuti vengono bloccati

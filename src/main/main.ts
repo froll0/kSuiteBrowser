@@ -16,6 +16,7 @@ import type {
 import { searchAnswerMessages } from '../shared/ai-prompts';
 import { permissionLabel } from '../shared/external-protocols';
 import { secureDnsConfig } from '../shared/secure-dns';
+import { webRtcPolicy } from '../shared/webrtc';
 import { generatePassword } from '../shared/password-gen';
 import { framedIconSvg, letterIconSvg, topSites } from '../shared/top-sites';
 import { chromeUserAgent, resolveOmniboxInput } from '../shared/url';
@@ -461,6 +462,12 @@ function applySecureDns(s: Settings): void {
 function onSettingsChanged(next: Settings, previous: Settings): void {
   if (next.theme !== previous.theme) nativeTheme.themeSource = next.theme;
   if (next.secureDns !== previous.secureDns || next.secureDnsCustom !== previous.secureDnsCustom) applySecureDns(next);
+  if (next.webRtcProtection !== previous.webRtcProtection) {
+    // Open pages follow at once (new connections use the new rule).
+    for (const wc of allWebContents.getAllWebContents()) {
+      if (!wc.isDestroyed() && /^https?:/i.test(wc.getURL())) wc.setWebRTCIPHandlingPolicy(webRtcPolicy(next.webRtcProtection, wc.getURL()));
+    }
+  }
   if (next.trackingProtection !== previous.trackingProtection) {
     void blocker.setLevel(next.trackingProtection).then(() => refreshAllTabs());
   }

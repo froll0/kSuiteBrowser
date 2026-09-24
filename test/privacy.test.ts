@@ -93,3 +93,14 @@ describe('stripTrackingParams', () => {
     expect(stripTrackingParams('https://x.com/user/status/1?s=20&t=abc')).toBe('https://x.com/user/status/1');
   });
 });
+
+describe('webRtcPolicy', () => {
+  it('maps the setting to Chromium policies, keeping kMeet working', async () => {
+    const { webRtcPolicy } = await import('../src/shared/webrtc');
+    expect(webRtcPolicy('standard', 'https://meet.example.com/')).toBe('default');
+    expect(webRtcPolicy('public', 'https://meet.example.com/')).toBe('default_public_interface_only');
+    expect(webRtcPolicy('proxy', 'https://meet.example.com/')).toBe('disable_non_proxied_udp');
+    expect(webRtcPolicy('proxy', 'https://kmeet.infomaniak.com/abc')).toBe('default_public_interface_only');
+    expect(webRtcPolicy('proxy', 'not a url')).toBe('disable_non_proxied_udp');
+  });
+});

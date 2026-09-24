@@ -7,6 +7,7 @@ import { attachContextMenu } from './context-menu';
 import { popupTitle } from '../shared/url';
 import { isInternalUrl } from './internal-pages';
 import { isReaderable, readerableIds } from './reader';
+import { webRtcPolicy } from '../shared/webrtc';
 import type { PrivacyGuard } from './privacy';
 import type { KSuiteServices } from './services';
 import type { SettingsStore } from './settings';
@@ -375,6 +376,12 @@ export class BrowserWindowController {
     });
     contents.on('page-title-updated', (_e, title) => {
       if (visitId) this.ctx.history.setTitle(visitId, title);
+    });
+    // WebRTC may only use what the privacy setting allows, decided again for every page.
+    const applyWebRtc = (url: string) => contents.setWebRTCIPHandlingPolicy(webRtcPolicy(this.ctx.settings.get().webRtcProtection, url));
+    applyWebRtc(contents.getURL());
+    contents.on('did-start-navigation', (details) => {
+      if (details.isMainFrame && !details.isSameDocument) applyWebRtc(details.url);
     });
     contents.on('login', (event, _details, info, callback) => {
       event.preventDefault();

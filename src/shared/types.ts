@@ -1,5 +1,6 @@
 import type { SearchEngineId, WebSearchEngineId } from './url';
 import type { SecureDnsChoice } from './secure-dns';
+import type { WebRtcProtection } from './webrtc';
 
 export interface TabState {
   id: number;
@@ -253,6 +254,8 @@ export interface Settings {
   threatProtection: boolean;
   /** Warn when a password being saved appears in known data breaches. */
   breachCheckOnSave: boolean;
+  /** What WebRTC may reveal about the network (see shared/webrtc.ts). */
+  webRtcProtection: WebRtcProtection;
   /** Remove utm_*, fbclid, gclid… from the addresses of the pages opened. */
   stripTrackingParams: boolean;
   /** DNS over HTTPS provider. */

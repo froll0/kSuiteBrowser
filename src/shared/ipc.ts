@@ -129,6 +129,8 @@ export const INTERNAL = {
   pwImport: 'internal:pw:import',
   pwExport: 'internal:pw:export',
   pwGenerate: 'internal:pw:generate',
+  pwBreaches: 'internal:pw:breaches',
+  pwBreachCheck: 'internal:pw:breach-check',
   testNotification: 'internal:notifications:test',
   updateStatus: 'internal:update:status',
   updateCheck: 'internal:update:check',

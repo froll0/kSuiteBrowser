@@ -1119,6 +1119,11 @@ function registerInternalIpc(): void {
     passwords.touch();
   }));
   handleInternal(INTERNAL.pwLock, P, () => vault().lock());
+  handleInternal(INTERNAL.pwBreaches, P, () => passwords.breachReport());
+  handleInternal(INTERNAL.pwBreachCheck, P, () => wrap(() => {
+    passwords.touch();
+    return passwords.checkBreaches();
+  }));
   handleInternal(INTERNAL.pwList, P, () => wrap(() => {
     passwords.touch();
     return vault().list();

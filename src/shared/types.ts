@@ -126,6 +126,13 @@ export interface Suggestion {
   tabId?: number;
 }
 
+/** Result of the breached-password check: times each saved login's password appears in known breaches. */
+export interface BreachReport {
+  checkedAt: number | null;
+  /** Login id → count (0 = not found). Logins changed since the check are missing. */
+  results: Record<string, number>;
+}
+
 export interface SavedLogin {
   id: string;
   /** scheme://host[:port] the login belongs to. */
@@ -244,6 +251,8 @@ export interface Settings {
   doNotTrack: boolean;
   /** Stop known phishing and malware sites and downloads. */
   threatProtection: boolean;
+  /** Warn when a password being saved appears in known data breaches. */
+  breachCheckOnSave: boolean;
   /** Remove utm_*, fbclid, gclid… from the addresses of the pages opened. */
   stripTrackingParams: boolean;
   /** DNS over HTTPS provider. */

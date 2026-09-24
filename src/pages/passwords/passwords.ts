@@ -1,7 +1,7 @@
 import { h } from '../../renderer/dom';
 import { isWeakPassword } from '../../shared/password-gen';
 import { faviconUrl } from '../../shared/top-sites';
-import type { SavedLogin, VaultStatus } from '../../shared/types';
+import type { BreachReport, SavedLogin, VaultStatus } from '../../shared/types';
 import { hydrateIcons } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 import { emptyState, iconButton, withIcon } from '../shared/ui';
@@ -18,6 +18,8 @@ const pw = internal.passwords;
 let status: VaultStatus;
 let logins: SavedLogin[] = [];
 let never: string[] = [];
+let breaches: BreachReport = { checkedAt: null, results: {} };
+let checking = false;
 const revealed = new Set<string>();
 let editing: string | null = null;
 let adding = false;
@@ -144,6 +146,9 @@ function loginRow(login: SavedLogin, reused: Set<string>): HTMLElement {
       h('a', { href: login.origin, title: login.origin }, host),
       h('span', { class: 'user' }, login.username || '(senza nome utente)'),
     ),
+    (breaches.results[login.id] ?? 0) > 0
+      ? h('span', { class: 'badge danger', title: `Compare ${breaches.results[login.id].toLocaleString('it-IT')} volte in violazioni di dati note: cambiala` }, 'compromessa')
+      : null,
     reused.has(login.password) ? h('span', { class: 'badge warn', title: 'La stessa password è usata su più siti' }, 'riutilizzata') : null,
     isWeakPassword(login.password) ? h('span', { class: 'badge warn', title: 'Password corta o facile da indovinare' }, 'debole') : null,
     h('span', { class: 'secret', 'aria-label': shown ? 'Password' : 'Password nascosta' }, shown ? login.password : '••••••••••'),
@@ -187,12 +192,55 @@ function exportForm(): HTMLElement {
   return card('Esporta password', form);
 }
 
+/** Check against known data breaches (Have I Been Pwned), run on request. */
+function breachCard(breachedCount: number): HTMLElement {
+  const button = withIcon(h('button', {
+    class: breaches.checkedAt ? '' : 'primary',
+    disabled: checking,
+    onclick: async () => {
+      checking = true;
+      render();
+      const res = await pw.checkBreaches();
+      checking = false;
+      if (res.ok) {
+        breaches = res.data;
+        const n = logins.filter((l) => (breaches.results[l.id] ?? 0) > 0).length;
+        say(n ? `${n} password compaiono in violazioni note.` : 'Nessuna password compare in violazioni note.');
+      } else {
+        say(`Controllo non riuscito: ${res.error}`, true);
+      }
+      render();
+    },
+  }, checking ? 'Controllo in corso…' : breaches.checkedAt ? 'Controlla di nuovo' : 'Controlla ora'), 'shieldCheck');
+  const how = h('p', { class: 'hint' }, 'Il controllo usa Have I Been Pwned: dal computer esce solo l’inizio (5 caratteri) dell’impronta SHA-1 di ogni password, mai la password. Il confronto avviene qui.');
+  let title: string;
+  let text: string;
+  let tone: string;
+  if (!breaches.checkedAt) {
+    title = 'Password compromesse';
+    text = 'Controlla se qualcuna delle tue password compare nei dati rubati durante attacchi informatici noti.';
+    tone = '';
+  } else if (breachedCount > 0) {
+    title = `${breachedCount} ${breachedCount === 1 ? 'password compromessa' : 'password compromesse'}`;
+    text = 'Queste password circolano tra i dati rubati: chi attacca le prova per prime. Cambiale sui siti segnati con “compromessa”, scegliendo una password nuova e diversa per ogni sito.';
+    tone = ' danger';
+  } else {
+    title = 'Nessuna password compromessa';
+    text = `Nessuna delle tue password compare in violazioni note (controllo delle ${new Date(breaches.checkedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}).`;
+    tone = ' ok';
+  }
+  return h('section', { class: `breach-card${tone}` },
+    h('div', { class: 'breach-text' }, h('h2', {}, title), h('p', {}, text), how),
+    button);
+}
+
 function unlockedView(): Node[] {
   const q = search.value.trim().toLowerCase();
   const reused = reusedPasswords();
   const visible = logins.filter((l) => !q || `${l.origin} ${l.username}`.toLowerCase().includes(q));
   const weak = logins.filter((l) => isWeakPassword(l.password)).length;
   const reusedCount = logins.filter((l) => reused.has(l.password)).length;
+  const breachedCount = logins.filter((l) => (breaches.results[l.id] ?? 0) > 0).length;
 
   const nodes: Node[] = [
     h('div', { class: 'toolbar' },
@@ -205,8 +253,10 @@ function unlockedView(): Node[] {
       h('span', {}, h('strong', {}, String(logins.length)), ' password salvate'),
       h('span', {}, h('strong', {}, String(reusedCount)), ' riutilizzate'),
       h('span', {}, h('strong', {}, String(weak)), ' deboli'),
+      breaches.checkedAt ? h('span', {}, h('strong', {}, String(breachedCount)), ' compromesse') : null,
     ),
   ];
+  if (logins.length) nodes.push(breachCard(breachedCount));
   if (exporting) nodes.push(exportForm());
   if (adding) nodes.push(h('section', { class: 'group' }, h('h2', {}, 'Nuovo accesso'), editRow(null)));
   nodes.push(
@@ -271,6 +321,7 @@ async function load(): Promise<void> {
     } else {
       logins = list.data;
       never = nv.ok ? nv.data : [];
+      breaches = await pw.breaches();
     }
   } else {
     logins = [];

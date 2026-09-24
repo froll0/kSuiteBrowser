@@ -1,5 +1,5 @@
 import { INTERNAL } from '../../shared/ipc';
-import type { AiEvent, AboutInfo, ReaderArticle, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
+import type { AiEvent, AboutInfo, BreachReport, ReaderArticle, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
 
 interface InternalBridge {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -82,6 +82,8 @@ export const internal = {
     importCsv: (csv: string) => call<ApiResult<number>>(INTERNAL.pwImport, csv),
     exportCsv: (primary?: string) => call<ApiResult<string>>(INTERNAL.pwExport, primary),
     generate: () => call<string>(INTERNAL.pwGenerate),
+    breaches: () => call<BreachReport>(INTERNAL.pwBreaches),
+    checkBreaches: () => call<ApiResult<BreachReport>>(INTERNAL.pwBreachCheck),
   },
   history: {
     search: (query: string, before?: number) => call<HistoryVisit[]>(INTERNAL.historySearch, query, before),

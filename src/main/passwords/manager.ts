@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import { IPC } from '../../shared/ipc';
 import { generatePassword } from '../../shared/password-gen';
 import { siteOf } from '../../shared/privacy-rules';
-import type { PasswordPrompt } from '../../shared/types';
+import type { BreachReport, PasswordPrompt } from '../../shared/types';
 import type { SettingsStore } from '../settings';
 import type { BrowserWindowController } from '../window';
+import { BreachChecker, sha1 } from './breach';
 import { originOf, Vault } from './vault';
 
 const AUTO_LOCK_MS = 30 * 60 * 1000;
@@ -38,6 +39,9 @@ export class PasswordManager {
   private saveAfterUnlock: string | null = null;
   private lastUse = Date.now();
   private setupHintShown = false;
+  readonly breaches = new BreachChecker();
+  /** Last full check: counts by password SHA-1 (no plain password kept). */
+  private lastCheck: { at: number; counts: Map<string, number> } | null = null;
 
   constructor(
     userData: string,
@@ -197,7 +201,47 @@ export class PasswordManager {
     } else {
       this.vault.save(p.prompt.origin, typeof username === 'string' ? username.trim() : p.prompt.username, p.password);
       window.send(IPC.evToast, { kind: 'success', message: p.prompt.kind === 'update' ? 'Password aggiornata' : 'Password salvata' });
+      if (this.settings.get().breachCheckOnSave) void this.warnIfBreached(window, p.prompt.origin, p.password);
     }
+  }
+
+  private async warnIfBreached(window: BrowserWindowController, origin: string, password: string): Promise<void> {
+    try {
+      const count = await this.breaches.count(password);
+      if (count > 0) {
+        this.remember(password, count);
+        window.send(IPC.evToast, {
+          kind: 'error',
+          message: `Attenzione: questa password compare ${count.toLocaleString('it-IT')} volte in violazioni di dati note. Cambiala su ${new URL(origin).host}.`,
+        });
+      }
+    } catch {
+      /* offline: the full check in ksuite://passwords can be run later */
+    }
+  }
+
+  private remember(password: string, count: number): void {
+    this.lastCheck ??= { at: Date.now(), counts: new Map() };
+    this.lastCheck.counts.set(sha1(password), count);
+  }
+
+  /** Checks every saved password (only hash prefixes are sent). */
+  async checkBreaches(): Promise<BreachReport> {
+    const logins = this.vault.list();
+    const counts = await this.breaches.countMany(logins.map((l) => l.password));
+    this.lastCheck = { at: Date.now(), counts };
+    return this.breachReport();
+  }
+
+  /** Results of the last check for the current logins (a changed password is no longer listed). */
+  breachReport(): BreachReport {
+    if (!this.lastCheck || !this.vault.tryAutoUnlock()) return { checkedAt: this.lastCheck?.at ?? null, results: {} };
+    const results: Record<string, number> = {};
+    for (const login of this.vault.list()) {
+      const count = this.lastCheck.counts.get(sha1(login.password));
+      if (count !== undefined) results[login.id] = count;
+    }
+    return { checkedAt: this.lastCheck.at, results };
   }
 
   /** Primary password entered in the browser UI unlock bar. */

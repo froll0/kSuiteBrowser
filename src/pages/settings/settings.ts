@@ -212,6 +212,7 @@ async function passwordsSection(): Promise<HTMLElement> {
     'passwords',
     'Password',
     row('Offri di salvare le password', 'Dopo un accesso compare una barra per salvare nome utente e password.', toggle('offerToSavePasswords', 'Offri di salvare le password')),
+    row('Avvisami se salvo una password violata', 'Quando salvi una password il browser controlla se compare in violazioni di dati note (Have I Been Pwned): esce solo l’inizio della sua impronta SHA-1, mai la password.', toggle('breachCheckOnSave', 'Avvisa per le password violate')),
     row('Compila automaticamente', 'Se per un sito c’è un solo accesso salvato, il modulo viene compilato all’apertura (solo su pagine HTTPS). Altrimenti clicca nel campo per scegliere.', toggle('autofillPasswords', 'Compila automaticamente')),
     row('Password salvate', state, h('a', { href: 'ksuite://passwords/', class: 'button-link' }, 'Gestisci password')),
   );

@@ -86,6 +86,9 @@ quindi funzionano senza sorprese.
 - **Password sicure suggerite** nei moduli di registrazione (20 caratteri casuali)
 - Pagina di gestione: ricerca, mostra/copia, modifica, eliminazione, avvisi per password **riutilizzate** o **deboli**, siti esclusi
 - **Importazione CSV** da Chrome, Edge, Firefox, Safari, Bitwarden, 1Password; **esportazione CSV** (richiede la password principale)
+- **Password compromesse**: "Controlla ora" nella pagina delle password verifica se compaiono in violazioni di dati note
+  (Have I Been Pwned) e le segna come "compromessa"; avviso anche al momento del salvataggio (disattivabile). Dal computer
+  esce solo l'inizio (5 caratteri) dell'impronta SHA-1 di ogni password, con risposte "imbottite" che non rivelano nulla
 - **Password principale** opzionale: blocca le password finché non la inserisci, con blocco automatico dopo 30 minuti di inattività
 - Mai attivo nelle finestre private (nessun salvataggio né compilazione automatica)
 

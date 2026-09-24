@@ -22,6 +22,7 @@ const reloadBtn = $<HTMLButtonElement>('btn-reload');
 const shieldBtn = $<HTMLButtonElement>('btn-shield');
 const starBtn = $<HTMLButtonElement>('btn-star');
 const readerBtn = $<HTMLButtonElement>('btn-reader');
+const mediaBtn = $<HTMLButtonElement>('btn-media');
 const zoomBtn = $<HTMLButtonElement>('btn-zoom');
 const bookmarkItems = $('bookmarks-items');
 const findbar = $('findbar');
@@ -262,6 +263,11 @@ function renderToolbar(): void {
   renderShield(tab);
 
   const bookmarkable = Boolean(tab && /^(https?|file|ksuite):/i.test(tab.url) && !tab.url.startsWith('ksuite://newtab'));
+  // Media controls: shown while a tab of this window plays (or played) sound.
+  const media = tabs.filter((t) => t.media || t.audible);
+  mediaBtn.hidden = media.length === 0;
+  mediaBtn.classList.toggle('playing', media.some((t) => t.audible));
+  mediaBtn.title = media.some((t) => t.audible) ? 'Audio in riproduzione: controlli e picture-in-picture' : 'Audio e video delle schede';
   readerBtn.hidden = !tab || !(tab.readerable || tab.reader);
   readerBtn.classList.toggle('on', Boolean(tab?.reader));
   readerBtn.setAttribute('aria-pressed', String(Boolean(tab?.reader)));
@@ -479,6 +485,7 @@ ks.events.onBookmarks((list) => {
   renderBookmarksBar();
 });
 $('btn-all-bookmarks').addEventListener('click', () => void ks.bookmarks.all());
+mediaBtn.addEventListener('click', () => void ks.mediaMenu());
 readerBtn.addEventListener('click', () => {
   const t = activeTab();
   if (t) void ks.tabs.reader(t.id);

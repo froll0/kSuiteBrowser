@@ -22,6 +22,7 @@ export interface AppMenuActions {
   openSettings(): void;
   searchTabs(): void;
   reader(): void;
+  pictureInPicture(): void;
   find(): void;
   findNext(backwards: boolean): void;
   zoom(direction: 'in' | 'out' | 'reset'): void;
@@ -108,6 +109,7 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { label: 'Mostra/nascondi barra dei preferiti', accelerator: 'CmdOrCtrl+Shift+B', click: a.toggleBookmarksBar },
         { label: 'Mostra/nascondi pannello kSuite', accelerator: 'CmdOrCtrl+Shift+K', click: a.togglePanel },
         { label: 'Modalità lettura', accelerator: 'F9', click: a.reader },
+        { label: 'Picture-in-picture', accelerator: 'CmdOrCtrl+Shift+P', click: a.pictureInPicture },
         { label: 'Sorgente pagina', accelerator: 'CmdOrCtrl+U', click: a.viewSource },
         { label: 'Strumenti per sviluppatori', accelerator: 'F12', click: a.devTools },
         { type: 'separator' },

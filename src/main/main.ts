@@ -25,6 +25,7 @@ import { buildAppMenu } from './app-menu';
 import { TrackerBlocker } from './blocker';
 import { ThreatProtection } from './threats';
 import { ReaderCache, extractArticle, readerOriginal, readerUrl } from './reader';
+import { pageMedia, pageMediaAction } from './media';
 import type { HoverInfo } from './hover-card';
 import { clearBrowsingData } from './browsing-data';
 import { DownloadManager } from './downloads';
@@ -633,6 +634,10 @@ function buildMenu(): Menu {
       if (w && wc) w.viewSource(wc);
     },
     searchTabs: () => toggleTabSearch(current()),
+    pictureInPicture: () => {
+      const wc = current()?.activeContents();
+      if (wc) void pageMediaAction(wc, 'toggle-pip');
+    },
     reader: () => {
       const w = current();
       const id = w?.activeTabId();
@@ -832,6 +837,27 @@ function exitReader(wc: Electron.WebContents, original: string): void {
   else void wc.loadURL(original);
 }
 
+/** Media controls of the window: every tab that played sound, with pause/play, picture-in-picture, go to tab. */
+async function showMediaMenu(w: BrowserWindowController): Promise<void> {
+  const tabs = w.tabs.states().filter((t) => t.media || t.audible);
+  const items: Electron.MenuItemConstructorOptions[] = [];
+  for (const t of tabs) {
+    const wc = w.tabs.contents(t.id);
+    if (!wc) continue;
+    const info = await pageMedia(wc);
+    if (items.length) items.push({ type: 'separator' });
+    items.push(
+      { label: t.title.length > 60 ? `${t.title.slice(0, 57)}…` : t.title, enabled: false },
+      { label: info.playing ? 'Pausa' : 'Riprendi', click: () => void pageMediaAction(wc, info.playing ? 'pause' : 'play') },
+      { label: t.muted ? 'Riattiva audio' : 'Disattiva audio', click: () => w.tabs.setMuted(t.id, !t.muted) },
+    );
+    if (info.hasVideo) items.push({ label: 'Picture-in-picture', type: 'checkbox', checked: info.pip, click: () => void pageMediaAction(wc, 'toggle-pip') });
+    if (!t.active) items.push({ label: 'Vai alla scheda', click: () => w.tabs.activate(t.id) });
+  }
+  if (!items.length) items.push({ label: 'Nessun contenuto audio o video', enabled: false });
+  if (!w.win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: w.win });
+}
+
 function toggleTabSearch(w: BrowserWindowController | null): void {
   if (!w) return;
   if (w.tabSearch.isVisible()) w.tabSearch.hide();
@@ -934,6 +960,7 @@ function registerChromeIpc(): void {
     return buildSuggestions(String(input ?? '').slice(0, 500), s.searchEngine, useHistory ? history.summaries() : [], bookmarks.list(), { tabs });
   });
   handle(IPC.tabsSwitch, (w, tabId: number) => switchToTab(w, Number(tabId)));
+  handle(IPC.mediaMenu, (w) => showMediaMenu(w));
   handle(IPC.readerToggle, (w, tabId: number) => toggleReader(w, Number(tabId)));
   handle(IPC.tabHover, (w, tabId: number | null, rect?: Rect) => {
     const state = tabId == null ? undefined : w.tabs.states().find((t) => t.id === Number(tabId));

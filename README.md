@@ -55,6 +55,10 @@ quindi funzionano senza sorprese.
 - **Informazioni sul sito** (clic sul lucchetto o su "Non sicuro"): stato della connessione, permessi concessi al sito, cancellazione di cookie e dati del sito
 - **Stampa** (`Ctrl+P`), **salva pagina con nome** in HTML completo o MHTML (`Ctrl+S`), **sorgente pagina** (`Ctrl+U`)
 - **Visualizzatore PDF** integrato
+- **Video e audio**: menu contestuale con riproduci/pausa, audio, ripeti, controlli, velocità, **picture-in-picture**
+  (anche sui siti che lo disattivano), apri/salva/copia indirizzo; `Ctrl+Shift+P` mette in picture-in-picture il video
+  principale della scheda (anche dentro i riquadri incorporati); pulsante nella barra con i controlli di tutte le schede
+  che riproducono audio (pausa/riprendi, audio, picture-in-picture, vai alla scheda)
 - **Video a schermo intero** (YouTube e simili): la pagina occupa tutta la finestra, `Esc` per uscire
 - **Pagine d'errore chiare** (nessuna connessione, sito inesistente, certificato non valido…) con "Riprova";
   pagina dedicata se una scheda si blocca e avviso "La pagina non risponde"

@@ -29,6 +29,8 @@ export interface TabState {
   readerable: boolean;
   /** Showing the page in reader mode (url is then the article's address). */
   reader: boolean;
+  /** Played sound since the page loaded: shown in the media controls. */
+  media: boolean;
   lastActiveAt: number;
 }
 

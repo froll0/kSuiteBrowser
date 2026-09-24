@@ -45,6 +45,7 @@ const api = {
   showShieldMenu: (tabId: number) => invoke<void>(IPC.showShieldMenu, tabId),
   showSiteMenu: (tabId: number) => invoke<void>(IPC.showSiteMenu, tabId),
   tabSearch: () => invoke<void>(IPC.tabSearch),
+  mediaMenu: () => invoke<void>(IPC.mediaMenu),
   openSettingsPage: (section?: string) => invoke<void>(IPC.openSettingsPage, section),
   windowInfo: () => invoke<{ isPrivate: boolean; windowId: number; platform: string }>(IPC.windowInfo),
   suggest: {

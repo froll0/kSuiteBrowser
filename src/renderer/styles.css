@@ -349,7 +349,8 @@ body.private .tab.active, :root[data-theme="dark"] .tab.active { box-shadow: non
 .pill:hover { border-color: var(--border-strong); }
 #btn-star.on, #btn-reader.on { color: var(--accent); }
 #btn-reader.on { background: var(--accent-soft); }
-#btn-reader[hidden] { display: none; }
+#btn-reader[hidden], #btn-media[hidden] { display: none; }
+#btn-media.playing { color: var(--accent); }
 #btn-star.on svg { fill: currentColor; }
 
 .shield .count {

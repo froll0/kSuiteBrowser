@@ -7,6 +7,7 @@ export const IPC = {
   tabsSwitch: 'tabs:switch',
   tabHover: 'tabs:hover',
   readerToggle: 'tabs:reader-toggle',
+  mediaMenu: 'tabs:media-menu',
   tabsNavigate: 'tabs:navigate',
   tabsBack: 'tabs:back',
   tabsForward: 'tabs:forward',

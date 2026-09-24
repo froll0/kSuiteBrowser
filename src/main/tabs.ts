@@ -10,6 +10,8 @@ export interface Tab {
   sleep: SleepState | null;
   /** When the tab was last in front (for sleeping and "recent" ordering). */
   lastActiveAt: number;
+  /** The page played sound since it loaded: media controls stay available (also once paused). */
+  mediaSeen: boolean;
   favicon: string | null;
   appId: string | null;
   pinned: boolean;
@@ -110,6 +112,7 @@ export class TabManager {
       view: null,
       sleep: null,
       lastActiveAt: Date.now(),
+      mediaSeen: false,
       favicon: null,
       appId: options.appId ?? null,
       pinned: Boolean(options.pinned),
@@ -152,10 +155,14 @@ export class TabManager {
     wc.on('page-title-updated', emit);
     wc.on('did-start-loading', emit);
     wc.on('did-stop-loading', emit);
-    wc.on('audio-state-changed', emit);
+    wc.on('audio-state-changed', () => {
+      if (wc.isCurrentlyAudible()) tab.mediaSeen = true;
+      emit();
+    });
     wc.on('did-navigate', (_e, navUrl) => {
       if (!navUrl.startsWith('data:') && !navUrl.startsWith('ksuite://https-only') && !navUrl.startsWith('ksuite://blocked')) tab.failedUrl = null;
       tab.favicon = null;
+      tab.mediaSeen = false;
       emit();
     });
     wc.on('did-navigate-in-page', emit);
@@ -526,6 +533,7 @@ export class TabManager {
           muted: sleep.muted,
           sleeping: true,
           reader: false,
+          media: false,
           lastActiveAt: t.lastActiveAt,
           ...this.hooks.extraState(null, sleep.url),
         };
@@ -549,6 +557,7 @@ export class TabManager {
         muted: wc.isAudioMuted(),
         sleeping: false,
         reader: original !== null,
+        media: t.mediaSeen || wc.isCurrentlyAudible(),
         lastActiveAt: t.id === this.activeId ? Date.now() : t.lastActiveAt,
         ...this.hooks.extraState(wc, url),
       };

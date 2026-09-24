@@ -1,6 +1,7 @@
 import { Menu, clipboard, type MenuItemConstructorOptions, type WebContents } from 'electron';
 import { PAGE_ACTIONS, TEXT_ACTIONS, type PageAction, type TextAction } from '../shared/ai-prompts';
 import { stripTrackingParams } from '../shared/privacy-rules';
+import { runMediaAction, type MediaAction } from './media';
 
 export interface ContextMenuActions {
   openInNewTab(url: string): void;
@@ -49,6 +50,44 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
       );
       if (isHttp(src)) items.push({ label: 'Salva immagine su kDrive', click: () => actions.saveUrlToDrive(src) });
       items.push({ type: 'separator' });
+    }
+
+    if (params.mediaType === 'video' || params.mediaType === 'audio') {
+      const flags = params.mediaFlags;
+      const src = params.srcURL;
+      const isVideo = params.mediaType === 'video';
+      // In the main frame the element under the pointer is found by position (CSS pixels).
+      const zoom = contents.getZoomFactor() || 1;
+      const target = { src: src || undefined, ...(params.frame === contents.mainFrame ? { x: params.x / zoom, y: params.y / zoom } : {}) };
+      const act = (action: MediaAction) => () => void runMediaAction(params.frame, action, target);
+      items.push(
+        { label: flags.isPaused ? 'Riproduci' : 'Pausa', enabled: !flags.inError, click: act('toggle-play') },
+        { label: 'Audio disattivato', type: 'checkbox', checked: flags.isMuted, enabled: flags.hasAudio || flags.isMuted, click: act('toggle-mute') },
+        { label: 'Ripeti', type: 'checkbox', checked: flags.isLooping, enabled: flags.canLoop, click: act('toggle-loop') },
+        { label: 'Mostra i controlli', type: 'checkbox', checked: flags.isControlsVisible, enabled: flags.canToggleControls, click: act('toggle-controls') },
+        {
+          label: 'Velocità di riproduzione',
+          submenu: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((r) => ({ label: r === 1 ? 'Normale' : `${String(r).replace('.', ',')}×`, click: act(`rate:${r}`) })),
+        },
+      );
+      if (isVideo) {
+        items.push({
+          label: 'Picture-in-picture',
+          type: 'checkbox',
+          checked: flags.isShowingPictureInPicture,
+          enabled: !flags.inError,
+          click: act('toggle-pip'),
+        });
+      }
+      items.push({ type: 'separator' });
+      if (isHttp(src)) {
+        items.push(
+          { label: `Apri ${isVideo ? 'video' : 'audio'} in una nuova scheda`, click: () => actions.openInNewTab(src) },
+          { label: `Salva ${isVideo ? 'video' : 'audio'} con nome…`, enabled: flags.canSave, click: () => contents.downloadURL(src) },
+          { label: `Copia indirizzo ${isVideo ? 'del video' : 'dell’audio'}`, click: () => clipboard.writeText(src) },
+          { type: 'separator' },
+        );
+      }
     }
 
     if (params.isEditable && params.misspelledWord) {

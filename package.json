@@ -1,7 +1,7 @@
 {
   "name": "ksuite-browser",
   "productName": "kSuite Browser",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Browser desktop con integrazione nativa di Infomaniak kSuite (kDrive, Mail, Calendar, kChat, kMeet)",
   "main": "dist/main/main.js",
   "private": true,

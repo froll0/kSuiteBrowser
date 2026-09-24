@@ -98,6 +98,10 @@ quindi funzionano senza sorprese.
 - **Blocco dei cookie di terze parti** sulle richieste di rete
 - **Do Not Track e Global Privacy Control** (`DNT: 1`, `Sec-GPC: 1`)
 - **Modalità solo HTTPS**: le pagine `http://` vengono caricate in `https://`; se il sito non lo supporta compare un avviso con "Continua con HTTP" (le reti locali sono escluse)
+- **DNS cifrato** (DNS over HTTPS): automatico, oppure Quad9 (Svizzera), Mullvad, Cloudflare o un indirizzo a scelta,
+  così la rete (Wi-Fi pubblico, provider) non vede quali siti apri
+- **Link puliti**: i parametri di tracciamento (`utm_…`, `fbclid`, `gclid`, `msclkid`, `si` di YouTube…) vengono tolti dagli
+  indirizzi prima di aprire la pagina; "Copia link senza tracciamento" nel menu contestuale dei link
 - **Protezione da phishing e malware**: i siti che rubano password e dati e i file di malware conosciuti vengono bloccati
   con una pagina di avviso, usando gli elenchi pubblici del progetto malware-filter (gli stessi di uBlock Origin),
   aggiornati due volte al giorno e controllati **sul computer**: nessun indirizzo viene inviato ad altri

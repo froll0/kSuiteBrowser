@@ -1,5 +1,6 @@
 import { h } from '../../renderer/dom';
 import { permissionLabel } from '../../shared/external-protocols';
+import { SECURE_DNS_PROVIDERS, validDohTemplate, type SecureDnsChoice } from '../../shared/secure-dns';
 import { ASKABLE_PERMISSIONS, REMINDER_MINUTES, SLEEP_MINUTES } from '../../shared/settings-schema';
 import type { AskablePermission, BrowsingDataSelection, Settings, UpdateStatus } from '../../shared/types';
 import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from '../../shared/url';
@@ -216,6 +217,44 @@ async function passwordsSection(): Promise<HTMLElement> {
   );
 }
 
+function dnsRow(): HTMLElement {
+  const options: Array<[SecureDnsChoice, string]> = [
+    ['automatic', 'Automatico (consigliato)'],
+    ...(Object.entries(SECURE_DNS_PROVIDERS) as Array<[SecureDnsChoice, { name: string }]>).map(([id, p]): [SecureDnsChoice, string] => [id, p.name]),
+    ['custom', 'Personalizzato…'],
+    ['off', 'Disattivato'],
+  ];
+  const select = h('select', { 'aria-label': 'DNS cifrato' }, ...options.map(([id, label]) => h('option', { value: id, selected: settings.secureDns === id }, label)));
+  const custom = h('input', { type: 'url', placeholder: 'https://dns.esempio.ch/dns-query', value: settings.secureDnsCustom, 'aria-label': 'Indirizzo DNS over HTTPS', spellcheck: false });
+  const message = h('span', { class: 'message', role: 'status' });
+  const note = h('span', { class: 'muted' });
+  const refresh = () => {
+    const choice = select.value as SecureDnsChoice;
+    custom.hidden = choice !== 'custom';
+    const provider = SECURE_DNS_PROVIDERS[choice as keyof typeof SECURE_DNS_PROVIDERS];
+    note.textContent = choice === 'automatic'
+      ? ' Usa la versione cifrata del DNS del tuo provider quando c’è, altrimenti quello normale.'
+      : choice === 'off'
+        ? ' Le richieste DNS viaggiano in chiaro: il provider di rete vede i siti che apri.'
+        : ` ${provider?.note ?? ''} Se il servizio non è raggiungibile (alcune reti aziendali lo bloccano) i siti non si aprono: in quel caso scegli Automatico.`;
+  };
+  select.addEventListener('change', () => {
+    message.textContent = '';
+    refresh();
+    if (select.value !== 'custom' || validDohTemplate(custom.value)) void update({ secureDns: select.value as SecureDnsChoice });
+    else custom.focus();
+  });
+  custom.addEventListener('change', () => {
+    const ok = validDohTemplate(custom.value);
+    message.textContent = ok ? 'Salvato' : 'Serve un indirizzo https:// completo, per esempio https://dns.quad9.net/dns-query';
+    message.className = `message ${ok ? 'ok' : 'error'}`;
+    if (ok) void update({ secureDns: 'custom', secureDnsCustom: custom.value.trim() });
+  });
+  refresh();
+  const desc = h('span', {}, 'Cifra le richieste con cui il browser trova l’indirizzo dei siti, così la rete (Wi-Fi pubblico, provider) non vede quali siti apri.', note);
+  return row('DNS cifrato (DNS over HTTPS)', desc, h('div', { class: 'control stack-control' }, select, custom, message));
+}
+
 function privacySection(): HTMLElement {
   const threatDesc = h('span', {}, 'Blocca i siti che rubano password e dati e i download di malware conosciuti, con gli elenchi pubblici usati da uBlock Origin, controllati sul tuo computer. ');
   void internal.threatStatus().then((st) => {
@@ -256,6 +295,8 @@ function privacySection(): HTMLElement {
     ),
     row('Blocca i cookie di terze parti', 'I contenuti di altri siti incorporati in una pagina (pulsanti social, pubblicità, tracker) non ricevono né impostano cookie tramite la rete: è il modo principale in cui ti seguono da un sito all’altro. I servizi Infomaniak non sono toccati.', toggle('blockThirdPartyCookies', 'Blocca cookie di terze parti')),
     row('Chiedi ai siti di non tracciarti', 'Invia i segnali “Do Not Track” e Global Privacy Control (GPC). In alcuni Paesi il GPC ha valore legale.', toggle('doNotTrack', 'Invia DNT e GPC')),
+    dnsRow(),
+    row('Rimuovi i parametri di tracciamento dai link', 'Toglie dagli indirizzi le aggiunte che servono solo a seguirti tra i siti (utm_…, fbclid, gclid, msclkid…) prima di aprire la pagina. Non vale per i siti senza protezioni.', toggle('stripTrackingParams', 'Rimuovi i parametri di tracciamento')),
     row('Protezione da phishing e malware', threatDesc, toggle('threatProtection', 'Protezione da phishing e malware')),
     row('Modalità solo HTTPS', 'Carica sempre le pagine in modo cifrato. Se un sito non supporta HTTPS ti viene chiesto prima di continuare.', toggle('httpsOnly', 'Modalità solo HTTPS')),
     h('div', { class: 'row stack', 'data-search': 'eccezioni siti protezione disattivata scudo' },

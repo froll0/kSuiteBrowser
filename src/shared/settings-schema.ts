@@ -1,4 +1,5 @@
 import type { AskablePermission, PermissionDefault, Settings, SitePermission } from './types';
+import type { SecureDnsChoice } from './secure-dns';
 import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from './url';
 import { ZOOM_STEPS } from './zoom';
 
@@ -42,6 +43,9 @@ export const DEFAULT_SETTINGS: Settings = {
   blockThirdPartyCookies: true,
   doNotTrack: true,
   threatProtection: true,
+  stripTrackingParams: true,
+  secureDns: 'automatic',
+  secureDnsCustom: '',
   httpsOnly: true,
   clearCookiesOnExit: false,
   clearCacheOnExit: false,
@@ -134,6 +138,9 @@ export function sanitizeSettings(raw: unknown): Settings {
     blockThirdPartyCookies: bool(s.blockThirdPartyCookies, d.blockThirdPartyCookies),
     doNotTrack: bool(s.doNotTrack, d.doNotTrack),
     threatProtection: bool(s.threatProtection, d.threatProtection),
+    stripTrackingParams: bool(s.stripTrackingParams, d.stripTrackingParams),
+    secureDns: (['off', 'automatic', 'quad9', 'mullvad', 'cloudflare', 'custom'] as const).includes(s.secureDns as SecureDnsChoice) ? (s.secureDns as SecureDnsChoice) : d.secureDns,
+    secureDnsCustom: typeof s.secureDnsCustom === 'string' ? s.secureDnsCustom.trim().slice(0, 300) : d.secureDnsCustom,
     httpsOnly: bool(s.httpsOnly, d.httpsOnly),
     clearCookiesOnExit: bool(s.clearCookiesOnExit, d.clearCookiesOnExit),
     clearCacheOnExit: bool(s.clearCacheOnExit, d.clearCacheOnExit),

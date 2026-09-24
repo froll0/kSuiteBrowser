@@ -1,4 +1,5 @@
 import type { SearchEngineId, WebSearchEngineId } from './url';
+import type { SecureDnsChoice } from './secure-dns';
 
 export interface TabState {
   id: number;
@@ -221,6 +222,12 @@ export interface Settings {
   doNotTrack: boolean;
   /** Stop known phishing and malware sites and downloads. */
   threatProtection: boolean;
+  /** Remove utm_*, fbclid, gclid… from the addresses of the pages opened. */
+  stripTrackingParams: boolean;
+  /** DNS over HTTPS provider. */
+  secureDns: SecureDnsChoice;
+  /** DoH address when secureDns is 'custom'. */
+  secureDnsCustom: string;
   httpsOnly: boolean;
   clearCookiesOnExit: boolean;
   clearCacheOnExit: boolean;

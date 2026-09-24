@@ -15,6 +15,7 @@ import type {
 } from '../shared/types';
 import { searchAnswerMessages } from '../shared/ai-prompts';
 import { permissionLabel } from '../shared/external-protocols';
+import { secureDnsConfig } from '../shared/secure-dns';
 import { generatePassword } from '../shared/password-gen';
 import { framedIconSvg, letterIconSvg, topSites } from '../shared/top-sites';
 import { chromeUserAgent, resolveOmniboxInput } from '../shared/url';
@@ -224,6 +225,7 @@ function start(): void {
   });
   void blocker.setLevel(settings.get().trackingProtection);
   threats.start();
+  applySecureDns(settings.get());
   settings.onChange(onSettingsChanged);
 
   setupSession(electronSession.defaultSession, false);
@@ -444,8 +446,19 @@ function readSavedSession(): SavedTab[][] {
 
 // ---------- Settings changes ----------
 
+/** DNS over HTTPS for every window (the resolver is shared by all sessions). */
+function applySecureDns(s: Settings): void {
+  const config = secureDnsConfig(s.secureDns, s.secureDnsCustom);
+  try {
+    app.configureHostResolver({ ...config, enableBuiltInResolver: config.secureDnsMode !== 'off' });
+  } catch (err) {
+    console.error('[dns] configurazione non riuscita:', err);
+  }
+}
+
 function onSettingsChanged(next: Settings, previous: Settings): void {
   if (next.theme !== previous.theme) nativeTheme.themeSource = next.theme;
+  if (next.secureDns !== previous.secureDns || next.secureDnsCustom !== previous.secureDnsCustom) applySecureDns(next);
   if (next.trackingProtection !== previous.trackingProtection) {
     void blocker.setLevel(next.trackingProtection).then(() => refreshAllTabs());
   }
@@ -662,6 +675,7 @@ function showShieldMenu(w: BrowserWindowController, tabId: number): void {
       },
       { label: `${guard.blockedCount(wc.id)} richieste bloccate in questa pagina`, enabled: false },
     );
+    if (guard.wasCleaned(wc.id)) items.push({ label: 'Parametri di tracciamento rimossi dall’indirizzo', enabled: false });
     if (s.trackingProtection === 'off') items.push({ label: 'Il blocco dei tracker è disattivato nelle impostazioni', enabled: false });
     items.push({ type: 'separator' });
   } else {

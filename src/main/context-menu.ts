@@ -1,5 +1,6 @@
 import { Menu, clipboard, type MenuItemConstructorOptions, type WebContents } from 'electron';
 import { PAGE_ACTIONS, TEXT_ACTIONS, type PageAction, type TextAction } from '../shared/ai-prompts';
+import { stripTrackingParams } from '../shared/privacy-rules';
 
 export interface ContextMenuActions {
   openInNewTab(url: string): void;
@@ -26,6 +27,7 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
       items.push(
         { label: 'Apri link in una nuova scheda', click: () => actions.openInNewTab(link) },
         { label: 'Copia indirizzo link', click: () => clipboard.writeText(link) },
+        ...(stripTrackingParams(link) ? [{ label: 'Copia link senza tracciamento', click: () => clipboard.writeText(stripTrackingParams(link) ?? link) }] : []),
         { label: 'Salva link con nome…', click: () => contents.downloadURL(link) },
       );
       if (isHttp(link)) {

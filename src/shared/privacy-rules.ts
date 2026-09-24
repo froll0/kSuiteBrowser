@@ -50,3 +50,45 @@ export function deleteHeader(headers: Record<string, unknown>, name: string): bo
   }
   return removed;
 }
+
+/** Parameters added to links only to follow people across sites (ads, newsletters, social networks). */
+const TRACKING_PARAMS = new Set([
+  'fbclid', 'gclid', 'gclsrc', 'dclid', 'gbraid', 'wbraid', 'msclkid', 'yclid', 'ymclid', 'twclid', 'ttclid', 'igshid', 'igsh',
+  'li_fat_id', 'epik', 'srsltid', 'mc_cid', 'mc_eid', 'mkt_tok', '_hsenc', '_hsmi', '__hssc', '__hstc', '__hsfp', 'hsctatracking',
+  'oly_anon_id', 'oly_enc_id', 'rb_clickid', 's_cid', 'vero_id', 'vero_conv', 'wickedid', '_openstat', 'ga_source', 'ga_medium',
+  'ga_campaign', 'ga_content', 'ga_term', '_ga', '_gl', 'irclickid', 'sc_cid', 'ncid', 'ref_src', 'ref_url', 'cvid', 'oicd',
+]);
+/** Parameters that only track on specific sites (elsewhere the same name may be needed). */
+const SITE_PARAMS: Array<[RegExp, string[]]> = [
+  [/(^|\.)(youtube\.com|youtu\.be|spotify\.com)$/, ['si', 'feature', 'pp']],
+  [/(^|\.)amazon\.[a-z.]+$/, ['pd_rd_r', 'pd_rd_w', 'pd_rd_wg', 'pd_rd_i', 'pf_rd_p', 'pf_rd_r', 'pf_rd_s', 'pf_rd_t', 'pf_rd_i', 'pf_rd_m', 'content-id', 'ref_', 'qid', 'sprefix', 'crid']],
+  [/(^|\.)(twitter\.com|x\.com)$/, ['s', 't']],
+  [/(^|\.)instagram\.com$/, ['utm_source', 'img_index']],
+  [/(^|\.)linkedin\.com$/, ['trk', 'trackingid', 'refid', 'lipi', 'midtoken', 'midsig', 'trkemail', 'eid']],
+];
+
+/**
+ * The address without its tracking parameters (utm_*, fbclid, gclid…), or null when there's nothing to
+ * remove. Only the query string changes: the page, the fragment and every other parameter stay.
+ */
+export function stripTrackingParams(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.search) return null;
+  const host = parsed.hostname.toLowerCase();
+  const siteSpecific = SITE_PARAMS.filter(([re]) => re.test(host)).flatMap(([, names]) => names);
+  const keys = [...new Set(parsed.searchParams.keys())];
+  const remove = keys.filter((k) => {
+    const name = k.toLowerCase();
+    return name.startsWith('utm_') || TRACKING_PARAMS.has(name) || siteSpecific.includes(name);
+  });
+  if (remove.length === 0) return null;
+  for (const k of remove) parsed.searchParams.delete(k);
+  // "?" alone looks odd: drop it when nothing is left.
+  if ([...parsed.searchParams.keys()].length === 0) parsed.search = '';
+  return parsed.href;
+}

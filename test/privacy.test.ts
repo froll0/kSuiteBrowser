@@ -80,3 +80,16 @@ describe('sanitizeSettings', () => {
     expect(s).toMatchObject({ searchEngine: 'ecosia', homePage: 'https://ik.me', panelOpen: false, driveId: 12, httpsOnly: true });
   });
 });
+
+describe('stripTrackingParams', () => {
+  it('removes tracking parameters and keeps the rest', async () => {
+    const { stripTrackingParams } = await import('../src/shared/privacy-rules');
+    expect(stripTrackingParams('https://example.com/a?utm_source=news&utm_medium=email&id=5#top')).toBe('https://example.com/a?id=5#top');
+    expect(stripTrackingParams('https://shop.example/p?fbclid=abc')).toBe('https://shop.example/p');
+    expect(stripTrackingParams('https://www.youtube.com/watch?v=dQw4w9WgXcQ&si=xyz')).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(stripTrackingParams('https://example.com/search?q=caff%C3%A8&si=1')).toBeNull();
+    expect(stripTrackingParams('https://example.com/?page=2')).toBeNull();
+    expect(stripTrackingParams('https://example.com/')).toBeNull();
+    expect(stripTrackingParams('https://x.com/user/status/1?s=20&t=abc')).toBe('https://x.com/user/status/1');
+  });
+});

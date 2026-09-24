@@ -1,5 +1,5 @@
 import { webContents as allWebContents, type Session } from 'electron';
-import { deleteHeader, httpsUpgrade, isThirdParty, siteOf } from '../shared/privacy-rules';
+import { deleteHeader, httpsUpgrade, isThirdParty, siteOf, stripTrackingParams } from '../shared/privacy-rules';
 import type { TrackerBlocker } from './blocker';
 import type { ThreatKind } from '../shared/threat-match';
 import type { SettingsStore } from './settings';
@@ -16,6 +16,10 @@ export class PrivacyGuard {
   private readonly upgraded = new Map<number, { https: string; http: string }>();
   /** Main-frame loads stopped as phishing or malware, per WebContents id, to show the warning page. */
   private readonly threats = new Map<number, { url: string; kind: ThreatKind }>();
+  /** Pages whose address lost its tracking parameters, per WebContents id (shown in the shield menu). */
+  private readonly cleaned = new Set<number>();
+  /** Clean address we redirected to, so its own request (after the redirect) keeps the mark. */
+  private readonly lastCleaned = new Map<number, string>();
 
   constructor(
     private readonly session: Session,
@@ -44,14 +48,23 @@ export class PrivacyGuard {
 
       if (details.resourceType === 'mainFrame') {
         if (wcId !== undefined) this.resetCount(wcId);
+        let target = details.url;
+        // Tracking parameters go before the page is requested (GET only: a form's data must not change).
+        const clean = s.stripTrackingParams && details.method === 'GET' && !this.isExempt(details.url) ? stripTrackingParams(target) : null;
+        if (clean) target = clean;
+        if (wcId !== undefined) {
+          if (clean) this.cleaned.add(wcId);
+          else if (target !== this.lastCleaned.get(wcId)) this.cleaned.delete(wcId);
+          if (clean) this.lastCleaned.set(wcId, clean);
+        }
         if (s.httpsOnly) {
-          const target = httpsUpgrade(details.url, s.httpExceptions);
-          if (target) {
-            if (wcId !== undefined) this.upgraded.set(wcId, { https: target, http: details.url });
-            return callback({ redirectURL: target });
+          const upgraded = httpsUpgrade(target, s.httpExceptions);
+          if (upgraded) {
+            if (wcId !== undefined) this.upgraded.set(wcId, { https: upgraded, http: target });
+            target = upgraded;
           }
         }
-        return callback({});
+        return callback(target !== details.url ? { redirectURL: target } : {});
       }
 
       const pageUrl = this.pageUrl(wcId, details.referrer);
@@ -121,6 +134,11 @@ export class PrivacyGuard {
     if (!entry || !sameUrl(entry.https, failedUrl)) return null;
     this.upgraded.delete(webContentsId);
     return entry.http;
+  }
+
+  /** The address of the page in this tab had tracking parameters removed. */
+  wasCleaned(webContentsId: number): boolean {
+    return this.cleaned.has(webContentsId);
   }
 
   /** When a page load was stopped as dangerous, what it was: the tab then shows the warning page. */

@@ -62,3 +62,14 @@ export function searchUrl(query: string, engine: SearchEngineId): string {
   const template = (SEARCH_ENGINES[engine] ?? SEARCH_ENGINES.duckduckgo).template;
   return template.replace('%s', encodeURIComponent(query));
 }
+
+/** Address as people read it: decoded, without "https://" and a trailing slash. */
+export function readableUrl(url: string): string {
+  let text = url;
+  try {
+    text = decodeURI(url);
+  } catch {
+    /* keep it encoded */
+  }
+  return text.replace(/^https:\/\//i, '').replace(/^(?=[^/]+\/$)(.*)\/$/, '$1');
+}

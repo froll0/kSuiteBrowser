@@ -1,5 +1,6 @@
 import { KSUITE_APPS } from '../shared/ksuite-apps';
 import { faviconUrl } from '../shared/top-sites';
+import { inlineCompletion } from '../shared/suggest';
 import type { Bookmark, Settings, Suggestion, TabState } from '../shared/types';
 import { ks } from './bridge';
 import { h } from './dom';
@@ -243,11 +244,11 @@ function renderSiteInfo(tab: TabState | undefined): void {
     siteInfo.title = 'Pagina del browser';
   } else if (url.startsWith('https://')) {
     siteInfo.replaceChildren(icon('lock', 15));
-    siteInfo.title = 'Connessione sicura — clic per le protezioni del sito';
+    siteInfo.title = 'Connessione sicura — clic per permessi e dati del sito';
   } else if (url.startsWith('http://')) {
     siteInfo.classList.add('insecure');
     siteInfo.replaceChildren(icon('warning', 15), h('span', {}, 'Non sicuro'));
-    siteInfo.title = 'La connessione a questo sito non è cifrata';
+    siteInfo.title = 'La connessione a questo sito non è cifrata — clic per permessi e dati del sito';
   } else {
     siteInfo.replaceChildren(icon('info', 15));
     siteInfo.title = url;
@@ -323,11 +324,22 @@ function hideSuggestions(): void {
   void ks.suggest.hide();
 }
 
-omnibox.addEventListener('input', async () => {
+omnibox.addEventListener('input', async (e) => {
   typed = omnibox.value;
+  // Complete inline only while typing at the end, never after deleting.
+  const typing = (e as InputEvent).inputType?.startsWith('insert') && omnibox.selectionStart === typed.length;
   const seq = ++suggestSeq;
   const items = await ks.suggest.query(typed);
-  if (seq !== suggestSeq || document.activeElement !== omnibox) return;
+  if (seq !== suggestSeq || document.activeElement !== omnibox || omnibox.value !== typed) return;
+  const completion = typing ? inlineCompletion(typed, items) : null;
+  if (completion) {
+    omnibox.value = completion.text;
+    omnibox.setSelectionRange(typed.length, completion.text.length, 'backward');
+    // What Enter opens now is the completed site.
+    items.splice(0, 1, { kind: 'url', title: completion.url, url: completion.url });
+    const dup = items.findIndex((s, i) => i > 0 && s.url === completion.url);
+    if (dup > 0) items.splice(dup, 1);
+  }
   suggestions = items;
   selected = items.length ? 0 : -1;
   showSuggestions();
@@ -609,7 +621,7 @@ $('btn-settings').addEventListener('click', () => void ks.openSettingsPage());
 siteInfo.addEventListener('click', () => {
   const t = activeTab();
   if (!t) return;
-  if (/^https?:/i.test(t.url)) void ks.showShieldMenu(t.id);
+  if (/^https?:/i.test(t.url)) void ks.showSiteMenu(t.id);
   else omnibox.focus();
 });
 downloadsBtn.addEventListener('click', () => {

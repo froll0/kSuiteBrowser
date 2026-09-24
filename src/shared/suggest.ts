@@ -69,3 +69,29 @@ export function buildSuggestions(
   const rest = [...ranked.values()].sort((a, b) => b.score - a.score).map((r) => r.s);
   return [first, ...rest].slice(0, limit);
 }
+
+/**
+ * Inline completion for the address bar: "git" → "github.com/" when a visited or bookmarked site starts
+ * with what was typed. Completes to the site first (like other browsers), then to a full address.
+ */
+export function inlineCompletion(input: string, suggestions: Suggestion[]): { text: string; url: string } | null {
+  if (!input || /\s/.test(input) || input.includes('://')) return null;
+  const typed = input.toLowerCase();
+  for (const s of suggestions) {
+    if (s.kind !== 'history' && s.kind !== 'bookmark') continue;
+    let parsed: URL;
+    try {
+      parsed = new URL(s.url);
+    } catch {
+      continue;
+    }
+    if (!/^https?:$/.test(parsed.protocol)) continue;
+    const host = parsed.host.replace(/^www\./i, '').toLowerCase();
+    if (`${host}/`.startsWith(typed) && typed.length <= host.length) {
+      return { text: input + `${host}/`.slice(typed.length), url: `${parsed.protocol}//${parsed.host}/` };
+    }
+    const full = typedForm(s.url);
+    if (full.startsWith(typed) && full.length > typed.length) return { text: input + full.slice(typed.length), url: s.url };
+  }
+  return null;
+}

@@ -34,8 +34,19 @@ quindi funzionano senza sorprese.
 - **Icone dei siti** salvate durante la navigazione e mostrate in preferiti, cronologia, suggerimenti e password
   (con un'iniziale colorata per i siti senza icona)
 - Riapertura delle schede della sessione precedente (anche quelle fissate)
-- Scorciatoie: `Ctrl+T`, `Ctrl+N`, `Ctrl+Shift+N` (finestra privata), `Ctrl+W`, `Ctrl+L`, `Ctrl+R`/`F5`, `Alt+←/→`, `Ctrl+Tab`, `Ctrl+,` (impostazioni), `Ctrl+Shift+Canc` (cancella dati), `F12` (su Mac: `⌘` al posto di `Ctrl`, cronologia con `⌘+Y`)
+- Scorciatoie: `Ctrl+T`, `Ctrl+N`, `Ctrl+Shift+N` (finestra privata), `Ctrl+W`, `Ctrl+L`, `Ctrl+R`/`F5`, `Alt+←/→`, `Ctrl+Tab`, `Ctrl+,` (impostazioni), `Ctrl+Shift+Canc` (cancella dati), `Ctrl+PagSu/PagGiù` (schede), `F12` (su Mac: `⌘` al posto di `Ctrl`, cronologia con `⌘+Y`)
 - Download con cartella configurabile o "chiedi dove salvare"
+- **Completamento automatico** nella barra degli indirizzi (scrivi `git` → `github.com/`) dai siti visitati e dai preferiti
+- **Anteprima del link** in basso a sinistra al passaggio del mouse
+- **Informazioni sul sito** (clic sul lucchetto o su "Non sicuro"): stato della connessione, permessi concessi al sito, cancellazione di cookie e dati del sito
+- **Stampa** (`Ctrl+P`), **salva pagina con nome** in HTML completo o MHTML (`Ctrl+S`), **sorgente pagina** (`Ctrl+U`)
+- **Visualizzatore PDF** integrato
+- **Video a schermo intero** (YouTube e simili): la pagina occupa tutta la finestra, `Esc` per uscire
+- **Pagine d'errore chiare** (nessuna connessione, sito inesistente, certificato non valido…) con "Riprova";
+  pagina dedicata se una scheda si blocca e avviso "La pagina non risponde"
+- **Correttore ortografico** in italiano e inglese con suggerimenti e "Aggiungi al dizionario" nel menu contestuale
+- **Siti con accesso HTTP** (nome utente e password richiesti dal server o dal proxy) tramite la barra informazioni
+- **Browser predefinito** (Impostazioni › Generale): i link delle altre app e i file HTML/PDF si aprono qui, aggiunti alla sessione ripristinata
 
 **Ricerca kSuite** (`ksuite://search`, motore predefinito)
 - Una sola ricerca dalla barra degli indirizzi trova insieme **preferiti e cronologia, file di kDrive, email, contatti ed eventi**, con le parole cercate evidenziate

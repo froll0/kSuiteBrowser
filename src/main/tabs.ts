@@ -278,6 +278,15 @@ export class TabManager {
     this.layout();
   }
 
+  /** Area where the active page is shown (the whole window while a page is in full screen). */
+  pageArea(): Rect {
+    if (this.fullscreenId !== null && this.fullscreenId === this.activeId) {
+      const [width, height] = this.window.getContentSize();
+      return { x: 0, y: 0, width, height };
+    }
+    return this.bounds;
+  }
+
   enterFullscreen(id: number): void {
     if (this.fullscreenId === id) return;
     this.fullscreenId = id;

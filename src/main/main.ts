@@ -643,6 +643,70 @@ function showShieldMenu(w: BrowserWindowController, tabId: number): void {
   Menu.buildFromTemplate(items).popup({ window: w.win });
 }
 
+const PERMISSION_NAMES: Record<string, string> = {
+  media: 'Fotocamera e microfono',
+  notifications: 'Notifiche',
+  geolocation: 'Posizione',
+  'clipboard-read': 'Lettura appunti',
+};
+
+/** Menu of the lock / "Non sicuro" button: connection, the site's permissions and data, protections. */
+function showSiteMenu(w: BrowserWindowController, tabId: number): void {
+  const wc = w.tabs.contents(tabId);
+  const url = wc?.getURL() ?? '';
+  if (!wc || !/^https?:/i.test(url)) return;
+  const { hostname, protocol, origin } = new URL(url);
+  const secure = protocol === 'https:';
+  const items: Electron.MenuItemConstructorOptions[] = [
+    { label: hostname, enabled: false },
+    {
+      label: secure ? 'La connessione è sicura' : 'La connessione non è sicura',
+      sublabel: secure ? 'Le informazioni che invii restano private' : 'Non inserire password o dati della carta',
+      enabled: false,
+    },
+    { type: 'separator' },
+  ];
+
+  if (w.isPrivate) {
+    items.push({ label: 'Nelle finestre private i permessi valgono fino alla chiusura', enabled: false });
+  } else {
+    const granted = settings.get().sitePermissions.filter((p) => p.host === hostname);
+    if (granted.length === 0) items.push({ label: 'Nessun permesso scelto per questo sito', enabled: false });
+    for (const p of granted) {
+      const set = (allowed: boolean | null) => {
+        const others = settings.get().sitePermissions.filter((x) => !(x.host === hostname && x.permission === p.permission));
+        settings.update({ sitePermissions: allowed === null ? others : [...others, { ...p, allowed }] });
+      };
+      items.push({
+        label: `${PERMISSION_NAMES[p.permission] ?? p.permission}: ${p.allowed ? 'consentito' : 'bloccato'}`,
+        submenu: [
+          { label: 'Consenti', type: 'radio', checked: p.allowed, click: () => set(true) },
+          { label: 'Blocca', type: 'radio', checked: !p.allowed, click: () => set(false) },
+          { label: 'Chiedi di nuovo', click: () => set(null) },
+        ],
+      });
+    }
+  }
+  items.push(
+    {
+      label: 'Cancella cookie e dati del sito',
+      click: async () => {
+        const site = siteOf(url);
+        const cookies = await wc.session.cookies.get({});
+        await Promise.all(cookies
+          .filter((c) => c.domain && (c.domain.replace(/^\./, '') === site || c.domain.endsWith(`.${site}`)))
+          .map((c) => wc.session.cookies.remove(`${c.secure ? 'https' : 'http'}://${(c.domain ?? '').replace(/^\./, '')}${c.path ?? '/'}`, c.name)));
+        await wc.session.clearStorageData({ origin });
+        wc.reload();
+      },
+    },
+    { type: 'separator' },
+    { label: 'Protezioni del sito…', click: () => showShieldMenu(w, tabId) },
+    { label: 'Impostazioni dei siti…', click: () => w.openSettings('permissions') },
+  );
+  Menu.buildFromTemplate(items).popup({ window: w.win });
+}
+
 // ---------- IPC: browser UI ----------
 
 async function wrap<T>(fn: () => Promise<T> | T): Promise<ApiResult<T>> {
@@ -695,6 +759,7 @@ function registerChromeIpc(): void {
   handle(IPC.setContentBounds, (w, rect: Rect) => w.tabs.setBounds(rect));
   handle(IPC.showAppMenu, (w) => Menu.getApplicationMenu()?.popup({ window: w.win }));
   handle(IPC.showShieldMenu, (w, tabId: number) => showShieldMenu(w, tabId));
+  handle(IPC.showSiteMenu, (w, tabId: number) => showSiteMenu(w, Number(tabId)));
   handle(IPC.openSettingsPage, (w, section?: string) => w.openSettings(section));
 
   handle(IPC.suggest, (_w, input: string) =>

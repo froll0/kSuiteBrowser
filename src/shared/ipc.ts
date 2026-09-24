@@ -19,6 +19,7 @@ export const IPC = {
   setContentBounds: 'layout:content-bounds',
   showAppMenu: 'ui:app-menu',
   showShieldMenu: 'ui:shield-menu',
+  showSiteMenu: 'ui:site-menu',
   openSettingsPage: 'ui:open-settings',
   windowInfo: 'ui:window-info',
   suggest: 'ui:suggest',

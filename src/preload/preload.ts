@@ -37,6 +37,7 @@ const api = {
   setContentBounds: (rect: Rect) => invoke<void>(IPC.setContentBounds, rect),
   showAppMenu: () => invoke<void>(IPC.showAppMenu),
   showShieldMenu: (tabId: number) => invoke<void>(IPC.showShieldMenu, tabId),
+  showSiteMenu: (tabId: number) => invoke<void>(IPC.showSiteMenu, tabId),
   openSettingsPage: (section?: string) => invoke<void>(IPC.openSettingsPage, section),
   windowInfo: () => invoke<{ isPrivate: boolean; windowId: number; platform: string }>(IPC.windowInfo),
   suggest: {

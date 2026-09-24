@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { exportBookmarksHtml, parseBookmarksHtml } from '../src/shared/bookmark-html';
-import { buildSuggestions } from '../src/shared/suggest';
+import { buildSuggestions, inlineCompletion } from '../src/shared/suggest';
 import type { Bookmark } from '../src/shared/types';
 import { stepZoom, withSiteZoom, zoomFor } from '../src/shared/zoom';
 
@@ -120,5 +120,21 @@ describe('new tab page', () => {
     expect(letterColor('example.org')).toBe(letterColor('example.org'));
     expect(letterIconSvg('<script>')).not.toContain('<script');
     expect(faviconUrl('https://a.example/?q=1')).toBe('ksuite://favicon/?url=https%3A%2F%2Fa.example%2F%3Fq%3D1');
+  });
+});
+
+describe('inlineCompletion', () => {
+  const h = (url: string) => ({ kind: 'history' as const, title: '', url });
+  it('completes to the site first', () => {
+    expect(inlineCompletion('git', [h('https://www.github.com/froll0/kSuiteBrowser')])).toEqual({ text: 'github.com/', url: 'https://www.github.com/' });
+    expect(inlineCompletion('Git', [h('https://github.com/x')])?.text).toBe('Github.com/');
+  });
+  it('completes to a full address once the site is typed', () => {
+    expect(inlineCompletion('github.com/fr', [h('https://github.com/froll0')])).toEqual({ text: 'github.com/froll0', url: 'https://github.com/froll0' });
+  });
+  it('never completes searches or non-matching input', () => {
+    expect(inlineCompletion('come fare', [h('https://come.it/')])).toBeNull();
+    expect(inlineCompletion('hub', [h('https://github.com/')])).toBeNull();
+    expect(inlineCompletion('git', [{ kind: 'search', title: '', url: 'https://github.com/' }])).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveOmniboxInput } from '../src/shared/url';
+import { readableUrl, resolveOmniboxInput } from '../src/shared/url';
 
 describe('resolveOmniboxInput', () => {
   it('keeps full URLs', () => {
@@ -27,5 +27,14 @@ describe('resolveOmniboxInput', () => {
 
   it('opens a blank page for empty input', () => {
     expect(resolveOmniboxInput('   ')).toBe('about:blank');
+  });
+});
+
+describe('readableUrl', () => {
+  it('decodes and shortens addresses for display', () => {
+    expect(readableUrl('https://github.com/')).toBe('github.com');
+    expect(readableUrl('https://it.wikipedia.org/wiki/Caff%C3%A8')).toBe('it.wikipedia.org/wiki/Caffè');
+    expect(readableUrl('http://example.com/a/')).toBe('http://example.com/a/');
+    expect(readableUrl('https://x.com/%E0%A4%A')).toBe('x.com/%E0%A4%A');
   });
 });

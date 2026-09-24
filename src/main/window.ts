@@ -10,6 +10,7 @@ import type { KSuiteServices } from './services';
 import type { SettingsStore } from './settings';
 import type { BookmarksStore } from './stores/bookmarks';
 import type { HistoryStore } from './stores/history';
+import { StatusBubble } from './status-bubble';
 import { SuggestionsPopup } from './suggestions-popup';
 import { TabManager } from './tabs';
 
@@ -52,7 +53,9 @@ export class BrowserWindowController {
   readonly win: BrowserWindow;
   readonly tabs: TabManager;
   readonly suggestions: SuggestionsPopup;
+  readonly statusBubble: StatusBubble;
   private refreshTimer: NodeJS.Timeout | null = null;
+  private lastActive: number | null = null;
   /** HTTP authentication requests waiting for the user. */
   private readonly authRequests = new Map<string, { contents: WebContents; callback: (username?: string, password?: string) => void; cleanup: () => void }>();
 
@@ -95,6 +98,8 @@ export class BrowserWindowController {
       this.win,
       {
         onChange: (states) => {
+          if (this.lastActive !== this.activeTabIdFrom(states)) this.statusBubble?.hide();
+          this.lastActive = this.activeTabIdFrom(states);
           this.send(IPC.evTabs, states);
           ctx.onTabsChanged(this);
         },
@@ -121,6 +126,11 @@ export class BrowserWindowController {
       this.activeContents()?.focus();
     });
 
+    this.statusBubble = new StatusBubble(this.win, () => this.tabs.pageArea(), () => {
+      const theme = ctx.settings.get().theme;
+      return isPrivate || theme === 'dark' || (theme === 'system' && nativeTheme.shouldUseDarkColors);
+    });
+
     void this.win.loadFile(ctx.paths.chromeHtml, { query: isPrivate ? { private: '1' } : {} });
     this.win.webContents.once('did-finish-load', () => {
       if (initialTabs === null) return;
@@ -132,6 +142,7 @@ export class BrowserWindowController {
     this.win.on('closed', () => {
       if (this.refreshTimer) clearTimeout(this.refreshTimer);
       this.suggestions.destroy();
+      this.statusBubble.destroy();
       this.tabs.destroy();
       ctx.onClosed(this);
     });
@@ -171,6 +182,10 @@ export class BrowserWindowController {
       this.refreshTimer = null;
       if (!this.win.isDestroyed()) this.tabs.refresh();
     }, 300);
+  }
+
+  private activeTabIdFrom(states: Array<{ id: number; active: boolean }>): number | null {
+    return states.find((t) => t.active)?.id ?? null;
   }
 
   activeTabId(): number | null {
@@ -325,6 +340,10 @@ export class BrowserWindowController {
     contents.on('login', (event, _details, info, callback) => {
       event.preventDefault();
       owner().requestAuth(contents, info, callback);
+    });
+    contents.on('update-target-url', (_e, url) => {
+      const w = owner();
+      if (w.tabs.activeContents() === contents) w.statusBubble.show(/^(javascript|data):/i.test(url) ? '' : url);
     });
     contents.on('zoom-changed', (_e, direction) => this.ctx.stepZoom(owner(), contents, direction === 'in' ? 'in' : 'out'));
     contents.on('found-in-page', (_e, result) => {

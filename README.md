@@ -215,6 +215,9 @@ Il tag avvia la GitHub Action che crea una release in bozza, compila Windows, ma
 file `latest*.yml` (letti dall'app per trovare gli aggiornamenti) e infine pubblica la release. Se il tag non
 corrisponde alla versione di `package.json` la pubblicazione si ferma.
 
+In alternativa, senza creare il tag a mano: aggiorna `version` in `package.json`, poi su GitHub
+*Actions › CI › Run workflow* con l'opzione **release**: la release crea il tag `vX.Y.Z` sul commit compilato.
+
 Gli installer non sono firmati: Windows SmartScreen e macOS Gatekeeper mostrano un avviso alla prima installazione.
 L'app verifica comunque l'integrità di ogni aggiornamento (SHA-512 dal file `latest*.yml` scaricato via HTTPS).
 

@@ -1,3 +1,4 @@
+import type { AppIconStyle, Backdrop, CanvasStyle, Density, NewTabBackground, Palette, RailPosition, TabsLayout, ToolbarItem, UiFont } from './appearance';
 import type { SearchEngineId, WebSearchEngineId } from './url';
 import type { SecureDnsChoice } from './secure-dns';
 import type { WebRtcProtection } from './webrtc';
@@ -206,7 +207,27 @@ export interface Settings {
 
   // Aspetto
   theme: ThemeSource;
-  showSidebar: boolean;
+  accentColor: string;
+  palette: Palette;
+  backdrop: Backdrop;
+  density: Density;
+  cornerRadius: number;
+  uiFont: UiFont;
+  uiFontSize: number;
+  tabsLayout: TabsLayout;
+  railPosition: RailPosition;
+  canvasStyle: CanvasStyle;
+  appIconStyle: AppIconStyle;
+  sideTabsWidth: number;
+  sideTabsCollapsed: boolean;
+  /** Buttons before the address bar, and after it (the menu button is always last). */
+  toolbarStart: ToolbarItem[];
+  toolbarEnd: ToolbarItem[];
+  /** Show the whole address (scheme, www) even when the address bar isn't being edited. */
+  showFullUrl: boolean;
+  newTabBackground: NewTabBackground;
+  newTabShowGreeting: boolean;
+  newTabShowApps: boolean;
   showBookmarksBar: boolean;
   panelOpen: boolean;
   /** What Ctrl+T and the + button open. */
@@ -431,7 +452,7 @@ export interface TabSearchData {
   closed: Array<{ index: number; title: string; url: string }>;
   /** Open tabs of the other devices (sync). */
   remote: RemoteTabs[];
-  theme: string;
+  look: PopupLook;
   /** Focus the search field (first open) or keep the current query (refresh after closing a tab). */
   reset: boolean;
 }
@@ -459,4 +480,10 @@ export interface RemoteTabs {
   device: string;
   updatedAt: number;
   tabs: Array<{ title: string; url: string }>;
+}
+
+/** Colours and shapes for the small popup views (suggestions, tab search, cards). */
+export interface PopupLook {
+  dark: boolean;
+  vars: Record<string, string>;
 }

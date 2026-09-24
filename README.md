@@ -4,7 +4,9 @@ Browser desktop (Windows, macOS, Linux) con le funzioni di **Infomaniak kSuite**
 navighi il web come in un normale browser e hai kDrive, Mail, Calendar, kChat, kMeet ed Euria
 a portata di clic, più un pannello nativo che usa le API ufficiali di Infomaniak.
 
-![kSuite Browser, tema scuro](docs/screenshot-dark.png)
+![kSuite Browser, tema chiaro con la pagina a «tela sospesa»](docs/screenshot-light.png)
+
+![kSuite Browser, tema scuro con schede di lato e sfondo sfumato](docs/screenshot-dark.png)
 
 ## Perché Electron + TypeScript
 
@@ -19,6 +21,24 @@ Electron è la scelta più solida. Le app web di Infomaniak (Mail, kDrive, kMeet
 quindi funzionano senza sorprese.
 
 ## Funzioni
+
+**Interfaccia su misura** (Impostazioni › *Aspetto* e *Disposizione*, oppure clic destro sulla barra degli strumenti)
+- Stile «tela sospesa»: la pagina è una tela con gli angoli arrotondati appoggiata su uno sfondo tinto con il tuo colore;
+  niente linee di separazione, una sola riga sopra la pagina
+- **Colori**: colore d'accento libero (9 proposti o qualsiasi altro), tavolozza neutra, calda o ad alto contrasto,
+  sfondo neutro, tinto o sfumato, tema chiaro/scuro/come il sistema. Il browser corregge l'accento se sarebbe poco leggibile
+- **Forme e spazi**: arrotondamento degli angoli (da squadrati a tondi), densità compatta/normale/ariosa,
+  pagina sospesa o da bordo a bordo
+- **Caratteri**: Inter, del sistema, arrotondato, con grazie o monospaziato, in quattro dimensioni
+- **Schede** su una riga insieme all'indirizzo, sopra l'indirizzo o **di lato** (colonna verticale ridimensionabile
+  trascinandone il bordo e riducibile alle sole icone, schede fissate in griglia)
+- **Barra delle app kSuite** a sinistra, a destra o nascosta; icone essenziali o colorate
+- **Barra degli strumenti componibile**: 13 pulsanti (indietro, avanti, ricarica, pagina iniziale, nuova scheda,
+  protezioni, audio, download, cerca tra le schede, preferiti, cronologia, assistente IA, pannello) da aggiungere,
+  togliere e riordinare con il trascinamento, prima o dopo l'indirizzo; anche da tastiera
+- Indirizzo abbreviato (senza `https://` e `www.`) finché non lo modifichi, oppure sempre completo
+- Nuova scheda con sfondo semplice, tinto o sfumato e blocchi a scelta (saluto, siti più visitati, app)
+- Anteprima dal vivo nelle impostazioni; tutto si applica subito, anche alle pagine del browser e ai popup
 
 **Browser**
 - Schede e più finestre, barra indirizzi/ricerca (DuckDuckGo, Qwant, Ecosia, Startpage, Google)
@@ -40,7 +60,7 @@ quindi funzionano senza sorprese.
   menu e script; dimensione del testo, carattere con o senza grazie, colori chiaro/seppia/scuro, larghezza della colonna,
   tempo di lettura, "Ascolta" (sintesi vocale del sistema) e "Riassumi con l'IA". Estrazione con Readability (Mozilla),
   HTML dell'articolo ricostruito in modo sicuro
-- **Cerca tra le schede** (`Ctrl+Shift+A` o la freccia in fondo alla barra delle schede): tutte le schede delle finestre aperte,
+- **Cerca tra le schede** (`Ctrl+Shift+A` o il pulsante nella barra degli strumenti): tutte le schede delle finestre aperte,
   dalla più recente, con ricerca, chiusura (`Shift+Canc`) e schede chiuse di recente da riaprire
 - **Sincronizzazione cifrata su kDrive**: preferiti, password, cronologia e schede aperte tra i tuoi computer, cifrati
   end-to-end con una passphrase che conosci solo tu (vedi sotto)
@@ -102,7 +122,7 @@ quindi funzionano senza sorprese.
 
 **Impostazioni** (`ksuite://settings`, `Ctrl+,`)
 - Generale: avvio, pagina iniziale, motore di ricerca, download
-- Aspetto: tema chiaro/scuro/sistema, barra laterale kSuite
+- Aspetto e disposizione: colori, forme, caratteri, posizione di schede e app, barra degli strumenti (vedi sopra)
 - Privacy e sicurezza, permessi dei siti, account kSuite, informazioni
 - Ricerca tra le impostazioni
 

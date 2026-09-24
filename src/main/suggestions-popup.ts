@@ -1,5 +1,5 @@
 import { WebContentsView, type BrowserWindow } from 'electron';
-import type { Rect, Suggestion } from '../shared/types';
+import type { PopupLook, Rect, Suggestion } from '../shared/types';
 
 const ROW_HEIGHT = 36;
 const PADDING = 8;
@@ -31,7 +31,7 @@ export class SuggestionsPopup {
     return this.view.webContents;
   }
 
-  show(items: Suggestion[], anchor: Rect, selected: number, theme: string): void {
+  show(items: Suggestion[], anchor: Rect, selected: number, look: PopupLook): void {
     this.items = items;
     if (items.length === 0) return this.hide();
     this.view.setBounds({
@@ -40,7 +40,7 @@ export class SuggestionsPopup {
       width: Math.round(anchor.width),
       height: items.length * ROW_HEIGHT + PADDING,
     });
-    this.view.webContents.send('suggest:items', { items, selected, theme });
+    this.view.webContents.send('suggest:items', { items, selected, look });
     // Re-adding moves the view on top of the page views.
     this.window.contentView.addChildView(this.view);
     this.visible = true;

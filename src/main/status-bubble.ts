@@ -1,5 +1,5 @@
 import { WebContentsView, screen, type BrowserWindow } from 'electron';
-import type { Rect } from '../shared/types';
+import type { PopupLook, Rect } from '../shared/types';
 import { readableUrl } from '../shared/url';
 
 const HEIGHT = 24;
@@ -7,10 +7,9 @@ const HIDE_DELAY = 120;
 
 const PAGE = `<!doctype html><meta charset="utf-8"><style>
 html,body{margin:0;background:transparent;overflow:hidden}
-div{box-sizing:border-box;height:${HEIGHT}px;line-height:${HEIGHT - 2}px;padding:0 9px;font:12px system-ui,-apple-system,"Segoe UI",sans-serif;
-white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid #d5dae2;border-radius:0 8px 0 0;border-left:0;border-bottom:0;background:#f4f6f9;color:#39414f}
-body.right div{border-radius:8px 0 0 0;border-left:1px solid #d5dae2;border-right:0}
-body.dark div{background:#23262d;color:#c9ced8;border-color:#3a3f48}
+div{box-sizing:border-box;height:${HEIGHT}px;line-height:${HEIGHT - 2}px;padding:0 10px;font:12px var(--font,system-ui,sans-serif);
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--border,#d5dae2);border-radius:var(--r-pill,999px);
+background:var(--surface-2,#f4f6f9);color:var(--text-2,#39414f)}
 </style><body><div id="t"></div>`;
 
 /** Link address shown at the bottom of the page while hovering a link, like other browsers. */
@@ -22,7 +21,7 @@ export class StatusBubble {
   constructor(
     private readonly window: BrowserWindow,
     private readonly area: () => Rect,
-    private readonly isDark: () => boolean,
+    private readonly look: () => PopupLook,
   ) {}
 
   private ensure(): WebContentsView {
@@ -50,11 +49,11 @@ export class StatusBubble {
     const cx = cursor.x - content.x;
     const cy = cursor.y - content.y;
     const bottom = area.y + area.height;
-    const right = cx < area.x + width + 20 && cy > bottom - HEIGHT - 40;
-    view.setBounds({ x: right ? area.x + area.width - width : area.x, y: bottom - HEIGHT, width, height: HEIGHT });
-    void view.webContents
-      .executeJavaScript(`document.getElementById('t').textContent=${JSON.stringify(text)};document.body.className=${JSON.stringify(`${this.isDark() ? 'dark' : ''} ${right ? 'right' : ''}`)};`)
-      .catch(() => {});
+    const right = cx < area.x + width + 26 && cy > bottom - HEIGHT - 46;
+    // A pill floating inside the page corner (clear of the rounded canvas edge).
+    const pad = 6;
+    view.setBounds({ x: right ? area.x + area.width - width - pad : area.x + pad, y: bottom - HEIGHT - pad, width, height: HEIGHT });
+    void view.webContents.executeJavaScript(`document.getElementById('t').textContent=${JSON.stringify(text)};${applyLookScript(this.look())}`).catch(() => {});
     // Re-adding keeps the bubble above the page views.
     this.window.contentView.addChildView(view);
     this.visible = true;
@@ -78,4 +77,9 @@ export class StatusBubble {
     if (this.view && !this.view.webContents.isDestroyed()) this.view.webContents.close();
     this.view = null;
   }
+}
+
+/** Script that applies a popup look to a data: page. */
+export function applyLookScript(look: PopupLook): string {
+  return `(()=>{const r=document.documentElement;for(const [k,v] of Object.entries(${JSON.stringify(look.vars)}))r.style.setProperty(k,v);r.style.colorScheme=${JSON.stringify(look.dark ? 'dark' : 'light')};})();`;
 }

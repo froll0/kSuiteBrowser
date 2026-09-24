@@ -13,6 +13,7 @@ import { buildSuggestions } from '../shared/suggest';
 import type {
   AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
 } from '../shared/types';
+import { TOOLBAR_ITEMS, TOOLBAR_ITEM_IDS, type ToolbarItem } from '../shared/appearance';
 import { searchAnswerMessages } from '../shared/ai-prompts';
 import { permissionLabel } from '../shared/external-protocols';
 import { secureDnsConfig } from '../shared/secure-dns';
@@ -44,7 +45,7 @@ import { SettingsStore } from './settings';
 import { BookmarksStore } from './stores/bookmarks';
 import { FaviconStore } from './stores/favicons';
 import { HistoryStore } from './stores/history';
-import { BrowserWindowController, NEWTAB_URL, type WindowContext } from './window';
+import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } from './window';
 
 registerInternalScheme();
 // Windows shows notifications only for apps with an explicit identity.
@@ -485,6 +486,8 @@ function applySecureDns(s: Settings): void {
 
 function onSettingsChanged(next: Settings, previous: Settings): void {
   if (next.theme !== previous.theme) nativeTheme.themeSource = next.theme;
+  const frameKeys = ['theme', 'accentColor', 'palette', 'backdrop', 'density'] as const;
+  if (frameKeys.some((k) => next[k] !== previous[k])) for (const w of windows) w.applyTitleBarTheme();
   if (next.secureDns !== previous.secureDns || next.secureDnsCustom !== previous.secureDnsCustom) applySecureDns(next);
   if (next.webRtcProtection !== previous.webRtcProtection) {
     // Open pages follow at once (new connections use the new rule).
@@ -667,6 +670,7 @@ function buildMenu(): Menu {
       if (w && id != null) void toggleReader(w, id);
     },
     openSettings: () => current()?.openSettings(),
+    customize: () => current()?.openSettings('appearance'),
     find: () => current()?.focusChrome(IPC.evFind),
     findNext: (backwards) => current()?.send(IPC.evFindNext, { backwards }),
     zoom: (direction) => {
@@ -802,7 +806,7 @@ function tabSearchData(w: BrowserWindowController): Omit<TabSearchData, 'reset'>
     }))),
     closed: w.tabs.recentlyClosed(),
     remote: w.isPrivate ? [] : sync.remoteTabs(),
-    theme: w.isPrivate ? 'dark' : settings.get().theme,
+    look: popupLook(settings.get(), w.isPrivate),
   };
 }
 
@@ -862,6 +866,33 @@ function exitReader(wc: Electron.WebContents, original: string): void {
 }
 
 /** Media controls of the window: every tab that played sound, with pause/play, picture-in-picture, go to tab. */
+/** Right click on the toolbar: remove or move a button, add one, or open the full editor. */
+function showToolbarMenu(w: BrowserWindowController, item: string | null): void {
+  const s = settings.get();
+  const known = (v: unknown): v is ToolbarItem => typeof v === 'string' && v in TOOLBAR_ITEMS;
+  const items: Electron.MenuItemConstructorOptions[] = [];
+  if (known(item)) {
+    const inStart = s.toolbarStart.includes(item);
+    const without = { toolbarStart: s.toolbarStart.filter((x) => x !== item), toolbarEnd: s.toolbarEnd.filter((x) => x !== item) };
+    items.push(
+      { label: `Rimuovi «${TOOLBAR_ITEMS[item].label}» dalla barra`, click: () => settings.update(without) },
+      inStart
+        ? { label: 'Sposta dopo la barra degli indirizzi', click: () => settings.update({ ...without, toolbarEnd: [item, ...without.toolbarEnd] }) }
+        : { label: 'Sposta prima della barra degli indirizzi', click: () => settings.update({ ...without, toolbarStart: [...without.toolbarStart, item] }) },
+      { type: 'separator' },
+    );
+  }
+  const missing = TOOLBAR_ITEM_IDS.filter((id) => !s.toolbarStart.includes(id) && !s.toolbarEnd.includes(id));
+  if (missing.length) {
+    items.push({
+      label: 'Aggiungi un pulsante',
+      submenu: missing.map((id) => ({ label: TOOLBAR_ITEMS[id].label, click: () => settings.update({ toolbarEnd: [...settings.get().toolbarEnd, id] }) })),
+    });
+  }
+  items.push({ label: 'Personalizza l’aspetto…', click: () => w.openSettings('appearance') });
+  if (!w.win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: w.win });
+}
+
 async function showMediaMenu(w: BrowserWindowController): Promise<void> {
   const tabs = w.tabs.states().filter((t) => t.media || t.audible);
   const items: Electron.MenuItemConstructorOptions[] = [];
@@ -882,12 +913,12 @@ async function showMediaMenu(w: BrowserWindowController): Promise<void> {
   if (!w.win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: w.win });
 }
 
-function toggleTabSearch(w: BrowserWindowController | null): void {
+function toggleTabSearch(w: BrowserWindowController | null, anchor?: Rect): void {
   if (!w) return;
   if (w.tabSearch.isVisible()) w.tabSearch.hide();
   else if (!w.tabSearch.justHidden()) {
     w.suggestions.hide();
-    void w.tabSearch.show(tabSearchData(w));
+    void w.tabSearch.show(tabSearchData(w), anchor);
   }
 }
 
@@ -977,7 +1008,7 @@ function registerChromeIpc(): void {
   handle(IPC.setContentBounds, (w, rect: Rect) => w.tabs.setBounds(rect));
   handle(IPC.showAppMenu, (w) => Menu.getApplicationMenu()?.popup({ window: w.win }));
   handle(IPC.showShieldMenu, (w, tabId: number) => showShieldMenu(w, tabId));
-  handle(IPC.tabSearch, (w) => toggleTabSearch(w));
+  handle(IPC.tabSearch, (w, anchor?: Rect) => toggleTabSearch(w, anchor && typeof anchor.x === 'number' ? anchor : undefined));
   handle(IPC.showSiteMenu, (w, tabId: number) => showSiteMenu(w, Number(tabId)));
   handle(IPC.openSettingsPage, (w, section?: string) => w.openSettings(section));
 
@@ -991,13 +1022,14 @@ function registerChromeIpc(): void {
   });
   handle(IPC.tabsSwitch, (w, tabId: number) => switchToTab(w, Number(tabId)));
   handle(IPC.mediaMenu, (w) => showMediaMenu(w));
+  handle(IPC.toolbarMenu, (w, item: string | null) => showToolbarMenu(w, item));
   handle(IPC.readerToggle, (w, tabId: number) => toggleReader(w, Number(tabId)));
   handle(IPC.tabHover, (w, tabId: number | null, rect?: Rect) => {
     const state = tabId == null ? undefined : w.tabs.states().find((t) => t.id === Number(tabId));
     if (!state || !rect || w.tabSearch.isVisible()) return w.hoverCard.hide();
     void w.hoverCard.show(hoverInfo(w, state), rect);
   });
-  handle(IPC.suggestShow, (w, items: Suggestion[], rect: Rect, selected: number) => w.suggestions.show(items, rect, selected, settings.get().theme));
+  handle(IPC.suggestShow, (w, items: Suggestion[], rect: Rect, selected: number) => w.suggestions.show(items, rect, selected, popupLook(settings.get(), w.isPrivate)));
   handle(IPC.suggestHide, (w) => w.suggestions.hide());
   handle(IPC.findStart, (w, tabId: number, text: string, options: { forward?: boolean; newSearch?: boolean; matchCase?: boolean }) => {
     const wc = w.tabs.contents(tabId);

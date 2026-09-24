@@ -40,11 +40,14 @@ const api = {
     adopt: (fromWindowId: number, tabId: number, index: number) => invoke<void>(IPC.tabsAdopt, fromWindowId, tabId, index),
   },
   openApp: (appId: string) => invoke<void>(IPC.openApp, appId),
-  setContentBounds: (rect: Rect) => invoke<void>(IPC.setContentBounds, rect),
+  /** Where the page goes, and the radius of its corners. */
+  setContentBounds: (rect: Rect & { radius: number }) => invoke<void>(IPC.setContentBounds, rect),
+  toolbarMenu: (item: string | null) => invoke<void>(IPC.toolbarMenu, item),
   showAppMenu: () => invoke<void>(IPC.showAppMenu),
   showShieldMenu: (tabId: number) => invoke<void>(IPC.showShieldMenu, tabId),
   showSiteMenu: (tabId: number) => invoke<void>(IPC.showSiteMenu, tabId),
-  tabSearch: () => invoke<void>(IPC.tabSearch),
+  /** Opens the tab search under `anchor` (a button), or centred at the top. */
+  tabSearch: (anchor?: Rect) => invoke<void>(IPC.tabSearch, anchor),
   mediaMenu: () => invoke<void>(IPC.mediaMenu),
   openSettingsPage: (section?: string) => invoke<void>(IPC.openSettingsPage, section),
   windowInfo: () => invoke<{ isPrivate: boolean; windowId: number; platform: string }>(IPC.windowInfo),

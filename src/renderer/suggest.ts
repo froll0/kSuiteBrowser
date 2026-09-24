@@ -1,18 +1,17 @@
-import type { Suggestion } from '../shared/types';
+import { applyTokens } from '../shared/appearance';
+import type { PopupLook, Suggestion } from '../shared/types';
 import { icon } from './icons';
 
 interface SuggestBridge {
-  onItems(fn: (data: { items: Suggestion[]; selected: number; theme: string }) => void): void;
+  onItems(fn: (data: { items: Suggestion[]; selected: number; look: PopupLook }) => void): void;
   choose(index: number): void;
 }
 
 const bridge = (window as unknown as { suggest: SuggestBridge }).suggest;
 const list = document.getElementById('list')!;
 
-bridge.onItems(({ items, selected, theme }) => {
-  if (theme === 'system') delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = theme;
-  if (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+bridge.onItems(({ items, selected, look }) => {
+  applyTokens(document.documentElement, look.vars, look.dark);
 
   list.replaceChildren(
     ...items.map((item, i) => {

@@ -384,7 +384,10 @@ export class TabManager {
     this.activate(next.id);
   }
 
-  setBounds(rect: Rect): void {
+  private radius = 0;
+
+  setBounds(rect: Rect & { radius?: number }): void {
+    this.radius = Math.max(0, Math.min(40, Math.round(Number(rect.radius) || 0)));
     this.bounds = {
       x: Math.round(rect.x),
       y: Math.round(rect.y),
@@ -427,8 +430,11 @@ export class TabManager {
     if (!tab?.view) return;
     if (this.fullscreenId === tab.id) {
       const [width, height] = this.window.getContentSize();
+      tab.view.setBorderRadius(0);
       tab.view.setBounds({ x: 0, y: 0, width, height });
     } else {
+      // The page is a rounded "canvas" inside the window (radius chosen in the settings).
+      tab.view.setBorderRadius(this.radius);
       tab.view.setBounds(this.bounds);
     }
   }

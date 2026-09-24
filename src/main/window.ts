@@ -2,7 +2,8 @@ import { BrowserWindow, app, dialog, nativeTheme, type Session, type WebContents
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { IPC } from '../shared/ipc';
-import type { DriveFile } from '../shared/types';
+import type { DriveFile, PopupLook, Settings } from '../shared/types';
+import { chromeColors, densityMetrics, isDark, tokens, type ChromeColors } from '../shared/appearance';
 import { attachContextMenu } from './context-menu';
 import { popupTitle } from '../shared/url';
 import { isInternalUrl } from './internal-pages';
@@ -39,20 +40,22 @@ export interface WindowContext {
 }
 
 export const SETTINGS_URL = 'ksuite://settings/';
-export const TITLEBAR_HEIGHT = 42;
-
-/** Chrome colours matching src/renderer/styles.css (title bar, window buttons, page background). */
-function chromeColors(isPrivate: boolean): { titlebar: string; symbol: string; surface: string } {
-  if (isPrivate) return { titlebar: '#1f1830', symbol: '#d8d0ea', surface: '#2a2140' };
-  return nativeTheme.shouldUseDarkColors
-    ? { titlebar: '#111317', symbol: '#c3c8d0', surface: '#1b1d22' }
-    : { titlebar: '#e6eaf0', symbol: '#3d4450', surface: '#ffffff' };
+/** Colours of the native parts of the window (title bar buttons, background) for the chosen appearance. */
+function frameColors(settings: Settings, isPrivate: boolean): ChromeColors {
+  return chromeColors(settings, isPrivate || isDark(settings.theme, nativeTheme.shouldUseDarkColors), isPrivate);
 }
 
-function titleBarOverlay(isPrivate: boolean): Electron.TitleBarOverlayOptions {
-  const c = chromeColors(isPrivate);
-  return { color: c.titlebar, symbolColor: c.symbol, height: TITLEBAR_HEIGHT };
+function titleBarOverlay(settings: Settings, isPrivate: boolean): Electron.TitleBarOverlayOptions {
+  const c = frameColors(settings, isPrivate);
+  return { color: c.backdrop, symbolColor: c.symbol, height: densityMetrics(settings.density).row };
 }
+
+/** Look of the popup views of a window. */
+export function popupLook(settings: Settings, isPrivate: boolean): PopupLook {
+  const dark = isPrivate || isDark(settings.theme, nativeTheme.shouldUseDarkColors);
+  return { dark, vars: tokens(settings, dark, isPrivate) };
+}
+
 export const NEWTAB_URL = 'ksuite://newtab/';
 
 /** One browser window: the UI around it, its tabs and its session (persistent, or in-memory when private). */
@@ -83,13 +86,13 @@ export class BrowserWindowController {
       minWidth: 720,
       minHeight: 480,
       title: isPrivate ? 'kSuite Browser — Finestra privata' : 'kSuite Browser',
-      backgroundColor: chromeColors(isPrivate).surface,
+      backgroundColor: frameColors(ctx.settings.get(), isPrivate).backdrop,
       autoHideMenuBar: true,
       icon: ctx.paths.appIcon,
       // Tabs live in the title bar; the system draws its window buttons over it.
       ...(process.platform === 'darwin'
         ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 14, y: 14 } }
-        : { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay(isPrivate) }),
+        : { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay(ctx.settings.get(), isPrivate) }),
       webPreferences: {
         preload: ctx.paths.chromePreload,
         contextIsolation: true,
@@ -139,15 +142,14 @@ export class BrowserWindowController {
       this.activeContents()?.focus();
     });
 
-    this.tabSearch = new TabSearchPopup(this.win, { html: ctx.paths.tabSearchHtml, preload: ctx.paths.tabSearchPreload }, TITLEBAR_HEIGHT);
-    const isDark = () => {
-      const theme = ctx.settings.get().theme;
-      return isPrivate || theme === 'dark' || (theme === 'system' && nativeTheme.shouldUseDarkColors);
-    };
-    this.statusBubble = new StatusBubble(this.win, () => this.tabs.pageArea(), isDark);
-    this.hoverCard = new HoverCard(this.win, isDark);
+    this.tabSearch = new TabSearchPopup(this.win, { html: ctx.paths.tabSearchHtml, preload: ctx.paths.tabSearchPreload }, () => densityMetrics(ctx.settings.get().density).row);
+    const look = () => popupLook(ctx.settings.get(), isPrivate);
+    this.statusBubble = new StatusBubble(this.win, () => this.tabs.pageArea(), look);
+    this.hoverCard = new HoverCard(this.win, look, () => ctx.settings.get().tabsLayout === 'side');
 
-    void this.win.loadFile(ctx.paths.chromeHtml, { query: isPrivate ? { private: '1' } : {} });
+    const initialLook = JSON.stringify(popupLook(ctx.settings.get(), isPrivate));
+    void this.win.loadFile(ctx.paths.chromeHtml, { query: isPrivate ? { private: '1', look: initialLook } : { look: initialLook } });
+    this.applyTitleBarTheme();
     this.win.webContents.once('did-finish-load', () => {
       if (initialTabs === null) return;
       const tabs = initialTabs.length ? initialTabs : [{ url: ctx.settings.get().homePage }];
@@ -170,9 +172,14 @@ export class BrowserWindowController {
 
   /** Keeps the system window buttons in the colours of the current theme. */
   applyTitleBarTheme(): void {
-    if (process.platform === 'darwin' || this.win.isDestroyed()) return;
-    this.win.setTitleBarOverlay(titleBarOverlay(this.isPrivate));
-    this.win.setBackgroundColor(chromeColors(this.isPrivate).surface);
+    if (this.win.isDestroyed()) return;
+    if (process.platform === 'darwin') {
+      // Traffic lights centred in the first row, whatever its height.
+      this.win.setWindowButtonPosition({ x: 14, y: Math.round((densityMetrics(this.ctx.settings.get().density).row - 14) / 2) });
+      return;
+    }
+    this.win.setTitleBarOverlay(titleBarOverlay(this.ctx.settings.get(), this.isPrivate));
+    this.win.setBackgroundColor(frameColors(this.ctx.settings.get(), this.isPrivate).backdrop);
   }
 
   send(channel: string, payload?: unknown): void {

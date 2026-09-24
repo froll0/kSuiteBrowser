@@ -4,7 +4,7 @@ import {
   File, FileArchive, FileAudio, FileCode, FileSpreadsheet, FileText, FileVideo, Folder, FolderOpen, Globe, History, Image,
   Inbox, Info, KeyRound, LayoutGrid, Lock, Mail, MapPin, MessagesSquare, Monitor, Moon, PanelRight, Pencil, Pin, Plus,
   RefreshCw, RotateCw, Search, Send, Settings, Shield, ShieldCheck, ShieldOff, Sparkles, Star, Sun, TriangleAlert, Trash2,
-  Upload, User, Video, Volume2, VolumeX, X, createElement, type IconNode,
+  Upload, User, Video, Volume2, VolumeX, X, House, PanelLeft, PanelLeftClose, PanelLeftOpen, Palette, GripVertical, createElement, type IconNode,
 } from 'lucide';
 
 /** Icons used by the browser UI and the internal pages (Lucide, ISC license). */
@@ -19,7 +19,8 @@ export const ICONS = {
   monitor: Monitor, moon: Moon, panel: PanelRight, pencil: Pencil, pin: Pin, plus: Plus, refresh: RefreshCw,
   reload: RotateCw, search: Search, send: Send, settings: Settings, shield: Shield, shieldCheck: ShieldCheck,
   shieldOff: ShieldOff, sparkles: Sparkles, star: Star, sun: Sun, warning: TriangleAlert, trash: Trash2, upload: Upload,
-  user: User, video: Video, volume: Volume2, volumeOff: VolumeX, close: X,
+  user: User, video: Video, volume: Volume2, volumeOff: VolumeX, close: X, home: House, panelLeft: PanelLeft,
+  panelLeftClose: PanelLeftClose, panelLeftOpen: PanelLeftOpen, palette: Palette, grip: GripVertical,
 } satisfies Record<string, IconNode>;
 
 export type IconName = keyof typeof ICONS;

@@ -1,3 +1,4 @@
+import { applyTokens, isDark, SIDE_TABS_RANGE, tokens, TOOLBAR_ITEMS, type ToolbarItem } from '../shared/appearance';
 import { KSUITE_APPS } from '../shared/ksuite-apps';
 import { faviconUrl } from '../shared/top-sites';
 import { inlineCompletion } from '../shared/suggest';
@@ -8,21 +9,28 @@ import { hydrateIcons, icon, logoMark, type IconName } from './icons';
 import { Panel } from './panel';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const root = document.documentElement;
+const query = new URLSearchParams(location.search);
+const isPrivateWindow = query.has('private');
+
+// The window passes its look along, so the very first paint already has the user's colours.
+try {
+  const look = JSON.parse(query.get('look') ?? 'null') as { dark: boolean; vars: Record<string, string> } | null;
+  if (look) applyTokens(root, look.vars, look.dark);
+} catch {
+  /* defaults from the stylesheet */
+}
 
 const tabstrip = $('tabstrip');
+const sideList = $('sidetabs-list');
+const toolbar = $('toolbar');
 const omnibox = $<HTMLInputElement>('omnibox');
 const content = $('content');
 const sidebarApps = $('sidebar-apps');
 const siteInfo = $<HTMLButtonElement>('site-info');
-const downloadsBtn = $<HTMLButtonElement>('btn-downloads');
 const toastEl = $('toast');
-const backBtn = $<HTMLButtonElement>('btn-back');
-const forwardBtn = $<HTMLButtonElement>('btn-forward');
-const reloadBtn = $<HTMLButtonElement>('btn-reload');
-const shieldBtn = $<HTMLButtonElement>('btn-shield');
 const starBtn = $<HTMLButtonElement>('btn-star');
 const readerBtn = $<HTMLButtonElement>('btn-reader');
-const mediaBtn = $<HTMLButtonElement>('btn-media');
 const zoomBtn = $<HTMLButtonElement>('btn-zoom');
 const bookmarkItems = $('bookmarks-items');
 const findbar = $('findbar');
@@ -31,6 +39,48 @@ const findCount = $('find-count');
 const findCase = $<HTMLInputElement>('find-case');
 
 hydrateIcons();
+
+// ---------- Toolbar buttons ----------
+// Created once; the settings decide which ones are shown, in which group and in which order.
+
+const SHORTCUTS: Partial<Record<ToolbarItem, string>> = {
+  back: 'Alt+←', forward: 'Alt+→', reload: 'Ctrl+R', newTab: 'Ctrl+T', tabSearch: 'Ctrl+Shift+A', history: 'Ctrl+H', panel: 'Ctrl+Shift+K',
+};
+
+function toolButton(item: ToolbarItem): HTMLButtonElement {
+  const def = TOOLBAR_ITEMS[item];
+  const title = SHORTCUTS[item] ? `${def.label} (${SHORTCUTS[item]})` : def.label;
+  const button = h('button', { id: `btn-${item}`, class: 'icon-btn', title, 'aria-label': def.label, 'data-item': item });
+  button.append(icon(def.icon, 18));
+  button.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    void ks.toolbarMenu(item);
+  });
+  return button;
+}
+
+const buttons = Object.fromEntries((Object.keys(TOOLBAR_ITEMS) as ToolbarItem[]).map((id) => [id, toolButton(id)])) as Record<ToolbarItem, HTMLButtonElement>;
+const backBtn = buttons.back;
+const forwardBtn = buttons.forward;
+const reloadBtn = buttons.reload;
+const shieldBtn = buttons.shield;
+const mediaBtn = buttons.media;
+const downloadsBtn = buttons.downloads;
+shieldBtn.classList.add('shield');
+shieldBtn.append(h('span', { class: 'count' }));
+downloadsBtn.append(h('span', { class: 'dot', hidden: true }));
+mediaBtn.hidden = true;
+toolbar.addEventListener('contextmenu', (e) => {
+  if ((e.target as HTMLElement).closest('form')) return;
+  e.preventDefault();
+  void ks.toolbarMenu(null);
+});
+
+function placeToolbar(settings: Settings): void {
+  $('tb-start').replaceChildren(...settings.toolbarStart.map((id) => buttons[id]));
+  $('tb-end').replaceChildren(...settings.toolbarEnd.map((id) => buttons[id]));
+}
 
 let tabs: TabState[] = [];
 let unread: number | null = null;
@@ -110,18 +160,22 @@ function iconButton(name: IconName, attrs: Record<string, string | EventListener
   return button;
 }
 
-/** Insertion index for a drop at clientX: before the first tab whose middle is to the right. */
-function dropIndex(clientX: number): number {
-  const els = [...tabstrip.querySelectorAll<HTMLElement>('.tab')];
+const vertical = () => document.body.classList.contains('layout-side');
+/** Where the tabs are drawn: the strip above the page, or the column beside it. */
+const tabsHost = () => (vertical() ? sideList : tabstrip);
+
+/** Insertion index for a drop: before the first tab whose middle is past the pointer. */
+function dropIndex(e: MouseEvent): number {
+  const els = [...tabsHost().querySelectorAll<HTMLElement>('.tab')];
   const i = els.findIndex((el) => {
     const r = el.getBoundingClientRect();
-    return clientX < r.left + r.width / 2;
+    return vertical() ? e.clientY < r.top + r.height / 2 : e.clientX < r.left + r.width / 2;
   });
   return i === -1 ? els.length : i;
 }
 
 function clearDropMarks(): void {
-  for (const el of tabstrip.querySelectorAll('.drop-before, .drop-after')) el.classList.remove('drop-before', 'drop-after');
+  for (const el of document.querySelectorAll('.drop-before, .drop-after')) el.classList.remove('drop-before', 'drop-after');
 }
 
 // ---------- Tab hover card ----------
@@ -155,8 +209,7 @@ function hideHoverCard(): void {
 window.addEventListener('blur', hideHoverCard);
 
 function renderTabs(): void {
-  tabstrip.replaceChildren(
-    ...tabs.map((t) => {
+  const els = tabs.map((t) => {
       const audio = t.audible || t.muted
         ? iconButton(t.muted ? 'volumeOff' : 'volume', {
             class: 'tab-audio',
@@ -203,16 +256,30 @@ function renderTabs(): void {
         clearDropMarks();
         const dropped = e.dataTransfer!.dropEffect !== 'none';
         if (dropped) return;
-        // Released away from the tab strip: move the tab to a new window there.
-        const strip = tabstrip.getBoundingClientRect();
-        const outside = e.clientY < strip.top - 40 || e.clientY > strip.bottom + 40 || e.clientX < 0 || e.clientX > window.innerWidth;
+        // Released away from the tabs: move the tab to a new window there.
+        const strip = tabsHost().getBoundingClientRect();
+        const outside = vertical()
+          ? e.clientX < strip.left - 40 || e.clientX > strip.right + 40 || e.clientY < 0 || e.clientY > window.innerHeight
+          : e.clientY < strip.top - 40 || e.clientY > strip.bottom + 40 || e.clientX < 0 || e.clientX > window.innerWidth;
         if (outside && tabs.length > 1) void ks.tabs.detach(t.id, e.screenX, e.screenY);
       });
       return el;
-    }),
-    iconButton('plus', { class: 'icon-btn small new-tab', title: 'Nuova scheda (Ctrl+T)', 'aria-label': 'Nuova scheda', onclick: () => void ks.tabs.create() }, 18),
-  );
-  tabstrip.querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  if (vertical()) {
+    // Pinned tabs as a grid of icons on top, then the list, then "new tab".
+    const newRow = h('button', { class: 'new-tab-row', title: 'Nuova scheda (Ctrl+T)', onclick: () => void ks.tabs.create() }, h('span', {}, 'Nuova scheda'));
+    newRow.prepend(icon('plus', 16));
+    tabstrip.replaceChildren();
+    sideList.replaceChildren(
+      h('div', { class: 'pinned-grid' }, ...els.filter((el) => el.classList.contains('pinned'))),
+      ...els.filter((el) => !el.classList.contains('pinned')),
+      newRow,
+    );
+  } else {
+    sideList.replaceChildren();
+    tabstrip.replaceChildren(...els, iconButton('plus', { class: 'icon-btn small new-tab', title: 'Nuova scheda (Ctrl+T)', 'aria-label': 'Nuova scheda', onclick: () => void ks.tabs.create() }, 18));
+  }
+  tabsHost().querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
 // With more tabs than fit, the mouse wheel scrolls the tab strip.
@@ -222,34 +289,36 @@ tabstrip.addEventListener('wheel', (e) => {
   tabstrip.scrollLeft += e.deltaY;
 }, { passive: false });
 
-tabstrip.addEventListener('dragover', (e) => {
-  if (!e.dataTransfer?.types.includes(TAB_MIME)) return;
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  clearDropMarks();
-  const els = [...tabstrip.querySelectorAll<HTMLElement>('.tab')];
-  const index = dropIndex(e.clientX);
-  if (els[index]) els[index].classList.add('drop-before');
-  else els[els.length - 1]?.classList.add('drop-after');
-});
-tabstrip.addEventListener('dragleave', (e) => {
-  if (!tabstrip.contains(e.relatedTarget as Node)) clearDropMarks();
-});
-tabstrip.addEventListener('drop', (e) => {
-  const raw = e.dataTransfer?.getData(TAB_MIME);
-  clearDropMarks();
-  if (!raw) return;
-  e.preventDefault();
-  const { windowId: from, tabId } = JSON.parse(raw) as { windowId: number; tabId: number };
-  let index = dropIndex(e.clientX);
-  if (from === windowId) {
-    const current = tabs.findIndex((t) => t.id === tabId);
-    if (current !== -1 && current < index) index--;
-    if (current !== index) void ks.tabs.move(tabId, index);
-  } else {
-    void ks.tabs.adopt(from, tabId, index);
-  }
-});
+for (const host of [tabstrip, sideList]) {
+  host.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer?.types.includes(TAB_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    clearDropMarks();
+    const els = [...host.querySelectorAll<HTMLElement>('.tab')];
+    const index = dropIndex(e);
+    if (els[index]) els[index].classList.add('drop-before');
+    else els[els.length - 1]?.classList.add('drop-after');
+  });
+  host.addEventListener('dragleave', (e) => {
+    if (!host.contains(e.relatedTarget as Node)) clearDropMarks();
+  });
+  host.addEventListener('drop', (e) => {
+    const raw = e.dataTransfer?.getData(TAB_MIME);
+    clearDropMarks();
+    if (!raw) return;
+    e.preventDefault();
+    const { windowId: from, tabId } = JSON.parse(raw) as { windowId: number; tabId: number };
+    let index = dropIndex(e);
+    if (from === windowId) {
+      const current = tabs.findIndex((t) => t.id === tabId);
+      if (current !== -1 && current < index) index--;
+      if (current !== index) void ks.tabs.move(tabId, index);
+    } else {
+      void ks.tabs.adopt(from, tabId, index);
+    }
+  });
+}
 
 function renderToolbar(): void {
   const tab = activeTab();
@@ -259,7 +328,7 @@ function renderToolbar(): void {
   reloadBtn.title = tab?.loading ? 'Interrompi' : 'Ricarica (Ctrl+R)';
   reloadBtn.setAttribute('aria-label', tab?.loading ? 'Interrompi' : 'Ricarica');
   renderSiteInfo(tab);
-  if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' && !tab.url.startsWith('ksuite://newtab') ? tab.url : '';
+  if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' && !tab.url.startsWith('ksuite://newtab') ? displayUrl(tab.url) : '';
   renderShield(tab);
 
   const bookmarkable = Boolean(tab && /^(https?|file|ksuite):/i.test(tab.url) && !tab.url.startsWith('ksuite://newtab'));
@@ -281,6 +350,13 @@ function renderToolbar(): void {
   zoomBtn.textContent = tab ? `${tab.zoom}%` : '';
   const suffix = document.body.classList.contains('private') ? 'kSuite Browser (privata)' : 'kSuite Browser';
   document.title = tab ? `${tab.title} — ${suffix}` : suffix;
+}
+
+/** The address as shown while not editing: without "https://" and "www." unless the user wants it whole. */
+function displayUrl(url: string): string {
+  if (currentSettings?.showFullUrl || !/^https?:\/\//i.test(url)) return url;
+  const short = url.replace(/^https?:\/\/(www\.)?/i, '');
+  return /^[^/?#]+\/$/.test(short) ? short.slice(0, -1) : short;
 }
 
 /** Lock, "not secure" warning or kSuite mark at the start of the address bar. */
@@ -429,7 +505,12 @@ $('omnibox-form').addEventListener('submit', (e) => {
   else void ks.tabs.create(value);
   omnibox.blur();
 });
-omnibox.addEventListener('focus', () => omnibox.select());
+omnibox.addEventListener('focus', () => {
+  // Editing starts from the whole address.
+  const tab = activeTab();
+  if (tab && omnibox.value === displayUrl(tab.url)) omnibox.value = tab.url;
+  omnibox.select();
+});
 omnibox.addEventListener('keydown', (e) => {
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && suggestions.length) {
     e.preventDefault();
@@ -680,8 +761,46 @@ reloadBtn.addEventListener('click', () => {
   if (!t) return;
   void (t.loading ? ks.tabs.stop(t.id) : ks.tabs.reload(t.id));
 });
-$('btn-panel').addEventListener('click', togglePanel);
-$('btn-tab-search').addEventListener('click', () => void ks.tabSearch());
+const anchorOf = (el: HTMLElement) => {
+  const r = el.getBoundingClientRect();
+  return { x: r.left, y: r.top, width: r.width, height: r.height };
+};
+buttons.panel.addEventListener('click', togglePanel);
+buttons.tabSearch.addEventListener('click', () => void ks.tabSearch(anchorOf(buttons.tabSearch)));
+buttons.newTab.addEventListener('click', () => void ks.tabs.create());
+buttons.home.addEventListener('click', () => {
+  const t = activeTab();
+  const home = currentSettings?.homePage ?? 'ksuite://newtab/';
+  void (t ? ks.tabs.navigate(t.id, home) : ks.tabs.create(home));
+});
+buttons.bookmarks.addEventListener('click', () => void ks.bookmarks.all());
+buttons.history.addEventListener('click', () => void ks.tabs.create('ksuite://history/'));
+buttons.ai.addEventListener('click', () => {
+  if (document.body.classList.contains('panel-open') && panel.current() === 'assistant') void setPanelOpen(false);
+  else void setPanelOpen(true).then(() => panel.show('assistant'));
+});
+$('btn-side-search').addEventListener('click', () => void ks.tabSearch(anchorOf($('btn-side-search'))));
+$('btn-side-collapse').addEventListener('click', () => void ks.settings.set({ sideTabsCollapsed: !currentSettings?.sideTabsCollapsed }));
+
+// Dragging the edge of the tab column changes its width (saved when released).
+$('sidetabs-resize').addEventListener('pointerdown', (e) => {
+  const handle = e.currentTarget as HTMLElement;
+  const left = $('sidetabs').getBoundingClientRect().left;
+  handle.setPointerCapture(e.pointerId);
+  document.body.classList.add('resizing');
+  let width = currentSettings?.sideTabsWidth ?? 240;
+  const move = (ev: PointerEvent) => {
+    width = Math.round(Math.min(SIDE_TABS_RANGE.max, Math.max(SIDE_TABS_RANGE.min, ev.clientX - left)));
+    document.body.style.setProperty('--side-w', `${width}px`);
+  };
+  const up = () => {
+    handle.removeEventListener('pointermove', move);
+    document.body.classList.remove('resizing');
+    void ks.settings.set({ sideTabsWidth: width });
+  };
+  handle.addEventListener('pointermove', move);
+  handle.addEventListener('pointerup', up, { once: true });
+});
 $('panel-close').addEventListener('click', () => void setPanelOpen(false));
 $('btn-settings').addEventListener('click', () => void ks.openSettingsPage());
 siteInfo.addEventListener('click', () => {
@@ -715,9 +834,8 @@ ks.events.onSettings(async (settings) => {
   // The assistant and the mail compose form show different controls with the AI on or off.
   if (aiChanged && (panel.current() === 'assistant' || panel.current() === 'mail')) void panel.render();
   document.body.classList.toggle('bookmarks-bar', settings.showBookmarksBar);
+  applyAppearance(settings);
   renderToolbar();
-  applyTheme(settings.theme);
-  applyLayoutSettings(settings.showSidebar);
   const status = await ks.token.status();
   if (status.configured !== tokenConfigured) {
     tokenConfigured = status.configured;
@@ -732,22 +850,43 @@ ks.events.onToast((t) => toast(t.kind, t.message));
 
 // ---------- Layout ----------
 
-/** Explicit theme choice; "system" falls back to the prefers-color-scheme media query. */
-function applyTheme(theme: Settings['theme']): void {
-  if (theme === 'system') delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = theme;
-}
+const systemDark = matchMedia('(prefers-color-scheme: dark)');
+let appliedLayout = '';
 
-function applyLayoutSettings(showSidebar: boolean): void {
-  if (document.body.classList.contains('no-sidebar') === !showSidebar) return;
-  document.body.classList.toggle('no-sidebar', !showSidebar);
-  syncBounds();
-}
+/** Colours, shapes and the arrangement of the window, from the appearance settings. */
+function applyAppearance(settings: Settings): void {
+  const dark = isPrivateWindow || isDark(settings.theme, systemDark.matches);
+  applyTokens(root, tokens(settings, dark, isPrivateWindow), dark);
+  const body = document.body;
+  for (const c of [...body.classList]) if (/^(layout|rail|canvas|apps|density)-/.test(c)) body.classList.remove(c);
+  body.classList.add(`layout-${settings.tabsLayout}`, `rail-${settings.railPosition}`, `canvas-${settings.canvasStyle}`, `apps-${settings.appIconStyle}`, `density-${settings.density}`);
+  body.classList.toggle('side-open', settings.tabsLayout === 'side');
+  body.classList.toggle('side-collapsed', settings.tabsLayout === 'side' && settings.sideTabsCollapsed);
+  body.style.setProperty('--side-w', `${settings.sideTabsWidth}px`);
+  const collapse = $('btn-side-collapse');
+  collapse.replaceChildren(icon(settings.sideTabsCollapsed ? 'panelLeftOpen' : 'panelLeftClose', 16));
+  collapse.title = settings.sideTabsCollapsed ? 'Allarga la colonna delle schede' : 'Riduci la colonna delle schede';
+  collapse.setAttribute('aria-label', collapse.title);
 
-/** The page views are native overlays: keep them aligned with the #content placeholder. */
+  // With tabs on top, the toolbar gets its own row under them.
+  const home = settings.tabsLayout === 'top' ? $('toolbar-row') : $('topbar');
+  if (toolbar.parentElement !== home) home.insertBefore(toolbar, home === $('topbar') ? toastEl : null);
+  placeToolbar(settings);
+  if (appliedLayout !== settings.tabsLayout) {
+    appliedLayout = settings.tabsLayout;
+    renderTabs();
+  }
+  requestAnimationFrame(syncBounds);
+}
+systemDark.addEventListener('change', () => {
+  if (currentSettings) applyAppearance(currentSettings);
+});
+
+/** The page views are native overlays: keep them aligned with the #content placeholder (and its rounded corners). */
 function syncBounds(): void {
   const r = content.getBoundingClientRect();
-  void ks.setContentBounds({ x: r.left, y: r.top, width: r.width, height: r.height });
+  const radius = parseFloat(getComputedStyle(root).getPropertyValue('--r-canvas')) || 0;
+  void ks.setContentBounds({ x: r.left, y: r.top, width: r.width, height: r.height, radius });
 }
 new ResizeObserver(syncBounds).observe(content);
 window.addEventListener('resize', syncBounds);
@@ -767,8 +906,7 @@ async function boot(): Promise<void> {
   renderBookmarksBar();
   tokenConfigured = status.configured;
   document.body.classList.toggle('private', info.isPrivate);
-  document.body.classList.toggle('no-sidebar', !settings.showSidebar);
-  applyTheme(settings.theme);
+  applyAppearance(settings);
   renderTabs();
   renderToolbar();
   renderSidebar();

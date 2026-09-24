@@ -1,5 +1,5 @@
 import { WebContentsView, type BrowserWindow } from 'electron';
-import type { TabSearchData } from '../shared/types';
+import type { Rect, TabSearchData } from '../shared/types';
 
 const WIDTH = 460;
 const MAX_HEIGHT = 560;
@@ -14,7 +14,7 @@ export class TabSearchPopup {
   constructor(
     private readonly window: BrowserWindow,
     paths: { html: string; preload: string },
-    top: number,
+    top: () => number,
   ) {
     this.view = new WebContentsView({
       webPreferences: { preload: paths.preload, sandbox: true, contextIsolation: true, nodeIntegration: false },
@@ -28,7 +28,8 @@ export class TabSearchPopup {
     this.top = top;
   }
 
-  private top: number;
+  /** Default distance from the top (below the first row), when not opened from a button. */
+  private top: () => number;
 
   get contents() {
     return this.view.webContents;
@@ -43,15 +44,17 @@ export class TabSearchPopup {
     return Date.now() - this.hiddenAt < 300;
   }
 
-  async show(data: Omit<TabSearchData, 'reset'>): Promise<void> {
+  async show(data: Omit<TabSearchData, 'reset'>, anchor?: Rect): Promise<void> {
     await this.ready;
     if (this.window.isDestroyed()) return;
     const [width, height] = this.window.getContentSize();
     const rows = data.tabs.length + Math.min(5, data.closed.length) + data.remote.reduce((n, d) => n + Math.min(8, d.tabs.length) + 1, 0);
     const wanted = 58 + rows * 44 + (data.closed.length ? 64 : 32) + 12;
-    const h = Math.max(160, Math.min(MAX_HEIGHT, wanted, height - this.top - 8));
-    // Right-aligned under the tab strip, like the button that opens it.
-    this.view.setBounds({ x: Math.max(0, width - WIDTH - 8), y: this.top + 2, width: Math.min(WIDTH, width), height: h });
+    const top = anchor ? anchor.y + anchor.height + 4 : this.top() + 2;
+    const h = Math.max(160, Math.min(MAX_HEIGHT, wanted, height - top - 8));
+    // Under the button that opened it (aligned on its right edge), else centred under the first row.
+    const x = anchor ? anchor.x + anchor.width - WIDTH : (width - WIDTH) / 2;
+    this.view.setBounds({ x: Math.round(Math.max(8, Math.min(x, width - WIDTH - 8))), y: Math.round(top), width: Math.min(WIDTH, width), height: h });
     this.view.webContents.send('tabsearch:data', { ...data, reset: !this.visible });
     this.window.contentView.addChildView(this.view);
     this.visible = true;

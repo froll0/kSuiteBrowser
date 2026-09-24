@@ -20,6 +20,7 @@ export interface AppMenuActions {
   savePageAs(): void;
   viewSource(): void;
   openSettings(): void;
+  customize(): void;
   searchTabs(): void;
   reader(): void;
   pictureInPicture(): void;
@@ -57,6 +58,7 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { label: 'Invia pagina via Mail…', accelerator: 'CmdOrCtrl+Shift+M', click: a.mailPage },
         { type: 'separator' },
         { label: 'Impostazioni', accelerator: 'CmdOrCtrl+,', click: a.openSettings },
+        { label: 'Personalizza l’aspetto…', click: a.customize },
         { label: 'Password', click: a.openPasswords },
         { label: 'Cancella dati di navigazione…', accelerator: 'CmdOrCtrl+Shift+Delete', click: a.clearData },
         { type: 'separator' },

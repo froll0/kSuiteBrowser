@@ -2,6 +2,7 @@ import type { AskablePermission, PermissionDefault, ReaderTheme, ReaderWidth, Se
 import type { SecureDnsChoice } from './secure-dns';
 import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from './url';
 import { ZOOM_STEPS } from './zoom';
+import { DEFAULT_ACCENT, FONT_SIZES, RADIUS_RANGE, SIDE_TABS_RANGE, TOOLBAR_ITEM_IDS, UI_FONTS, validHex, type ToolbarItem, type UiFont } from './appearance';
 
 export const REMINDER_MINUTES = [5, 10, 15, 30, 60] as const;
 /** Minutes before an unused tab goes to sleep; 0 = never. */
@@ -18,7 +19,25 @@ export const DEFAULT_SETTINGS: Settings = {
   askDownloadLocation: false,
 
   theme: 'system',
-  showSidebar: true,
+  accentColor: DEFAULT_ACCENT,
+  palette: 'standard',
+  backdrop: 'tint',
+  density: 'normal',
+  cornerRadius: 12,
+  uiFont: 'inter',
+  uiFontSize: 13,
+  tabsLayout: 'inline',
+  railPosition: 'left',
+  canvasStyle: 'floating',
+  appIconStyle: 'mono',
+  sideTabsWidth: 240,
+  sideTabsCollapsed: false,
+  toolbarStart: ['back', 'forward', 'reload'],
+  toolbarEnd: ['shield', 'media', 'downloads', 'tabSearch', 'panel'],
+  showFullUrl: false,
+  newTabBackground: 'plain',
+  newTabShowGreeting: true,
+  newTabShowApps: true,
   showBookmarksBar: true,
   panelOpen: true,
   newTabPage: 'newtab',
@@ -78,6 +97,21 @@ function hostList(value: unknown): string[] {
   return [...new Set(hosts)].sort();
 }
 
+/** Known buttons, each at most once across both groups (a button moved to the other group leaves the first). */
+function toolbar(value: unknown, fallback: ToolbarItem[], taken: Set<ToolbarItem>): ToolbarItem[] {
+  const list = Array.isArray(value) ? value : fallback;
+  const out: ToolbarItem[] = [];
+  for (const v of list) {
+    if (!TOOLBAR_ITEM_IDS.includes(v as ToolbarItem) || taken.has(v as ToolbarItem)) continue;
+    taken.add(v as ToolbarItem);
+    out.push(v as ToolbarItem);
+  }
+  return out;
+}
+
+const clampInt = (v: unknown, min: number, max: number, fallback: number) =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : fallback;
+
 function siteZoom(value: unknown): Record<string, number> {
   if (!value || typeof value !== 'object') return {};
   const out: Record<string, number> = {};
@@ -105,6 +139,9 @@ export function sanitizeSettings(raw: unknown): Settings {
   const d = DEFAULT_SETTINGS;
   const defaults = (s.permissionDefaults && typeof s.permissionDefaults === 'object' ? s.permissionDefaults : {}) as Record<string, unknown>;
   const positiveInt = (v: unknown) => (Number.isInteger(v) && (v as number) > 0 ? (v as number) : null);
+  const taken = new Set<ToolbarItem>();
+  const toolbarStart = toolbar(s.toolbarStart, d.toolbarStart, taken);
+  const toolbarEnd = toolbar(s.toolbarEnd, d.toolbarEnd, taken);
 
   return {
     startup: oneOf(s.startup, ['home', 'restore'] as const, d.startup),
@@ -120,7 +157,26 @@ export function sanitizeSettings(raw: unknown): Settings {
     askDownloadLocation: bool(s.askDownloadLocation, d.askDownloadLocation),
 
     theme: oneOf(s.theme, ['system', 'light', 'dark'] as const, d.theme),
-    showSidebar: bool(s.showSidebar, d.showSidebar),
+    accentColor: validHex(s.accentColor) ? s.accentColor.toLowerCase() : d.accentColor,
+    palette: oneOf(s.palette, ['standard', 'warm', 'contrast'] as const, d.palette),
+    backdrop: oneOf(s.backdrop, ['neutral', 'tint', 'gradient'] as const, d.backdrop),
+    density: oneOf(s.density, ['compact', 'normal', 'comfortable'] as const, d.density),
+    cornerRadius: clampInt(s.cornerRadius, RADIUS_RANGE.min, RADIUS_RANGE.max, d.cornerRadius),
+    uiFont: oneOf(s.uiFont, Object.keys(UI_FONTS) as UiFont[], d.uiFont),
+    uiFontSize: (FONT_SIZES as readonly number[]).includes(s.uiFontSize as number) ? (s.uiFontSize as number) : d.uiFontSize,
+    tabsLayout: oneOf(s.tabsLayout, ['inline', 'top', 'side'] as const, d.tabsLayout),
+    // Older settings had an on/off switch for the app bar.
+    railPosition: oneOf(s.railPosition, ['left', 'right', 'hidden'] as const, (s as { showSidebar?: unknown }).showSidebar === false ? 'hidden' : d.railPosition),
+    canvasStyle: oneOf(s.canvasStyle, ['floating', 'flush'] as const, d.canvasStyle),
+    appIconStyle: oneOf(s.appIconStyle, ['mono', 'color'] as const, d.appIconStyle),
+    sideTabsWidth: clampInt(s.sideTabsWidth, SIDE_TABS_RANGE.min, SIDE_TABS_RANGE.max, d.sideTabsWidth),
+    sideTabsCollapsed: bool(s.sideTabsCollapsed, d.sideTabsCollapsed),
+    toolbarStart,
+    toolbarEnd,
+    showFullUrl: bool(s.showFullUrl, d.showFullUrl),
+    newTabBackground: oneOf(s.newTabBackground, ['plain', 'tint', 'gradient'] as const, d.newTabBackground),
+    newTabShowGreeting: bool(s.newTabShowGreeting, d.newTabShowGreeting),
+    newTabShowApps: bool(s.newTabShowApps, d.newTabShowApps),
     showBookmarksBar: bool(s.showBookmarksBar, d.showBookmarksBar),
     panelOpen: bool(s.panelOpen, d.panelOpen),
     newTabPage: oneOf(s.newTabPage, ['newtab', 'home'] as const, d.newTabPage),

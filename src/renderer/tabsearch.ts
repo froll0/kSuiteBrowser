@@ -1,3 +1,4 @@
+import { applyTokens } from '../shared/appearance';
 import { matchesAll } from '../shared/search-match';
 import { faviconUrl } from '../shared/top-sites';
 import type { TabSearchData, TabSearchItem } from '../shared/types';
@@ -24,7 +25,7 @@ const input = document.getElementById('q') as HTMLInputElement;
 const list = document.getElementById('list')!;
 document.getElementById('search-icon')!.append(icon('search', 16));
 
-let data: TabSearchData = { tabs: [], closed: [], remote: [], theme: 'system', reset: true };
+let data: TabSearchData = { tabs: [], closed: [], remote: [], look: { dark: false, vars: {} }, reset: true };
 let rows: Row[] = [];
 let selected = 0;
 
@@ -136,8 +137,7 @@ function render(): void {
 
 bridge.onData((next) => {
   data = next;
-  const dark = next.theme === 'dark' || (next.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  applyTokens(document.documentElement, next.look.vars, next.look.dark);
   if (next.reset) {
     input.value = '';
     selected = 0;

@@ -1,7 +1,8 @@
 import { h } from '../../renderer/dom';
 import { permissionLabel } from '../../shared/external-protocols';
 import { SECURE_DNS_PROVIDERS, validDohTemplate, type SecureDnsChoice } from '../../shared/secure-dns';
-import { ASKABLE_PERMISSIONS, REMINDER_MINUTES, SLEEP_MINUTES } from '../../shared/settings-schema';
+import { ASKABLE_PERMISSIONS, DEFAULT_SETTINGS, REMINDER_MINUTES, SLEEP_MINUTES } from '../../shared/settings-schema';
+import { ACCENT_PRESETS, FONT_SIZES, RADIUS_RANGE, TOOLBAR_ITEMS, TOOLBAR_ITEM_IDS, UI_FONTS, type ToolbarItem, type UiFont } from '../../shared/appearance';
 import type { SyncStatus, SyncCollectionOption, AskablePermission, BrowsingDataSelection, Settings, UpdateStatus } from '../../shared/types';
 import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from '../../shared/url';
 import { ZOOM_STEPS } from '../../shared/zoom';
@@ -115,7 +116,6 @@ async function generalSection(): Promise<HTMLElement> {
         { value: 'home', title: 'La pagina iniziale' },
       ], (v) => void update({ newTabPage: v }), true),
     ),
-    row('Siti più visitati nella nuova scheda', 'Calcolati dalla cronologia, solo su questo computer.', toggle('showTopSites', 'Mostra siti più visitati')),
     row('Motore di ricerca', 'Usato nella barra degli indirizzi. “kSuite” cerca insieme nei tuoi dati (kDrive, email, contatti, eventi, preferiti, cronologia) e ti porta sul web con un clic.', engine),
     row('Motore per il web', 'Usato dalla ricerca kSuite per i risultati sul web.', webEngineSelect()),
     row('Metti in pausa le schede inattive', 'Le schede non usate da un po’ chiudono la pagina per liberare memoria e si ricaricano quando le apri. Mai quelle fissate, delle app kSuite, con audio in riproduzione o con moduli compilati.', sleepSelect()),
@@ -124,24 +124,319 @@ async function generalSection(): Promise<HTMLElement> {
   );
 }
 
+// ---------- Appearance ----------
+
+/** A small drawing of the window that follows every change: layout, colours, shapes. */
+function preview(): HTMLElement {
+  const el = h('div', { class: 'preview', 'aria-hidden': 'true' });
+  const draw = () => {
+    const s = settings;
+    el.className = `preview layout-${s.tabsLayout} rail-${s.railPosition} canvas-${s.canvasStyle} density-${s.density}`;
+    const tabs = h('div', { class: 'p-tabs' }, h('span', { class: 'p-tab active' }), h('span', { class: 'p-tab' }), h('span', { class: 'p-tab' }));
+    const bar = h('div', { class: 'p-bar' }, h('span', { class: 'p-dot' }), h('span', { class: 'p-dot' }), h('span', { class: 'p-url' }), h('span', { class: 'p-dot' }));
+    const top = h('div', { class: 'p-top' }, s.tabsLayout === 'side' ? null : tabs, s.tabsLayout === 'top' ? null : bar);
+    const rows: Node[] = [top];
+    if (s.tabsLayout === 'top') rows.push(h('div', { class: 'p-top' }, bar));
+    const rail = h('div', { class: 'p-rail' }, ...Array.from({ length: 5 }, () => h('span', { class: 'p-app' })));
+    const side = s.tabsLayout === 'side'
+      ? h('div', { class: 'p-side' }, ...Array.from({ length: 5 }, (_, i) => h('span', { class: `p-tab${i === 0 ? ' active' : ''}` })))
+      : null;
+    const canvas = h('div', { class: 'p-canvas' }, h('span', { class: 'p-line wide' }), h('span', { class: 'p-line' }), h('span', { class: 'p-line short' }));
+    el.replaceChildren(...rows, h('div', { class: 'p-body' }, s.railPosition === 'hidden' ? null : rail, side, canvas));
+  };
+  draw();
+  redrawPreview = draw;
+  return el;
+}
+let redrawPreview = () => {};
+
+/** Saves an appearance change: the page (and the preview) follow at once through the settings broadcast. */
+const look = (patch: Partial<Settings>) =>
+  void update(patch).then(() => {
+    redrawPreview();
+    redrawToolbarEditor();
+  });
+
+function segmented<T extends string | number>(label: string, value: T, options: Array<{ value: T; title: string; icon?: string }>, onChange: (v: T) => void): HTMLElement {
+  return h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': label },
+    ...options.map((o) => {
+      const button = h('button', { type: 'button', role: 'radio', 'aria-checked': String(o.value === value), class: o.value === value ? 'on' : '' },
+        o.icon ? h('span', { 'data-icon': o.icon, 'data-size': '16' }) : null, o.title);
+      button.addEventListener('click', () => {
+        for (const b of button.parentElement!.children) {
+          b.classList.toggle('on', b === button);
+          b.setAttribute('aria-checked', String(b === button));
+        }
+        onChange(o.value);
+      });
+      return button;
+    }));
+}
+
+function accentPicker(): HTMLElement {
+  const custom = h('input', { type: 'color', value: settings.accentColor, 'aria-label': 'Colore personalizzato', title: 'Scegli un altro colore' });
+  const swatches = ACCENT_PRESETS.map((p) => {
+    const b = h('button', { type: 'button', class: 'swatch', title: p.name, 'aria-label': p.name });
+    // Through the CSSOM: the page's security policy forbids inline style attributes.
+    b.style.setProperty('--swatch', p.color);
+    b.addEventListener('click', () => pick(p.color));
+    return b;
+  });
+  const mark = () => {
+    for (const [i, b] of swatches.entries()) b.classList.toggle('on', ACCENT_PRESETS[i].color === settings.accentColor);
+    custom.parentElement?.classList.toggle('on', !ACCENT_PRESETS.some((p) => p.color === settings.accentColor));
+  };
+  const pick = (color: string) => {
+    custom.value = color;
+    void update({ accentColor: color }).then(() => {
+      mark();
+      redrawPreview();
+    });
+  };
+  custom.addEventListener('input', () => pick(custom.value));
+  const el = h('div', { class: 'swatches' }, ...swatches, h('label', { class: 'swatch custom', title: 'Scegli un altro colore' }, custom));
+  queueMicrotask(mark);
+  return el;
+}
+
+function radiusSlider(): HTMLElement {
+  const input = h('input', { type: 'range', min: String(RADIUS_RANGE.min), max: String(RADIUS_RANGE.max), step: '1', value: String(settings.cornerRadius), 'aria-label': 'Arrotondamento degli angoli' });
+  const out = h('output', {}, `${settings.cornerRadius} px`);
+  let timer: number | undefined;
+  input.addEventListener('input', () => {
+    out.textContent = `${input.value} px`;
+    // The page follows at once; the file is written when the slider rests.
+    document.documentElement.style.setProperty('--r-lg', `${input.value}px`);
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => look({ cornerRadius: Number(input.value) }), 120);
+  });
+  return h('div', { class: 'range' }, h('span', { class: 'muted small' }, 'Squadrati'), input, h('span', { class: 'muted small' }, 'Tondi'), out);
+}
+
+function toolbarEditor(): HTMLElement {
+  const lanes: Record<'toolbarStart' | 'toolbarEnd' | 'available', HTMLElement> = {
+    toolbarStart: h('div', { class: 'lane', 'data-lane': 'toolbarStart' }),
+    toolbarEnd: h('div', { class: 'lane', 'data-lane': 'toolbarEnd' }),
+    available: h('div', { class: 'lane available', 'data-lane': 'available' }),
+  };
+  let dragged: ToolbarItem | null = null;
+
+  const save = (start: ToolbarItem[], end: ToolbarItem[]) => look({ toolbarStart: start, toolbarEnd: end });
+  const chip = (id: ToolbarItem, lane: keyof typeof lanes) => {
+    const def = TOOLBAR_ITEMS[id];
+    const inBar = lane !== 'available';
+    // In the two bar lanes the buttons look like in the real toolbar (icon only); the name is in the tooltip.
+    const c = h('div', { class: `chip${inBar ? ' in-bar' : ''}`, draggable: 'true', 'data-id': id, title: inBar ? `${def.label} — trascina per spostare` : 'Clic o trascina per aggiungere' },
+      h('span', { 'data-icon': def.icon, 'data-size': inBar ? '18' : '16' }), inBar ? null : h('span', {}, def.label));
+    c.tabIndex = 0;
+    if (lane === 'available') {
+      c.setAttribute('role', 'button');
+      c.addEventListener('click', () => save(settings.toolbarStart, [...settings.toolbarEnd, id]));
+      c.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          c.click();
+        }
+      });
+    } else {
+      c.setAttribute('aria-label', `${def.label}: Canc per togliere, frecce per spostare`);
+      c.addEventListener('keydown', (e) => {
+        const start = [...settings.toolbarStart];
+        const end = [...settings.toolbarEnd];
+        const list = lane === 'toolbarStart' ? start : end;
+        const i = list.indexOf(id);
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          list.splice(i, 1);
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          const j = i + (e.key === 'ArrowLeft' ? -1 : 1);
+          list.splice(i, 1);
+          // Past either end of a group the button moves to the other group.
+          if (j < 0 && lane === 'toolbarEnd') start.push(id);
+          else if (j >= list.length + 1 && lane === 'toolbarStart') end.unshift(id);
+          else list.splice(Math.max(0, Math.min(list.length, j)), 0, id);
+        } else return;
+        e.preventDefault();
+        refocus = id;
+        save(start, end);
+      });
+      const remove = h('button', { type: 'button', class: 'chip-x', title: 'Togli dalla barra', 'aria-label': `Togli ${def.label} dalla barra`, 'data-icon': 'close', 'data-size': '13' });
+      remove.addEventListener('click', () => save(settings.toolbarStart.filter((x) => x !== id), settings.toolbarEnd.filter((x) => x !== id)));
+      c.append(remove);
+    }
+    c.addEventListener('dragstart', (e) => {
+      dragged = id;
+      e.dataTransfer!.effectAllowed = 'move';
+      e.dataTransfer!.setData('text/plain', id);
+      c.classList.add('dragging');
+    });
+    c.addEventListener('dragend', () => {
+      dragged = null;
+      c.classList.remove('dragging');
+    });
+    return c;
+  };
+
+  for (const [name, lane] of Object.entries(lanes) as Array<[keyof typeof lanes, HTMLElement]>) {
+    lane.addEventListener('dragover', (e) => {
+      if (!dragged) return;
+      e.preventDefault();
+      lane.classList.add('over');
+    });
+    lane.addEventListener('dragleave', () => lane.classList.remove('over'));
+    lane.addEventListener('drop', (e) => {
+      e.preventDefault();
+      lane.classList.remove('over');
+      if (!dragged) return;
+      const id = dragged;
+      const start = settings.toolbarStart.filter((x) => x !== id);
+      const end = settings.toolbarEnd.filter((x) => x !== id);
+      if (name === 'available') return save(start, end);
+      // Dropped before the chip under the pointer (or at the end).
+      const target = [...lane.querySelectorAll<HTMLElement>('.chip')].find((el) => {
+        const r = el.getBoundingClientRect();
+        return el.dataset.id !== id && e.clientX < r.left + r.width / 2 && e.clientY < r.bottom;
+      });
+      const list = name === 'toolbarStart' ? start : end;
+      const at = target ? list.indexOf(target.dataset.id as ToolbarItem) : -1;
+      list.splice(at === -1 ? list.length : at, 0, id);
+      save(start, end);
+    });
+  }
+
+  let refocus: ToolbarItem | null = null;
+  const draw = () => {
+    lanes.toolbarStart.replaceChildren(...settings.toolbarStart.map((id) => chip(id, 'toolbarStart')));
+    lanes.toolbarEnd.replaceChildren(...settings.toolbarEnd.map((id) => chip(id, 'toolbarEnd')));
+    const unused = TOOLBAR_ITEM_IDS.filter((id) => !settings.toolbarStart.includes(id) && !settings.toolbarEnd.includes(id));
+    lanes.available.replaceChildren(...unused.map((id) => chip(id, 'available')));
+    if (!unused.length) lanes.available.append(h('span', { class: 'muted small' }, 'Tutti i pulsanti sono già nella barra.'));
+    hydrateIcons(el);
+    if (refocus) el.querySelector<HTMLElement>(`.lane-row .chip[data-id="${refocus}"]`)?.focus();
+    refocus = null;
+  };
+  const el = h('div', { class: 'toolbar-editor' },
+    h('div', { class: 'lane-row' },
+      h('div', { class: 'lane-box' }, h('div', { class: 'lane-title' }, 'Prima dell’indirizzo'), lanes.toolbarStart),
+      h('div', { class: 'omni-stub' }, h('span', { 'data-icon': 'search', 'data-size': '14' }), 'Indirizzo'),
+      h('div', { class: 'lane-box' }, h('div', { class: 'lane-title' }, 'Dopo l’indirizzo'), lanes.toolbarEnd),
+      h('div', { class: 'menu-stub', title: 'Il menu resta sempre in fondo' }, h('span', { 'data-icon': 'more', 'data-size': '16' }))),
+    h('div', { class: 'lane-box' }, h('div', { class: 'lane-title' }, 'Pulsanti disponibili'), lanes.available));
+  draw();
+  redrawToolbarEditor = draw;
+  return el;
+}
+let redrawToolbarEditor = () => {};
+
 function appearanceSection(): HTMLElement {
+  const font = h('select', { 'aria-label': 'Carattere dell’interfaccia' },
+    ...(Object.entries(UI_FONTS) as Array<[UiFont, { label: string; stack: string }]>).map(([id, f]) => {
+      const option = h('option', { value: id, selected: settings.uiFont === id }, f.label);
+      option.style.fontFamily = f.stack;
+      return option;
+    }));
+  font.addEventListener('change', () => look({ uiFont: font.value as UiFont }));
+  const size = h('select', { 'aria-label': 'Dimensione del testo dell’interfaccia' },
+    ...FONT_SIZES.map((n) => h('option', { value: String(n), selected: settings.uiFontSize === n }, n === 13 ? `${n} px (predefinita)` : `${n} px`)));
+  size.addEventListener('change', () => look({ uiFontSize: Number(size.value) }));
+
   return section(
     'appearance',
     'Aspetto',
-    h('div', { class: 'row stack', 'data-search': 'tema chiaro scuro sistema' },
-      h('div', { class: 'title' }, 'Tema'),
-      radios('theme', settings.theme, [
-        { value: 'system', title: 'Come il sistema' },
-        { value: 'light', title: 'Chiaro' },
-        { value: 'dark', title: 'Scuro' },
-      ], (v) => {
-        if (v === 'system') delete document.documentElement.dataset.theme;
-        else document.documentElement.dataset.theme = v;
-        void update({ theme: v });
-      }, true),
+    h('div', { class: 'row stack preview-row', 'data-search': 'anteprima aspetto' }, preview()),
+    row('Tema', null, segmented('Tema', settings.theme, [
+      { value: 'system', title: 'Sistema', icon: 'monitor' },
+      { value: 'light', title: 'Chiaro', icon: 'sun' },
+      { value: 'dark', title: 'Scuro', icon: 'moon' },
+    ], (v) => look({ theme: v }))),
+    row('Colore d’accento', 'Pulsanti, selezioni, link e la tinta dello sfondo.', accentPicker()),
+    row('Tavolozza', 'I toni neutri di superfici e testi.', segmented('Tavolozza', settings.palette, [
+      { value: 'standard', title: 'Neutra' },
+      { value: 'warm', title: 'Calda' },
+      { value: 'contrast', title: 'Alto contrasto' },
+    ], (v) => look({ palette: v }))),
+    row('Sfondo della finestra', 'Il colore intorno alla pagina.', segmented('Sfondo', settings.backdrop, [
+      { value: 'neutral', title: 'Neutro' },
+      { value: 'tint', title: 'Tinta' },
+      { value: 'gradient', title: 'Sfumato' },
+    ], (v) => look({ backdrop: v }))),
+    row('La pagina', 'Sospesa come una tela con i bordi arrotondati, oppure da bordo a bordo.', segmented('Pagina', settings.canvasStyle, [
+      { value: 'floating', title: 'Tela sospesa' },
+      { value: 'flush', title: 'Bordo a bordo' },
+    ], (v) => look({ canvasStyle: v }))),
+    row('Angoli', 'Quanto sono arrotondati pagina, schede, pulsanti e riquadri.', radiusSlider()),
+    row('Densità', 'Lo spazio intorno a schede e pulsanti.', segmented('Densità', settings.density, [
+      { value: 'compact', title: 'Compatta' },
+      { value: 'normal', title: 'Normale' },
+      { value: 'comfortable', title: 'Ariosa' },
+    ], (v) => look({ density: v }))),
+    row('Carattere', 'Per schede, barre, menu e pagine del browser.', h('div', { class: 'control' }, font, size)),
+    row('Icone delle app kSuite', null, segmented('Icone app', settings.appIconStyle, [
+      { value: 'mono', title: 'Essenziali' },
+      { value: 'color', title: 'Colorate' },
+    ], (v) => look({ appIconStyle: v }))),
+    row('Ripristina', 'Torna ai colori, alle forme e alla disposizione iniziali.', h('button', {
+      onclick: () => {
+        const d = DEFAULT_SETTINGS;
+        void update({
+          theme: d.theme, accentColor: d.accentColor, palette: d.palette, backdrop: d.backdrop, canvasStyle: d.canvasStyle, cornerRadius: d.cornerRadius,
+          density: d.density, uiFont: d.uiFont, uiFontSize: d.uiFontSize, appIconStyle: d.appIconStyle, tabsLayout: d.tabsLayout, railPosition: d.railPosition,
+          toolbarStart: d.toolbarStart, toolbarEnd: d.toolbarEnd, showFullUrl: d.showFullUrl, sideTabsWidth: d.sideTabsWidth, sideTabsCollapsed: d.sideTabsCollapsed,
+        }).then(render);
+      },
+    }, 'Ripristina l’aspetto')),
+  );
+}
+
+function layoutSection(): HTMLElement {
+  return section(
+    'layout',
+    'Disposizione',
+    h('div', { class: 'row stack', 'data-search': 'schede posizione disposizione riga laterali verticali' },
+      h('div', { class: 'title' }, 'Schede'),
+      radios('tabsLayout', settings.tabsLayout, [
+        { value: 'inline', title: 'Su una riga', desc: 'Schede e indirizzo insieme: più spazio alla pagina.' },
+        { value: 'top', title: 'Sopra l’indirizzo', desc: 'Due righe, più spazio alle schede.' },
+        { value: 'side', title: 'Di lato', desc: 'Una colonna verticale, ridimensionabile e riducibile.' },
+      ], (v) => look({ tabsLayout: v }), true),
     ),
-    row('Barra laterale kSuite', 'Le icone di Mail, kDrive, Calendar e delle altre app.', toggle('showSidebar', 'Mostra barra laterale')),
+    row('Barra delle app kSuite', 'Mail, kDrive, Calendar e le altre app.', segmented('Barra delle app', settings.railPosition, [
+      { value: 'left', title: 'A sinistra' },
+      { value: 'right', title: 'A destra' },
+      { value: 'hidden', title: 'Nascosta' },
+    ], (v) => look({ railPosition: v }))),
     row('Barra dei preferiti', h('span', {}, 'Sotto la barra degli indirizzi (Ctrl+Shift+B). ', h('a', { href: 'ksuite://bookmarks/' }, 'Gestisci preferiti')), toggle('showBookmarksBar', 'Mostra barra dei preferiti')),
+    row('Indirizzo completo', 'Mostra sempre “https://” e “www.”; altrimenti compaiono solo quando modifichi l’indirizzo.', toggle('showFullUrl', 'Mostra l’indirizzo completo')),
+    h('div', { class: 'row stack', 'data-search': 'barra degli strumenti pulsanti personalizza ordine' },
+      h('div', { class: 'text' },
+        h('div', { class: 'title' }, 'Barra degli strumenti'),
+        h('div', { class: 'desc' }, 'Trascina i pulsanti per riordinarli o spostarli; clic su un pulsante disponibile per aggiungerlo. Anche il clic destro sulla barra permette di togliere o aggiungere pulsanti.')),
+      toolbarEditor(),
+    ),
+    h('div', { class: 'row stack', 'data-search': 'nuova scheda sfondo saluto app siti' },
+      h('div', { class: 'title' }, 'Pagina nuova scheda'),
+      h('div', { class: 'newtab-options' },
+        segmented('Sfondo della nuova scheda', settings.newTabBackground, [
+          { value: 'plain', title: 'Semplice' },
+          { value: 'tint', title: 'Tinta' },
+          { value: 'gradient', title: 'Sfumata' },
+        ], (v) => look({ newTabBackground: v })),
+        h('label', { class: 'check' }, checkbox('newTabShowGreeting'), 'Saluto'),
+        h('label', { class: 'check' }, checkbox('showTopSites'), 'Siti più visitati'),
+        h('label', { class: 'check' }, checkbox('newTabShowApps'), 'App kSuite')),
+    ),
+  );
+}
+
+function checkbox(key: 'newTabShowGreeting' | 'newTabShowApps' | 'showTopSites'): HTMLInputElement {
+  const input = h('input', { type: 'checkbox', checked: settings[key] });
+  input.addEventListener('change', () => void update({ [key]: input.checked } as Partial<Settings>));
+  return input;
+}
+
+function zoomSection(): HTMLElement {
+  return section(
+    'zoom',
+    'Zoom',
     row('Zoom predefinito', 'Per le pagine senza uno zoom scelto da te. Ctrl + e Ctrl − cambiano lo zoom di un sito, Ctrl+0 lo ripristina.', zoomSelect()),
     h('div', { class: 'row stack', 'data-search': 'zoom siti ingrandimento' },
       h('div', { class: 'title' }, 'Zoom dei siti'),
@@ -729,8 +1024,9 @@ async function render(): Promise<void> {
   if (settings.theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
   const scroll = content.scrollTop || document.scrollingElement?.scrollTop || 0;
-  const sections = [await generalSection(), appearanceSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await ksuiteSection(), syncSection(), await aiSection(), await aboutSection()];
+  const sections = [await generalSection(), appearanceSection(), layoutSection(), zoomSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await ksuiteSection(), syncSection(), await aiSection(), await aboutSection()];
   content.replaceChildren(...sections);
+  hydrateIcons(content);
   applyFilter();
   if (document.scrollingElement) document.scrollingElement.scrollTop = scroll;
 }

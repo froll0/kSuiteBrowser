@@ -9,35 +9,25 @@
 </head>
 <body>
   <header id="chrome">
-    <div id="titlebar">
+    <div id="topbar">
       <span id="private-badge" title="Finestra privata: cronologia, cookie e dati vengono eliminati alla chiusura"><span data-icon="eyeOff" data-size="14"></span>Privata</span>
       <div id="tabstrip" role="tablist" aria-label="Schede"></div>
-      <div class="drag-spacer"></div>
-      <button id="btn-tab-search" class="icon-btn small" data-icon="chevronDown" data-size="16" title="Cerca tra le schede (Ctrl+Shift+A)" aria-label="Cerca tra le schede"></button>
-      <div id="toast" role="status" aria-live="polite" hidden></div>
-    </div>
-    <div id="toolbar">
-      <div class="group">
-        <button id="btn-back" class="icon-btn" data-icon="arrowLeft" title="Indietro (Alt+←)" aria-label="Indietro"></button>
-        <button id="btn-forward" class="icon-btn" data-icon="arrowRight" title="Avanti (Alt+→)" aria-label="Avanti"></button>
-        <button id="btn-reload" class="icon-btn" data-icon="reload" title="Ricarica (Ctrl+R)" aria-label="Ricarica"></button>
-      </div>
-      <form id="omnibox-form" role="search">
-        <button id="site-info" type="button" class="site-info" title="Informazioni sul sito" aria-label="Informazioni sul sito"></button>
-        <input id="omnibox" type="text" spellcheck="false" autocomplete="off" role="combobox" aria-autocomplete="list"
-               aria-expanded="false" placeholder="Cerca o inserisci un indirizzo" aria-label="Indirizzo" />
-        <button id="btn-zoom" type="button" class="pill" title="Ripristina lo zoom (Ctrl+0)" hidden></button>
-        <button id="btn-reader" type="button" class="icon-btn small" data-icon="bookOpen" data-size="16" title="Modalità lettura (F9)" aria-label="Modalità lettura" aria-pressed="false" hidden></button>
-        <button id="btn-star" type="button" class="icon-btn small" data-icon="star" data-size="16" title="Aggiungi ai preferiti (Ctrl+D)" aria-label="Aggiungi ai preferiti"></button>
-      </form>
-      <div class="group">
-        <button id="btn-shield" class="icon-btn shield" title="Protezioni" aria-label="Protezioni"><span class="count"></span></button>
-        <button id="btn-media" class="icon-btn" data-icon="volume" title="Audio e video delle schede" aria-label="Audio e video delle schede" hidden></button>
-        <button id="btn-downloads" class="icon-btn" data-icon="download" title="Download" aria-label="Download"><span class="dot" hidden></span></button>
-        <button id="btn-panel" class="icon-btn" data-icon="panel" title="Pannello kSuite (Ctrl+Shift+K)" aria-label="Pannello kSuite"></button>
+      <div id="toolbar" role="toolbar" aria-label="Barra degli strumenti">
+        <div id="tb-start" class="group"></div>
+        <form id="omnibox-form" role="search">
+          <button id="site-info" type="button" class="site-info" title="Informazioni sul sito" aria-label="Informazioni sul sito"></button>
+          <input id="omnibox" type="text" spellcheck="false" autocomplete="off" role="combobox" aria-autocomplete="list"
+                 aria-expanded="false" placeholder="Cerca o inserisci un indirizzo" aria-label="Indirizzo" />
+          <button id="btn-zoom" type="button" class="pill" title="Ripristina lo zoom (Ctrl+0)" hidden></button>
+          <button id="btn-reader" type="button" class="icon-btn small" data-icon="bookOpen" data-size="16" title="Modalità lettura (F9)" aria-label="Modalità lettura" aria-pressed="false" hidden></button>
+          <button id="btn-star" type="button" class="icon-btn small" data-icon="star" data-size="16" title="Aggiungi ai preferiti (Ctrl+D)" aria-label="Aggiungi ai preferiti"></button>
+        </form>
+        <div id="tb-end" class="group"></div>
         <button id="btn-menu" class="icon-btn" data-icon="more" title="Menu" aria-label="Menu"></button>
       </div>
+      <div id="toast" role="status" aria-live="polite" hidden></div>
     </div>
+    <div id="toolbar-row"></div>
     <div id="bookmarks-bar" aria-label="Barra dei preferiti">
       <div id="bookmarks-items"></div>
       <button id="btn-all-bookmarks" class="bookmark more" title="Tutti i preferiti"><span data-icon="folder" data-size="15"></span><span class="label">Tutti i preferiti</span></button>
@@ -49,6 +39,14 @@
       <div id="sidebar-apps"></div>
       <button id="btn-settings" class="rail-btn" data-icon="settings" title="Impostazioni (Ctrl+,)" aria-label="Impostazioni"></button>
     </nav>
+    <aside id="sidetabs" aria-label="Schede">
+      <div class="sidetabs-head">
+        <button id="btn-side-collapse" class="icon-btn small" data-icon="panelLeftClose" data-size="16" title="Riduci la colonna delle schede" aria-label="Riduci la colonna delle schede"></button>
+        <button id="btn-side-search" class="icon-btn small" data-icon="search" data-size="16" title="Cerca tra le schede (Ctrl+Shift+A)" aria-label="Cerca tra le schede"></button>
+      </div>
+      <div id="sidetabs-list"></div>
+      <div id="sidetabs-resize" title="Trascina per cambiare la larghezza" aria-hidden="true"></div>
+    </aside>
     <main id="content"></main>
     <aside id="panel" aria-label="Pannello kSuite">
       <div class="panel-header">

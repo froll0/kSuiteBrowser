@@ -2,10 +2,10 @@ import { h } from '../../renderer/dom';
 import { INTERNAL } from '../../shared/ipc';
 import { KSUITE_APPS } from '../../shared/ksuite-apps';
 import { faviconUrl } from '../../shared/top-sites';
-import type { NewTabData, Suggestion } from '../../shared/types';
+import type { NewTabData, Settings, Suggestion } from '../../shared/types';
 import { hydrateIcons, icon, logoMark } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
-import { followTheme } from '../shared/theme';
+import { followTheme, refreshTheme } from '../shared/theme';
 
 followTheme();
 hydrateIcons();
@@ -87,7 +87,10 @@ document.getElementById('search-form')!.addEventListener('submit', async (e) => 
 
 async function render(): Promise<void> {
   const data = await call<NewTabData>(INTERNAL.newtabData);
-  document.body.classList.toggle('private', data.isPrivate);
+  if (document.body.classList.contains('private') !== data.isPrivate) {
+    document.body.classList.toggle('private', data.isPrivate);
+    refreshTheme();
+  }
   document.getElementById('private-note')!.hidden = !data.isPrivate;
   if (data.isPrivate) document.getElementById('greeting')!.textContent = 'Finestra privata';
   search.placeholder = 'Cerca sul web o scrivi un indirizzo';
@@ -136,5 +139,16 @@ document.getElementById('apps')!.replaceChildren(
   }),
 );
 
-internal.onSettings(() => void render());
+/** Background and blocks chosen in Settings › Aspetto. */
+function applyLayout(settings: Settings): void {
+  document.body.dataset.background = settings.newTabBackground;
+  document.querySelector<HTMLElement>('.brand h1')!.hidden = !settings.newTabShowGreeting;
+  document.querySelector<HTMLElement>('section[aria-labelledby="apps-title"]')!.hidden = !settings.newTabShowApps;
+}
+
+internal.onSettings((settings) => {
+  applyLayout(settings);
+  void render();
+});
+void internal.settings().then(applyLayout);
 void render();

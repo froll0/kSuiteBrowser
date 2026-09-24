@@ -11,7 +11,7 @@ import { siteOf } from '../shared/privacy-rules';
 import { matchesAll } from '../shared/search-match';
 import { buildSuggestions } from '../shared/suggest';
 import type {
-  AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData,
+  AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
 } from '../shared/types';
 import { searchAnswerMessages } from '../shared/ai-prompts';
 import { generatePassword } from '../shared/password-gen';
@@ -20,6 +20,7 @@ import { resolveOmniboxInput } from '../shared/url';
 import { stepZoom, withSiteZoom, zoomFor } from '../shared/zoom';
 import { buildAppMenu } from './app-menu';
 import { TrackerBlocker } from './blocker';
+import type { HoverInfo } from './hover-card';
 import { clearBrowsingData } from './browsing-data';
 import { DownloadManager } from './downloads';
 import { isInternalUrl, registerInternalScheme, serveInternalPages } from './internal-pages';
@@ -276,6 +277,7 @@ const windowContext: WindowContext = {
   stepZoom: (w, wc, direction) => changeZoom(w, wc, direction),
   guardFor: (ses) => guards.get(ses)!,
   ownerOf: (contents) => [...windows].find((w) => w.tabs.idOf(contents) !== null) ?? null,
+  switchToTab: (from, tabId) => switchToTab(from, tabId),
   recordFavicon: (contents, source) => {
     const origin = originOf(contents.getURL());
     if (origin) void favicons.record(origin, source, (url) => contents.session.fetch(url));
@@ -742,6 +744,36 @@ function tabSearchData(w: BrowserWindowController): Omit<TabSearchData, 'reset'>
   };
 }
 
+/** Brings an open tab to the front, in whichever window holds it (never across private and normal). */
+function switchToTab(from: BrowserWindowController, tabId: number): boolean {
+  const owner = [...windows].find((x) => x.tabs.ids().includes(tabId));
+  if (!owner || owner.isPrivate !== from.isPrivate) return false;
+  owner.tabs.activate(tabId);
+  owner.focus();
+  return true;
+}
+
+/** What the tab hover card says: site, state and the memory of the page's process. */
+function hoverInfo(w: BrowserWindowController, t: TabState): HoverInfo {
+  let host = t.url;
+  try {
+    const u = new URL(t.url);
+    host = u.protocol === 'ksuite:' ? 'kSuite Browser' : u.protocol === 'file:' ? decodeURIComponent(u.pathname) : u.host.replace(/^www\./, '');
+  } catch {
+    /* keep the address */
+  }
+  const meta: string[] = [];
+  if (t.sleeping) meta.push('In pausa: si ricarica quando la apri');
+  else {
+    const pid = w.tabs.contents(t.id)?.getOSProcessId();
+    const metric = pid ? app.getAppMetrics().find((m) => m.pid === pid) : undefined;
+    if (metric) meta.push(`Memoria: ${Math.max(1, Math.round(metric.memory.workingSetSize / 1024))} MB`);
+  }
+  if (t.audible && !t.muted) meta.push('Sta riproducendo audio');
+  if (t.muted) meta.push('Audio disattivato');
+  return { title: t.title || t.url, host, meta: meta.join(' · ') };
+}
+
 function toggleTabSearch(w: BrowserWindowController | null): void {
   if (!w) return;
   if (w.tabSearch.isVisible()) w.tabSearch.hide();
@@ -835,9 +867,20 @@ function registerChromeIpc(): void {
   handle(IPC.showSiteMenu, (w, tabId: number) => showSiteMenu(w, Number(tabId)));
   handle(IPC.openSettingsPage, (w, section?: string) => w.openSettings(section));
 
-  handle(IPC.suggest, (_w, input: string) =>
-    buildSuggestions(String(input ?? ''), settings.get().searchEngine, settings.get().saveHistory ? history.summaries() : [], bookmarks.list()),
-  );
+  handle(IPC.suggest, (w, input: string) => {
+    const s = settings.get();
+    // Private windows: no history, and only their own tabs.
+    const useHistory = !w.isPrivate && s.saveHistory;
+    const scope = [...windows].filter((x) => (w.isPrivate ? x === w : !x.isPrivate));
+    const tabs = scope.flatMap((x) => x.tabs.states().filter((t) => !(x === w && t.active)).map((t) => ({ id: t.id, title: t.title, url: t.url })));
+    return buildSuggestions(String(input ?? '').slice(0, 500), s.searchEngine, useHistory ? history.summaries() : [], bookmarks.list(), { tabs });
+  });
+  handle(IPC.tabsSwitch, (w, tabId: number) => switchToTab(w, Number(tabId)));
+  handle(IPC.tabHover, (w, tabId: number | null, rect?: Rect) => {
+    const state = tabId == null ? undefined : w.tabs.states().find((t) => t.id === Number(tabId));
+    if (!state || !rect || w.tabSearch.isVisible()) return w.hoverCard.hide();
+    void w.hoverCard.show(hoverInfo(w, state), rect);
+  });
   handle(IPC.suggestShow, (w, items: Suggestion[], rect: Rect, selected: number) => w.suggestions.show(items, rect, selected, settings.get().theme));
   handle(IPC.suggestHide, (w) => w.suggestions.hide());
   handle(IPC.findStart, (w, tabId: number, text: string, options: { forward?: boolean; newSearch?: boolean; matchCase?: boolean }) => {

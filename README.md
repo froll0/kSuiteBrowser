@@ -43,6 +43,9 @@ quindi funzionano senza sorprese.
   delle app kSuite, con audio in riproduzione o con moduli compilati. Anche "Metti in pausa" nel menu della scheda
 - **Avvio veloce**: le schede della sessione precedente partono in pausa, si carica solo quella in primo piano
 - Con molte schede aperte la barra le riduce all'icona e poi scorre (rotellina del mouse)
+- **Passa alla scheda**: se la pagina che cerchi nella barra degli indirizzi è già aperta (anche in un'altra finestra),
+  il suggerimento porta alla sua scheda invece di aprirne un doppione
+- **Anteprima della scheda** al passaggio del mouse: titolo completo, sito, memoria usata, stato (in pausa, audio)
 - **Completamento automatico** nella barra degli indirizzi (scrivi `git` → `github.com/`) dai siti visitati e dai preferiti
 - **Anteprima del link** in basso a sinistra al passaggio del mouse
 - **Informazioni sul sito** (clic sul lucchetto o su "Non sicuro"): stato della connessione, permessi concessi al sito, cancellazione di cookie e dati del sito

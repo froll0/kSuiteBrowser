@@ -96,9 +96,11 @@ export interface Bookmark {
 }
 
 export interface Suggestion {
-  kind: 'search' | 'url' | 'history' | 'bookmark';
+  kind: 'search' | 'url' | 'history' | 'bookmark' | 'tab';
   title: string;
   url: string;
+  /** For kind 'tab': the open tab to switch to. */
+  tabId?: number;
 }
 
 export interface SavedLogin {

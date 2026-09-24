@@ -10,6 +10,7 @@ import type { KSuiteServices } from './services';
 import type { SettingsStore } from './settings';
 import type { BookmarksStore } from './stores/bookmarks';
 import type { HistoryStore } from './stores/history';
+import { HoverCard } from './hover-card';
 import { StatusBubble } from './status-bubble';
 import { TabSearchPopup } from './tab-search-popup';
 import { SuggestionsPopup } from './suggestions-popup';
@@ -28,6 +29,8 @@ export interface WindowContext {
   onTabsChanged(controller: BrowserWindowController): void;
   /** Window currently holding a tab's page (tabs can move between windows). */
   ownerOf(contents: WebContents): BrowserWindowController | null;
+  /** Brings an open tab to the front, in whichever window holds it. */
+  switchToTab(from: BrowserWindowController, tabId: number): boolean;
   recordFavicon(contents: WebContents, faviconUrl: string): void;
   onClosed(controller: BrowserWindowController): void;
 }
@@ -56,6 +59,7 @@ export class BrowserWindowController {
   readonly suggestions: SuggestionsPopup;
   readonly statusBubble: StatusBubble;
   readonly tabSearch: TabSearchPopup;
+  readonly hoverCard: HoverCard;
   private refreshTimer: NodeJS.Timeout | null = null;
   private lastActive: number | null = null;
   /** HTTP authentication requests waiting for the user. */
@@ -122,6 +126,7 @@ export class BrowserWindowController {
     );
 
     this.suggestions = new SuggestionsPopup(this.win, { html: ctx.paths.suggestHtml, preload: ctx.paths.suggestPreload }, (item) => {
+      if (item.kind === 'tab' && item.tabId !== undefined && ctx.switchToTab(this, item.tabId)) return;
       const id = this.activeTabId();
       if (id === null) this.tabs.create(item.url);
       else this.tabs.navigate(id, item.url);
@@ -129,10 +134,12 @@ export class BrowserWindowController {
     });
 
     this.tabSearch = new TabSearchPopup(this.win, { html: ctx.paths.tabSearchHtml, preload: ctx.paths.tabSearchPreload }, TITLEBAR_HEIGHT);
-    this.statusBubble = new StatusBubble(this.win, () => this.tabs.pageArea(), () => {
+    const isDark = () => {
       const theme = ctx.settings.get().theme;
       return isPrivate || theme === 'dark' || (theme === 'system' && nativeTheme.shouldUseDarkColors);
-    });
+    };
+    this.statusBubble = new StatusBubble(this.win, () => this.tabs.pageArea(), isDark);
+    this.hoverCard = new HoverCard(this.win, isDark);
 
     void this.win.loadFile(ctx.paths.chromeHtml, { query: isPrivate ? { private: '1' } : {} });
     this.win.webContents.once('did-finish-load', () => {
@@ -149,6 +156,7 @@ export class BrowserWindowController {
       this.suggestions.destroy();
       this.statusBubble.destroy();
       this.tabSearch.destroy();
+      this.hoverCard.destroy();
       this.tabs.destroy();
       ctx.onClosed(this);
     });

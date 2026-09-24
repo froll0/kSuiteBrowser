@@ -16,27 +16,27 @@ describe('buildSuggestions', () => {
   const bookmarks: Bookmark[] = [{ id: 'b1', title: 'Mail Infomaniak', url: 'https://mail.infomaniak.com/', folder: 'bar', createdAt: NOW }];
 
   it('starts with what Enter would do', () => {
-    expect(buildSuggestions('meteo lugano', 'duckduckgo', [], [], NOW)[0]).toEqual({
+    expect(buildSuggestions('meteo lugano', 'duckduckgo', [], [], { now: NOW })[0]).toEqual({
       kind: 'search',
       title: 'meteo lugano — Cerca con DuckDuckGo',
       url: 'https://duckduckgo.com/?q=meteo%20lugano',
     });
-    expect(buildSuggestions('example.org', 'duckduckgo', [], [], NOW)[0]).toMatchObject({ kind: 'url', url: 'https://example.org/' });
+    expect(buildSuggestions('example.org', 'duckduckgo', [], [], { now: NOW })[0]).toMatchObject({ kind: 'url', url: 'https://example.org/' });
   });
 
   it('ranks bookmarks and frequent, prefix-matching history first', () => {
-    const urls = buildSuggestions('infomaniak', 'duckduckgo', history, bookmarks, NOW).map((s) => s.url);
+    const urls = buildSuggestions('infomaniak', 'duckduckgo', history, bookmarks, { now: NOW }).map((s) => s.url);
     expect(urls.slice(1)).toEqual(['https://www.infomaniak.com/it/ksuite', 'https://mail.infomaniak.com/', 'https://example.org/infomaniak-review']);
   });
 
   it('requires every word to match', () => {
-    const titles = buildSuggestions('hacker news', 'duckduckgo', history, bookmarks, NOW).map((s) => s.title);
+    const titles = buildSuggestions('hacker news', 'duckduckgo', history, bookmarks, { now: NOW }).map((s) => s.title);
     expect(titles).toContain('Hacker News');
-    expect(buildSuggestions('hacker mail', 'duckduckgo', history, bookmarks, NOW)).toHaveLength(1);
+    expect(buildSuggestions('hacker mail', 'duckduckgo', history, bookmarks, { now: NOW })).toHaveLength(1);
   });
 
   it('returns nothing for empty input', () => {
-    expect(buildSuggestions('  ', 'duckduckgo', history, bookmarks, NOW)).toEqual([]);
+    expect(buildSuggestions('  ', 'duckduckgo', history, bookmarks, { now: NOW })).toEqual([]);
   });
 });
 
@@ -120,6 +120,17 @@ describe('new tab page', () => {
     expect(letterColor('example.org')).toBe(letterColor('example.org'));
     expect(letterIconSvg('<script>')).not.toContain('<script');
     expect(faviconUrl('https://a.example/?q=1')).toBe('ksuite://favicon/?url=https%3A%2F%2Fa.example%2F%3Fq%3D1');
+  });
+});
+
+describe('buildSuggestions with open tabs', () => {
+  it('offers to switch to a matching open tab instead of its history entry', () => {
+    const history = [{ url: 'https://github.com/froll0', title: 'froll0 · GitHub', visits: 5, lastVisit: NOW }];
+    const tabs = [{ id: 7, title: 'froll0 · GitHub', url: 'https://github.com/froll0' }, { id: 8, title: 'Meteo', url: 'https://meteo.ch/' }];
+    const list = buildSuggestions('github', 'duckduckgo', history, [], { now: NOW, tabs });
+    expect(list[1]).toEqual({ kind: 'tab', title: 'froll0 · GitHub', url: 'https://github.com/froll0', tabId: 7 });
+    expect(list.filter((s) => s.url === 'https://github.com/froll0')).toHaveLength(1);
+    expect(list.some((s) => s.tabId === 8)).toBe(false);
   });
 });
 

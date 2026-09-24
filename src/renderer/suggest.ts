@@ -21,7 +21,7 @@ bridge.onItems(({ items, selected, theme }) => {
       li.setAttribute('aria-selected', String(i === selected));
       if (i === selected) li.className = 'selected';
       let el: HTMLElement;
-      if (item.kind === 'history' || item.kind === 'bookmark') {
+      if (item.kind === 'history' || item.kind === 'bookmark' || item.kind === 'tab') {
         el = document.createElement('img');
         el.className = 'icon';
         (el as HTMLImageElement).src = `ksuite://favicon/?url=${encodeURIComponent(item.url)}`;
@@ -41,7 +41,13 @@ bridge.onItems(({ items, selected, theme }) => {
         star.append(icon('star', 13));
         li.append(star);
       }
-      if (item.kind === 'history' || item.kind === 'bookmark') {
+      if (item.kind === 'tab') {
+        const chip = document.createElement('span');
+        chip.className = 'switch';
+        chip.append(icon('arrowRight', 12), 'Passa alla scheda');
+        li.append(chip);
+      }
+      if (item.kind === 'history' || item.kind === 'bookmark' || item.kind === 'tab') {
         const url = document.createElement('span');
         url.className = 'url';
         url.textContent = `— ${item.url}`;

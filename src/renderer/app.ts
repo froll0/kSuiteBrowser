@@ -122,6 +122,36 @@ function clearDropMarks(): void {
   for (const el of tabstrip.querySelectorAll('.drop-before, .drop-after')) el.classList.remove('drop-before', 'drop-after');
 }
 
+// ---------- Tab hover card ----------
+
+let hoverTimer: number | undefined;
+let hoverShown = false;
+
+/** Shows the card after a short rest on a tab; moving to the next tab while it's up updates it at once. */
+function hoverTab(id: number, el: HTMLElement): void {
+  window.clearTimeout(hoverTimer);
+  hoverTimer = window.setTimeout(() => {
+    const r = el.getBoundingClientRect();
+    if (!el.isConnected || el.classList.contains('dragging')) return;
+    hoverShown = true;
+    void ks.tabs.hover(id, { x: r.left, y: r.top, width: r.width, height: r.height });
+  }, hoverShown ? 0 : 650);
+}
+
+function unhoverTab(): void {
+  window.clearTimeout(hoverTimer);
+  hoverTimer = window.setTimeout(hideHoverCard, 100);
+}
+
+function hideHoverCard(): void {
+  window.clearTimeout(hoverTimer);
+  if (!hoverShown) return;
+  hoverShown = false;
+  void ks.tabs.hover(null);
+}
+
+window.addEventListener('blur', hideHoverCard);
+
 function renderTabs(): void {
   tabstrip.replaceChildren(
     ...tabs.map((t) => {
@@ -149,6 +179,9 @@ function renderTabs(): void {
         t.pinned ? null : iconButton('close', { class: 'tab-close', title: 'Chiudi scheda (Ctrl+W)', 'aria-label': 'Chiudi scheda', onclick: (e: Event) => { e.stopPropagation(); void ks.tabs.close(t.id); } }),
       );
       el.addEventListener('click', () => void ks.tabs.activate(t.id));
+      el.addEventListener('mouseenter', () => hoverTab(t.id, el));
+      el.addEventListener('mouseleave', unhoverTab);
+      el.addEventListener('mousedown', hideHoverCard);
       el.addEventListener('auxclick', (e) => {
         if ((e as MouseEvent).button === 1) void ks.tabs.close(t.id);
       });
@@ -369,6 +402,14 @@ $('omnibox-form').addEventListener('submit', (e) => {
     renderToolbar();
     omnibox.blur();
     void setPanelOpen(true).then(() => panel.askAi({ question: typed.slice(1).trim() }));
+    return;
+  }
+  if (choice?.kind === 'tab' && choice.tabId !== undefined) {
+    omnibox.blur();
+    void ks.tabs.switchTo(choice.tabId).then((ok) => {
+      if (!ok) void (tab ? ks.tabs.navigate(tab.id, choice.url) : ks.tabs.create(choice.url));
+      renderToolbar();
+    });
     return;
   }
   const value = choice ? choice.url : typed;

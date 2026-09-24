@@ -22,6 +22,10 @@ const api = {
     create: (url?: string) => invoke<void>(IPC.tabsCreate, url),
     close: (id: number) => invoke<void>(IPC.tabsClose, id),
     activate: (id: number) => invoke<void>(IPC.tabsActivate, id),
+    /** Switches to an open tab, also in another window. */
+    switchTo: (id: number) => invoke<boolean>(IPC.tabsSwitch, id),
+    /** Shows the hover card of a tab under `rect`, or hides it (null). */
+    hover: (id: number | null, rect?: Rect) => invoke<void>(IPC.tabHover, id, rect),
     navigate: (id: number, input: string) => invoke<void>(IPC.tabsNavigate, id, input),
     back: (id: number) => invoke<void>(IPC.tabsBack, id),
     forward: (id: number) => invoke<void>(IPC.tabsForward, id),

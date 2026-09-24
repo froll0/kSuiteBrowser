@@ -27,18 +27,24 @@ function score(entry: { url: string; title: string }, tokens: string[], extra: n
   return s;
 }
 
+export interface OpenTab {
+  id: number;
+  title: string;
+  url: string;
+}
+
 /**
- * Address bar suggestions: first what Enter would do (open the URL or search), then bookmarks and history
- * pages whose title or address contains every word typed, best matches first.
+ * Address bar suggestions: first what Enter would do (open the URL or search), then open tabs to switch to,
+ * bookmarks and history pages whose title or address contains every word typed, best matches first.
  */
 export function buildSuggestions(
   input: string,
   engine: SearchEngineId,
   history: HistorySummary[],
   bookmarks: Bookmark[],
-  now = Date.now(),
-  limit = 8,
+  options: { now?: number; limit?: number; tabs?: OpenTab[] } = {},
 ): Suggestion[] {
+  const { now = Date.now(), limit = 8, tabs = [] } = options;
   const text = input.trim();
   if (!text) return [];
   const target = resolveOmniboxInput(text, engine);
@@ -66,8 +72,17 @@ export function buildSuggestions(
     else offer({ kind: 'history', title: h.title || h.url, url: h.url }, value);
   }
 
+  // An already open page: offer to switch to its tab instead of opening it again.
+  const openTabs: Suggestion[] = [];
+  for (const t of tabs) {
+    if (!/^(https?|file):/i.test(t.url) || score(t, tokens, 0) === null || openTabs.some((o) => o.url === t.url)) continue;
+    openTabs.push({ kind: 'tab', title: t.title || t.url, url: t.url, tabId: t.id });
+    ranked.delete(t.url);
+  }
+  openTabs.sort((a, b) => (score(b, tokens, 0) ?? 0) - (score(a, tokens, 0) ?? 0));
+
   const rest = [...ranked.values()].sort((a, b) => b.score - a.score).map((r) => r.s);
-  return [first, ...rest].slice(0, limit);
+  return [first, ...openTabs.slice(0, 3), ...rest].slice(0, limit);
 }
 
 /**

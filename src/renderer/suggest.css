@@ -21,5 +21,6 @@ img.icon { border-radius: 3px; }
 li.selected .icon { color: var(--accent); }
 .title { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .kind { color: var(--accent); display: grid; place-items: center; }
+.switch { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 999px; background: var(--selected); color: var(--accent); font-size: 11.5px; font-weight: 600; }
 .url { flex: 1 1 0; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 svg.i { display: block; }

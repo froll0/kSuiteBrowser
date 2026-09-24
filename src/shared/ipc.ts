@@ -4,6 +4,8 @@ export const IPC = {
   tabsCreate: 'tabs:create',
   tabsClose: 'tabs:close',
   tabsActivate: 'tabs:activate',
+  tabsSwitch: 'tabs:switch',
+  tabHover: 'tabs:hover',
   tabsNavigate: 'tabs:navigate',
   tabsBack: 'tabs:back',
   tabsForward: 'tabs:forward',

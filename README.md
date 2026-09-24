@@ -36,6 +36,10 @@ quindi funzionano senza sorprese.
 - Riapertura delle schede della sessione precedente (anche quelle fissate)
 - Scorciatoie: `Ctrl+T`, `Ctrl+N`, `Ctrl+Shift+N` (finestra privata), `Ctrl+W`, `Ctrl+L`, `Ctrl+R`/`F5`, `Alt+←/→`, `Ctrl+Tab`, `Ctrl+,` (impostazioni), `Ctrl+Shift+Canc` (cancella dati), `Ctrl+PagSu/PagGiù` (schede), `F12` (su Mac: `⌘` al posto di `Ctrl`, cronologia con `⌘+Y`)
 - Download con cartella configurabile o "chiedi dove salvare"
+- **Modalità lettura** (icona del libro nella barra degli indirizzi o `F9`): solo il testo dell'articolo, senza pubblicità,
+  menu e script; dimensione del testo, carattere con o senza grazie, colori chiaro/seppia/scuro, larghezza della colonna,
+  tempo di lettura, "Ascolta" (sintesi vocale del sistema) e "Riassumi con l'IA". Estrazione con Readability (Mozilla),
+  HTML dell'articolo ricostruito in modo sicuro
 - **Cerca tra le schede** (`Ctrl+Shift+A` o la freccia in fondo alla barra delle schede): tutte le schede delle finestre aperte,
   dalla più recente, con ricerca, chiusura (`Shift+Canc`) e schede chiuse di recente da riaprire
 - **Schede dormienti**: le schede non usate da un po' (1 ora, configurabile in Impostazioni › Generale) chiudono la pagina

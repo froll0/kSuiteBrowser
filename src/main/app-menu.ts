@@ -21,6 +21,7 @@ export interface AppMenuActions {
   viewSource(): void;
   openSettings(): void;
   searchTabs(): void;
+  reader(): void;
   find(): void;
   findNext(backwards: boolean): void;
   zoom(direction: 'in' | 'out' | 'reset'): void;
@@ -106,6 +107,7 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { type: 'separator' },
         { label: 'Mostra/nascondi barra dei preferiti', accelerator: 'CmdOrCtrl+Shift+B', click: a.toggleBookmarksBar },
         { label: 'Mostra/nascondi pannello kSuite', accelerator: 'CmdOrCtrl+Shift+K', click: a.togglePanel },
+        { label: 'Modalità lettura', accelerator: 'F9', click: a.reader },
         { label: 'Sorgente pagina', accelerator: 'CmdOrCtrl+U', click: a.viewSource },
         { label: 'Strumenti per sviluppatori', accelerator: 'F12', click: a.devTools },
         { type: 'separator' },

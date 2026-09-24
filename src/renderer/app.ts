@@ -21,6 +21,7 @@ const forwardBtn = $<HTMLButtonElement>('btn-forward');
 const reloadBtn = $<HTMLButtonElement>('btn-reload');
 const shieldBtn = $<HTMLButtonElement>('btn-shield');
 const starBtn = $<HTMLButtonElement>('btn-star');
+const readerBtn = $<HTMLButtonElement>('btn-reader');
 const zoomBtn = $<HTMLButtonElement>('btn-zoom');
 const bookmarkItems = $('bookmarks-items');
 const findbar = $('findbar');
@@ -261,6 +262,10 @@ function renderToolbar(): void {
   renderShield(tab);
 
   const bookmarkable = Boolean(tab && /^(https?|file|ksuite):/i.test(tab.url) && !tab.url.startsWith('ksuite://newtab'));
+  readerBtn.hidden = !tab || !(tab.readerable || tab.reader);
+  readerBtn.classList.toggle('on', Boolean(tab?.reader));
+  readerBtn.setAttribute('aria-pressed', String(Boolean(tab?.reader)));
+  readerBtn.title = tab?.reader ? 'Esci dalla modalità lettura (F9)' : 'Modalità lettura (F9)';
   starBtn.disabled = !bookmarkable;
   starBtn.classList.toggle('on', Boolean(tab?.bookmarked));
   starBtn.title = tab?.bookmarked ? 'Modifica preferito (Ctrl+D)' : 'Aggiungi ai preferiti (Ctrl+D)';
@@ -474,6 +479,10 @@ ks.events.onBookmarks((list) => {
   renderBookmarksBar();
 });
 $('btn-all-bookmarks').addEventListener('click', () => void ks.bookmarks.all());
+readerBtn.addEventListener('click', () => {
+  const t = activeTab();
+  if (t) void ks.tabs.reader(t.id);
+});
 starBtn.addEventListener('click', () => {
   const t = activeTab();
   if (t) void ks.bookmarks.toggle(t.id);

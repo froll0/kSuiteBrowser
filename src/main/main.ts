@@ -23,6 +23,7 @@ import { stepZoom, withSiteZoom, zoomFor } from '../shared/zoom';
 import { buildAppMenu } from './app-menu';
 import { TrackerBlocker } from './blocker';
 import { ThreatProtection } from './threats';
+import { ReaderCache, extractArticle, readerOriginal, readerUrl } from './reader';
 import type { HoverInfo } from './hover-card';
 import { clearBrowsingData } from './browsing-data';
 import { DownloadManager } from './downloads';
@@ -75,6 +76,7 @@ let ai: AiService;
 type SavedTab = { url: string; pinned?: boolean; title?: string; open?: boolean };
 const blocker = new TrackerBlocker();
 const threats = new ThreatProtection();
+const readerCache = new ReaderCache();
 const guards = new Map<Session, PrivacyGuard>();
 const windows = new Set<BrowserWindowController>();
 let lastFocused: BrowserWindowController | null = null;
@@ -624,6 +626,11 @@ function buildMenu(): Menu {
       if (w && wc) w.viewSource(wc);
     },
     searchTabs: () => toggleTabSearch(current()),
+    reader: () => {
+      const w = current();
+      const id = w?.activeTabId();
+      if (w && id != null) void toggleReader(w, id);
+    },
     openSettings: () => current()?.openSettings(),
     find: () => current()?.focusChrome(IPC.evFind),
     findNext: (backwards) => current()?.send(IPC.evFindNext, { backwards }),
@@ -793,6 +800,31 @@ function hoverInfo(w: BrowserWindowController, t: TabState): HoverInfo {
   return { title: t.title || t.url, host, meta: meta.join(' · ') };
 }
 
+/** Reader mode: extracts the article and shows it in ksuite://reader, or goes back to the page. */
+async function toggleReader(w: BrowserWindowController, tabId: number): Promise<void> {
+  const wc = w.tabs.contents(tabId);
+  if (!wc) return;
+  const original = readerOriginal(wc.getURL());
+  if (original) {
+    exitReader(wc, original);
+    return;
+  }
+  const article = await extractArticle(wc);
+  if (!article) {
+    w.send(IPC.evToast, { kind: 'info', message: 'In questa pagina non c’è un articolo da mostrare in modalità lettura.' });
+    return;
+  }
+  readerCache.set(article);
+  w.tabs.navigate(tabId, readerUrl(article.url));
+}
+
+function exitReader(wc: Electron.WebContents, original: string): void {
+  const history = wc.navigationHistory;
+  const index = history.getActiveIndex();
+  if (index > 0 && history.getEntryAtIndex(index - 1)?.url === original) history.goBack();
+  else void wc.loadURL(original);
+}
+
 function toggleTabSearch(w: BrowserWindowController | null): void {
   if (!w) return;
   if (w.tabSearch.isVisible()) w.tabSearch.hide();
@@ -895,6 +927,7 @@ function registerChromeIpc(): void {
     return buildSuggestions(String(input ?? '').slice(0, 500), s.searchEngine, useHistory ? history.summaries() : [], bookmarks.list(), { tabs });
   });
   handle(IPC.tabsSwitch, (w, tabId: number) => switchToTab(w, Number(tabId)));
+  handle(IPC.readerToggle, (w, tabId: number) => toggleReader(w, Number(tabId)));
   handle(IPC.tabHover, (w, tabId: number | null, rect?: Rect) => {
     const state = tabId == null ? undefined : w.tabs.states().find((t) => t.id === Number(tabId));
     if (!state || !rect || w.tabSearch.isVisible()) return w.hoverCard.hide();
@@ -1007,7 +1040,7 @@ function handleInternal<A extends unknown[], R>(channel: string, hosts: string[]
 function registerInternalIpc(): void {
   const S = ['settings'];
   // Every internal page reads the settings (theme); only the settings page changes them.
-  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked'], () => settings.get());
+  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader'], () => settings.get());
   handleInternal(INTERNAL.settingsSet, S, (_e, patch: Partial<Settings>) => settings.update(patch));
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
   handleInternal(INTERNAL.defaultBrowserStatus, S, () => isDefaultBrowser());
@@ -1139,6 +1172,25 @@ function registerInternalIpc(): void {
     void event.sender.loadURL(parsed.href);
   });
   handleInternal(INTERNAL.threatStatus, ['settings'], () => threats.status());
+  const R = ['reader'];
+  handleInternal(INTERNAL.readerArticle, R, (_e, url: string) => readerCache.get(String(url)));
+  handleInternal(INTERNAL.readerPrefs, R, (_e, patch: Partial<Settings>) => {
+    const p = patch ?? {};
+    return settings.update({
+      ...(p.readerFontSize !== undefined ? { readerFontSize: p.readerFontSize } : {}),
+      ...(p.readerFont !== undefined ? { readerFont: p.readerFont } : {}),
+      ...(p.readerTheme !== undefined ? { readerTheme: p.readerTheme } : {}),
+      ...(p.readerWidth !== undefined ? { readerWidth: p.readerWidth } : {}),
+    });
+  });
+  handleInternal(INTERNAL.readerExit, R, (event) => {
+    const original = readerOriginal(event.sender.getURL());
+    if (original) exitReader(event.sender, original);
+  });
+  handleInternal(INTERNAL.readerAskAi, R, (event, action: string) => {
+    const w = [...windows].find((x) => x.tabs.idOf(event.sender) !== null);
+    if (w && settings.get().aiEnabled) w.send(IPC.evAiAsk, { page: action === 'keypoints' ? 'keypoints' : 'summary' });
+  });
   handleInternal(INTERNAL.httpsContinue, ['https-only'], (event, url: string) => {
     const parsed = new URL(url);
     if (parsed.protocol !== 'http:') throw new Error('URL non valido');

@@ -1,4 +1,4 @@
-import type { AskablePermission, PermissionDefault, Settings, SitePermission } from './types';
+import type { AskablePermission, PermissionDefault, ReaderTheme, ReaderWidth, Settings, SitePermission } from './types';
 import type { SecureDnsChoice } from './secure-dns';
 import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from './url';
 import { ZOOM_STEPS } from './zoom';
@@ -45,6 +45,10 @@ export const DEFAULT_SETTINGS: Settings = {
   threatProtection: true,
   stripTrackingParams: true,
   secureDns: 'automatic',
+  readerFontSize: 19,
+  readerFont: 'serif',
+  readerTheme: 'auto',
+  readerWidth: 'medium',
   secureDnsCustom: '',
   httpsOnly: true,
   clearCookiesOnExit: false,
@@ -140,6 +144,10 @@ export function sanitizeSettings(raw: unknown): Settings {
     threatProtection: bool(s.threatProtection, d.threatProtection),
     stripTrackingParams: bool(s.stripTrackingParams, d.stripTrackingParams),
     secureDns: (['off', 'automatic', 'quad9', 'mullvad', 'cloudflare', 'custom'] as const).includes(s.secureDns as SecureDnsChoice) ? (s.secureDns as SecureDnsChoice) : d.secureDns,
+    readerFontSize: typeof s.readerFontSize === 'number' && s.readerFontSize >= 14 && s.readerFontSize <= 30 ? Math.round(s.readerFontSize) : d.readerFontSize,
+    readerFont: s.readerFont === 'sans' ? 'sans' : 'serif',
+    readerTheme: (['auto', 'light', 'sepia', 'dark'] as const).includes(s.readerTheme as ReaderTheme) ? (s.readerTheme as ReaderTheme) : d.readerTheme,
+    readerWidth: (['narrow', 'medium', 'wide'] as const).includes(s.readerWidth as ReaderWidth) ? (s.readerWidth as ReaderWidth) : d.readerWidth,
     secureDnsCustom: typeof s.secureDnsCustom === 'string' ? s.secureDnsCustom.trim().slice(0, 300) : d.secureDnsCustom,
     httpsOnly: bool(s.httpsOnly, d.httpsOnly),
     clearCookiesOnExit: bool(s.clearCookiesOnExit, d.clearCookiesOnExit),

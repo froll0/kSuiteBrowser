@@ -6,6 +6,7 @@ import type { DriveFile } from '../shared/types';
 import { attachContextMenu } from './context-menu';
 import { popupTitle } from '../shared/url';
 import { isInternalUrl } from './internal-pages';
+import { isReaderable, readerableIds } from './reader';
 import type { PrivacyGuard } from './privacy';
 import type { KSuiteServices } from './services';
 import type { SettingsStore } from './settings';
@@ -117,6 +118,7 @@ export class BrowserWindowController {
           // The PDF viewer fits the page by changing the zoom itself: no badge for that.
           zoom: !contents || /\.pdf($|[?#])/i.test(url) ? ctx.settings.get().defaultZoom : Math.round(contents.getZoomFactor() * 100),
           bookmarked: /^(https?|file|ksuite):/i.test(url) && Boolean(ctx.bookmarks.find(url)),
+          readerable: contents ? readerableIds.has(contents.id) : false,
         }),
         failurePage: (contents, url) => {
           const threat = guard.threatFor(contents.id, url);
@@ -382,6 +384,19 @@ export class BrowserWindowController {
       const w = owner();
       if (w.tabs.activeContents() === contents) w.statusBubble.show(/^(javascript|data):/i.test(url) ? '' : url);
     });
+    // Reader mode is offered for pages that look like articles, checked once the page has loaded.
+    contents.on('did-start-navigation', (details) => {
+      if (details.isMainFrame && !details.isSameDocument) readerableIds.delete(contents.id);
+    });
+    contents.on('did-finish-load', () => {
+      void isReaderable(contents).then((ok) => {
+        if (contents.isDestroyed()) return;
+        if (ok) readerableIds.add(contents.id);
+        else readerableIds.delete(contents.id);
+        owner().tabs.refresh();
+      });
+    });
+    contents.once('destroyed', () => readerableIds.delete(contents.id));
     contents.on('zoom-changed', (_e, direction) => this.ctx.stepZoom(owner(), contents, direction === 'in' ? 'in' : 'out'));
     contents.on('found-in-page', (_e, result) => {
       const tabId = owner().tabs.idOf(contents);

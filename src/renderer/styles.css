@@ -347,7 +347,9 @@ body.private .tab.active, :root[data-theme="dark"] .tab.active { box-shadow: non
   background: var(--surface); color: var(--text-2); font-size: 11.5px; font-weight: 600;
 }
 .pill:hover { border-color: var(--border-strong); }
-#btn-star.on { color: var(--accent); }
+#btn-star.on, #btn-reader.on { color: var(--accent); }
+#btn-reader.on { background: var(--accent-soft); }
+#btn-reader[hidden] { display: none; }
 #btn-star.on svg { fill: currentColor; }
 
 .shield .count {

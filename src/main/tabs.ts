@@ -1,5 +1,6 @@
 import { BrowserWindow, WebContentsView, dialog, type NavigationEntry, type Session, type WebContents } from 'electron';
 import type { Rect, TabState } from '../shared/types';
+import { readerOriginal } from './reader';
 
 /** A tab. It can move to another window, so its listeners always go through `owner`. */
 export interface Tab {
@@ -38,7 +39,7 @@ export interface TabManagerHooks {
   /** Called once for every new page WebContents, to attach context menus, window handlers, etc. */
   onWebContentsCreated(contents: WebContents, tabs: TabManager): void;
   /** Extra per-tab state shown in the toolbar: shield, zoom badge, bookmark star. */
-  extraState(contents: WebContents | null, url: string): Pick<TabState, 'blocked' | 'protectionActive' | 'zoom' | 'bookmarked'>;
+  extraState(contents: WebContents | null, url: string): Pick<TabState, 'blocked' | 'protectionActive' | 'zoom' | 'bookmarked' | 'readerable'>;
   /** Page to show instead of the generic error page (e.g. the HTTPS-only warning), with the URL to display. */
   failurePage?(contents: WebContents, url: string, code: number): { load: string; display: string } | null;
 }
@@ -524,12 +525,15 @@ export class TabManager {
           audible: false,
           muted: sleep.muted,
           sleeping: true,
+          reader: false,
           lastActiveAt: t.lastActiveAt,
           ...this.hooks.extraState(null, sleep.url),
         };
       }
       const wc = t.view.webContents;
-      const url = t.failedUrl ?? wc.getURL();
+      // Reader mode shows the article's own address.
+      const original = readerOriginal(wc.getURL());
+      const url = t.failedUrl ?? original ?? wc.getURL();
       return {
         id: t.id,
         title: url.startsWith('ksuite://newtab') ? 'Nuova scheda' : wc.getTitle() || url || 'Nuova scheda',
@@ -544,6 +548,7 @@ export class TabManager {
         audible: wc.isCurrentlyAudible(),
         muted: wc.isAudioMuted(),
         sleeping: false,
+        reader: original !== null,
         lastActiveAt: t.id === this.activeId ? Date.now() : t.lastActiveAt,
         ...this.hooks.extraState(wc, url),
       };

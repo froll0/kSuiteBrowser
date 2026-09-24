@@ -1,5 +1,5 @@
 import { INTERNAL } from '../../shared/ipc';
-import type { AiEvent, AboutInfo, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
+import type { AiEvent, AboutInfo, ReaderArticle, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
 
 interface InternalBridge {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -37,6 +37,12 @@ export const internal = {
   about: () => call<AboutInfo>(INTERNAL.about),
   httpsContinue: (url: string) => call<void>(INTERNAL.httpsContinue, url),
   threatContinue: (url: string) => call<void>(INTERNAL.threatContinue, url),
+  reader: {
+    article: (url: string) => call<ReaderArticle | null>(INTERNAL.readerArticle, url),
+    prefs: (patch: Partial<Settings>) => call<Settings>(INTERNAL.readerPrefs, patch),
+    exit: () => call<void>(INTERNAL.readerExit),
+    askAi: (action: 'summary' | 'keypoints') => call<void>(INTERNAL.readerAskAi, action),
+  },
   threatStatus: () => call<{ entries: number; loadedAt: number | null }>(INTERNAL.threatStatus),
   testNotification: () => call<boolean>(INTERNAL.testNotification),
   defaultBrowser: {

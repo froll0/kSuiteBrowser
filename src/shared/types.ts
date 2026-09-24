@@ -24,6 +24,10 @@ export interface TabState {
   muted: boolean;
   /** Page closed to save memory; it reloads when shown. */
   sleeping: boolean;
+  /** The page looks like an article: reader mode is offered. */
+  readerable: boolean;
+  /** Showing the page in reader mode (url is then the article's address). */
+  reader: boolean;
   lastActiveAt: number;
 }
 
@@ -95,6 +99,24 @@ export interface Bookmark {
   folder: BookmarkFolder;
   createdAt: number;
 }
+
+/** An article extracted for reader mode. `content` is the page's HTML: untrusted, sanitized before display. */
+export interface ReaderArticle {
+  url: string;
+  title: string;
+  byline: string | null;
+  siteName: string | null;
+  lang: string | null;
+  dir: string | null;
+  publishedTime: string | null;
+  excerpt: string | null;
+  content: string;
+  length: number;
+}
+
+export type ReaderFont = 'serif' | 'sans';
+export type ReaderTheme = 'auto' | 'light' | 'sepia' | 'dark';
+export type ReaderWidth = 'narrow' | 'medium' | 'wide';
 
 export interface Suggestion {
   kind: 'search' | 'url' | 'history' | 'bookmark' | 'tab';
@@ -228,6 +250,11 @@ export interface Settings {
   secureDns: SecureDnsChoice;
   /** DoH address when secureDns is 'custom'. */
   secureDnsCustom: string;
+  /** Reader mode typography. */
+  readerFontSize: number;
+  readerFont: ReaderFont;
+  readerTheme: ReaderTheme;
+  readerWidth: ReaderWidth;
   httpsOnly: boolean;
   clearCookiesOnExit: boolean;
   clearCacheOnExit: boolean;

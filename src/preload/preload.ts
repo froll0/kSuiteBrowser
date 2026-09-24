@@ -26,6 +26,8 @@ const api = {
     switchTo: (id: number) => invoke<boolean>(IPC.tabsSwitch, id),
     /** Shows the hover card of a tab under `rect`, or hides it (null). */
     hover: (id: number | null, rect?: Rect) => invoke<void>(IPC.tabHover, id, rect),
+    /** Enters or leaves reader mode in a tab. */
+    reader: (id: number) => invoke<void>(IPC.readerToggle, id),
     navigate: (id: number, input: string) => invoke<void>(IPC.tabsNavigate, id, input),
     back: (id: number) => invoke<void>(IPC.tabsBack, id),
     forward: (id: number) => invoke<void>(IPC.tabsForward, id),

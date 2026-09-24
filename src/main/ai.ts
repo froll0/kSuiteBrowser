@@ -4,16 +4,18 @@ import { listAiModels, listAiProducts, pickDefaultModel, streamChat, type AiMode
 import { InfomaniakApiError, InfomaniakClient } from '../api/client';
 import { SYSTEM_PROMPT, quoted } from '../shared/ai-prompts';
 import type { AiEvent, AiMessage, AiStatus } from '../shared/types';
+import { readerOriginal } from './reader';
 import type { SettingsStore } from './settings';
 
 const PAGE_TEXT_LIMIT = 15_000;
 
 /** Page title, address and visible text, read in an isolated world so the page can't interfere. */
 export async function readPage(contents: WebContents): Promise<{ title: string; url: string; text: string } | null> {
-  const url = contents.getURL();
+  // In reader mode the article is read from the reader page (cleaner), with the article's address.
+  const url = readerOriginal(contents.getURL()) ?? contents.getURL();
   if (!/^(https?|file):/i.test(url)) return null;
   const text = (await contents.executeJavaScriptInIsolatedWorld(1999, [
-    { code: `(document.body ? document.body.innerText : '').replace(/\\n{3,}/g, '\\n\\n').slice(0, ${PAGE_TEXT_LIMIT})` },
+    { code: `((document.getElementById('ks-reader-article') || document.body) ? (document.getElementById('ks-reader-article') || document.body).innerText : '').replace(/\\n{3,}/g, '\\n\\n').slice(0, ${PAGE_TEXT_LIMIT})` },
   ])) as string;
   return { title: contents.getTitle(), url, text: String(text ?? '') };
 }

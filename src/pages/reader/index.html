@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Modalità lettura</title>
+  <link rel="stylesheet" href="page.css" />
+  <link rel="stylesheet" href="reader.css" />
+</head>
+<body>
+  <header class="bar" role="toolbar" aria-label="Modalità lettura">
+    <button id="exit" class="tool text" title="Torna alla pagina originale (F9)"><span data-icon="arrowLeft" data-size="16"></span><span>Pagina originale</span></button>
+    <div class="tools">
+      <div class="group" role="group" aria-label="Dimensione del testo">
+        <button id="smaller" class="tool" title="Testo più piccolo" aria-label="Testo più piccolo"><span class="a-small">A</span></button>
+        <span id="size" class="size" aria-live="polite"></span>
+        <button id="bigger" class="tool" title="Testo più grande" aria-label="Testo più grande"><span class="a-big">A</span></button>
+      </div>
+      <div class="group" role="radiogroup" aria-label="Carattere">
+        <button class="tool choice serif" data-font="serif" role="radio" title="Con grazie">Serif</button>
+        <button class="tool choice sans" data-font="sans" role="radio" title="Senza grazie">Sans</button>
+      </div>
+      <div class="group" role="radiogroup" aria-label="Colori">
+        <button class="swatch auto" data-theme-choice="auto" role="radio" title="Come il browser" aria-label="Come il browser"></button>
+        <button class="swatch light" data-theme-choice="light" role="radio" title="Chiaro" aria-label="Chiaro"></button>
+        <button class="swatch sepia" data-theme-choice="sepia" role="radio" title="Seppia" aria-label="Seppia"></button>
+        <button class="swatch dark" data-theme-choice="dark" role="radio" title="Scuro" aria-label="Scuro"></button>
+      </div>
+      <div class="group" role="radiogroup" aria-label="Larghezza">
+        <button class="tool choice" data-width="narrow" role="radio" title="Colonna stretta">Stretta</button>
+        <button class="tool choice" data-width="medium" role="radio" title="Colonna media">Media</button>
+        <button class="tool choice" data-width="wide" role="radio" title="Colonna larga">Larga</button>
+      </div>
+      <button id="listen" class="tool text" hidden><span data-icon="headphones" data-size="16"></span><span>Ascolta</span></button>
+      <button id="ai" class="tool text accent" hidden><span data-icon="sparkles" data-size="16"></span><span>Riassumi con l’IA</span></button>
+    </div>
+  </header>
+  <main>
+    <article id="ks-reader-article">
+      <p class="site" id="site"></p>
+      <h1 id="title"></h1>
+      <p class="meta" id="meta"></p>
+      <div id="content"></div>
+    </article>
+  </main>
+  <script src="reader.js"></script>
+</body>
+</html>

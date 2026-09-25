@@ -21,6 +21,7 @@ export interface AppMenuActions {
   viewSource(): void;
   openSettings(): void;
   customize(): void;
+  openExtensions(): void;
   searchTabs(): void;
   reader(): void;
   pictureInPicture(): void;
@@ -59,6 +60,7 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { type: 'separator' },
         { label: 'Impostazioni', accelerator: 'CmdOrCtrl+,', click: a.openSettings },
         { label: 'Personalizza l’aspetto…', click: a.customize },
+        { label: 'Estensioni', click: a.openExtensions },
         { label: 'Password', click: a.openPasswords },
         { label: 'Cancella dati di navigazione…', accelerator: 'CmdOrCtrl+Shift+Delete', click: a.clearData },
         { type: 'separator' },

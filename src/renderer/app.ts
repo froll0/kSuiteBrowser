@@ -2,7 +2,7 @@ import { applyTokens, isDark, SIDE_TABS_RANGE, tokens, TOOLBAR_ITEMS, type Toolb
 import { KSUITE_APPS } from '../shared/ksuite-apps';
 import { faviconUrl } from '../shared/top-sites';
 import { inlineCompletion } from '../shared/suggest';
-import type { Bookmark, Settings, Suggestion, TabState } from '../shared/types';
+import type { Bookmark, ExtensionButton, Settings, Suggestion, TabState } from '../shared/types';
 import { ks } from './bridge';
 import { h } from './dom';
 import { hydrateIcons, icon, logoMark, type IconName } from './icons';
@@ -77,9 +77,47 @@ toolbar.addEventListener('contextmenu', (e) => {
   void ks.toolbarMenu(null);
 });
 
+// Extensions: pinned buttons sit next to the extensions (puzzle) button.
+const extSlot = h('div', { class: 'ext-slot' });
+const extPinned = h('div', { class: 'ext-pinned' });
+extSlot.append(extPinned, buttons.extensions);
+let extButtons: ExtensionButton[] = [];
+
+function renderExtensionButtons(): void {
+  extPinned.replaceChildren(
+    ...extButtons.filter((b) => b.pinned).map((b) => {
+      const el = h('button', { class: `icon-btn ext-action${b.enabled ? '' : ' disabled'}`, title: b.title, 'aria-label': b.title, 'data-ext': b.id });
+      el.append(b.icon ? h('img', { src: b.icon, alt: '' }) : h('span', { class: 'ext-letter' }, b.name.slice(0, 1).toUpperCase()));
+      if (b.badge) {
+        const badge = h('span', { class: 'ext-badge' }, b.badge.slice(0, 4));
+        badge.style.background = b.badgeBg;
+        badge.style.color = b.badgeColor;
+        el.append(badge);
+      }
+      el.addEventListener('click', () => void ks.extensions.click(b.id, anchorOf(el)));
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        void ks.extensions.menu(b.id);
+      });
+      return el;
+    }),
+  );
+}
+
+ks.events.onExtensionButtons((list) => {
+  extButtons = list;
+  renderExtensionButtons();
+});
+
 function placeToolbar(settings: Settings): void {
-  $('tb-start').replaceChildren(...settings.toolbarStart.map((id) => buttons[id]));
-  $('tb-end').replaceChildren(...settings.toolbarEnd.map((id) => buttons[id]));
+  const place = (id: ToolbarItem) => (id === 'extensions' ? extSlot : buttons[id]);
+  $('tb-start').replaceChildren(...settings.toolbarStart.map(place));
+  $('tb-end').replaceChildren(...settings.toolbarEnd.map(place));
+  // Without the extensions button in the toolbar, pinned extensions still show at the end.
+  const placed = settings.toolbarStart.includes('extensions') || settings.toolbarEnd.includes('extensions');
+  buttons.extensions.hidden = !placed;
+  if (!placed) $('tb-end').append(extSlot);
 }
 
 let tabs: TabState[] = [];
@@ -766,6 +804,7 @@ const anchorOf = (el: HTMLElement) => {
   return { x: r.left, y: r.top, width: r.width, height: r.height };
 };
 buttons.panel.addEventListener('click', togglePanel);
+buttons.extensions.addEventListener('click', () => void ks.extensions.all(anchorOf(buttons.extensions)));
 buttons.tabSearch.addEventListener('click', () => void ks.tabSearch(anchorOf(buttons.tabSearch)));
 buttons.newTab.addEventListener('click', () => void ks.tabs.create());
 buttons.home.addEventListener('click', () => {
@@ -848,6 +887,28 @@ ks.events.onComposeMail((mail) => void setPanelOpen(true).then(() => panel.compo
 ks.events.onAiAsk((ask) => void setPanelOpen(true).then(() => panel.askAi(ask)));
 ks.events.onToast((t) => toast(t.kind, t.message));
 
+// On an extension's page in the Chrome Web Store: offer to add it to this browser.
+ks.events.onExtensionOffer((offer) => {
+  if (!infobar.hidden) return;
+  const add = h('button', { class: 'primary' }, 'Aggiungi a kSuite Browser');
+  add.addEventListener('click', async () => {
+    add.disabled = true;
+    add.textContent = 'Installazione…';
+    const res = await ks.extensions.installFromStore(offer.id);
+    hideInfobar();
+    if (res.ok) toast('success', 'Estensione aggiunta: la trovi nel pulsante delle estensioni.');
+    else if (res.error) toast('error', res.error);
+  });
+  infobar.replaceChildren(
+    barIcon('puzzle'),
+    h('span', { class: 'msg' }, offer.installed ? 'Questa estensione è già installata in kSuite Browser.' : 'Puoi aggiungere questa estensione a kSuite Browser.'),
+    h('span', { class: 'spacer' }),
+    offer.installed ? h('button', { onclick: () => { hideInfobar(); void ks.tabs.create('ksuite://extensions/'); } }, 'Gestisci') : add,
+    h('button', { onclick: hideInfobar }, 'Chiudi'),
+  );
+  infobar.hidden = false;
+});
+
 // ---------- Layout ----------
 
 const systemDark = matchMedia('(prefers-color-scheme: dark)');
@@ -894,9 +955,11 @@ window.addEventListener('resize', syncBounds);
 // ---------- Boot ----------
 
 async function boot(): Promise<void> {
-  const [settings, status, initialTabs, info, bookmarkList] = await Promise.all([
-    ks.settings.get(), ks.token.status(), ks.tabs.list(), ks.windowInfo(), ks.bookmarks.list(),
+  const [settings, status, initialTabs, info, bookmarkList, extensionList] = await Promise.all([
+    ks.settings.get(), ks.token.status(), ks.tabs.list(), ks.windowInfo(), ks.bookmarks.list(), ks.extensions.buttons(),
   ]);
+  extButtons = extensionList;
+  renderExtensionButtons();
   tabs = initialTabs;
   windowId = info.windowId;
   document.body.classList.add(`platform-${info.platform}`);

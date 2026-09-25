@@ -1,5 +1,5 @@
 import {
-  BrowserWindow, Menu, app, dialog, ipcMain, nativeTheme, session as electronSession, shell,
+  BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, nativeTheme, session as electronSession, shell,
   webContents as allWebContents, type IpcMainInvokeEvent, type Session,
 } from 'electron';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -46,6 +46,8 @@ import { BookmarksStore } from './stores/bookmarks';
 import { FaviconStore } from './stores/favicons';
 import { HistoryStore } from './stores/history';
 import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } from './window';
+import { ExtensionHost } from './extensions/host';
+import { InstallError } from './extensions/registry';
 
 registerInternalScheme();
 // Windows shows notifications only for apps with an explicit identity.
@@ -56,6 +58,7 @@ const PATHS = {
   pagePreload: join(__dirname, '../preload/page.js'),
   adblockPreload: join(__dirname, '../preload/adblock.js'),
   passwordsPreload: join(__dirname, '../preload/passwords.js'),
+  extensionsPreload: join(__dirname, '../preload/extensions.js'),
   chromeHtml: join(__dirname, '../renderer/index.html'),
   suggestHtml: join(__dirname, '../renderer/suggest.html'),
   suggestPreload: join(__dirname, '../preload/suggest.js'),
@@ -73,6 +76,7 @@ let history: HistoryStore;
 let bookmarks: BookmarksStore;
 let passwords: PasswordManager;
 let sync: SyncEngine;
+let extensions: ExtensionHost | null = null;
 let favicons: FaviconStore;
 let notifications: NotificationCenter;
 let updates: UpdateService;
@@ -259,6 +263,33 @@ async function start(): Promise<void> {
   registerAdblockIpc();
   Menu.setApplicationMenu(buildMenu());
 
+  extensions = new ExtensionHost({
+    session: electronSession.defaultSession,
+    windows: () => [...windows].filter((w) => !w.isPrivate),
+    focused: () => {
+      const f = current();
+      return f && !f.isPrivate ? f : normalWindow();
+    },
+    openWindow: (urls) => openWindow(false, urls.length ? urls.map((url) => ({ url, open: true })) : [{ url: newTabUrl() }]),
+    firstInstall: () => {
+      const s = settings.get();
+      if (s.extensionsButtonAdded) return;
+      if (s.toolbarStart.includes('extensions') || s.toolbarEnd.includes('extensions')) return void settings.update({ extensionsButtonAdded: true });
+      const end = [...s.toolbarEnd];
+      const at = end.indexOf('panel');
+      end.splice(at === -1 ? end.length : at, 0, 'extensions');
+      settings.update({ toolbarEnd: end, extensionsButtonAdded: true });
+    },
+  }, app.getPath('userData'));
+  extensions.registry.onChange(() => sendToInternalPages(INTERNAL.evExtensions, null));
+  // Keyboard shortcuts of extensions (manifest "commands"), wherever the focus is.
+  app.on('web-contents-created', (_e, wc) => {
+    wc.on('before-input-event', (event, input) => {
+      if (extensions?.handleShortcut(input)) event.preventDefault();
+    });
+  });
+  await extensions.start().catch((err) => console.error('[extensions] avvio non riuscito:', err));
+
   // Protected content (Netflix…): pages opened before the Widevine module is ready can't play it.
   await widevineReady(8000);
 
@@ -292,6 +323,11 @@ function setupSession(ses: Session, isPrivate: boolean): void {
   serveInternalPages(ses, PATHS.pages, faviconFor);
   ses.registerPreloadScript({ type: 'frame', id: 'ksuite-adblock', filePath: PATHS.adblockPreload });
   ses.registerPreloadScript({ type: 'frame', id: 'ksuite-passwords', filePath: PATHS.passwordsPreload });
+  // Extensions only run in the persistent session (like Chrome, not in private windows).
+  if (!isPrivate) {
+    ses.registerPreloadScript({ type: 'frame', id: 'ksuite-extensions', filePath: PATHS.extensionsPreload });
+    ses.registerPreloadScript({ type: 'service-worker', id: 'ksuite-extensions-sw', filePath: PATHS.extensionsPreload });
+  }
   // macOS uses the system spell checker; elsewhere pick Italian and English.
   if (process.platform !== 'darwin') {
     const available = ses.availableSpellCheckerLanguages;
@@ -326,8 +362,13 @@ const windowContext: WindowContext = {
   paths: PATHS,
   onTabsChanged: (w) => {
     if (!w.isPrivate) scheduleSessionSave();
+    extensions?.tabsChanged(w);
+  },
+  get extensions() {
+    return extensions;
   },
   onClosed: (w) => {
+    extensions?.windowClosed(w);
     windows.delete(w);
     if (lastFocused === w) lastFocused = null;
     // Keep the last window's tabs for the next start (closing it quits the app).
@@ -343,6 +384,7 @@ function openWindow(isPrivate: boolean, tabs: SavedTab[] | null, options: { sess
     setupSession(ses, true);
   }
   const controller = new BrowserWindowController(windowContext, ses, isPrivate, tabs, options.bounds);
+  extensions?.windowCreated(controller);
   windows.add(controller);
   lastFocused = controller;
   controller.win.on('focus', () => (lastFocused = controller));
@@ -463,7 +505,7 @@ function readSavedSession(): SavedTab[][] {
         tabs
           // Older sessions stored plain URLs.
           .map((t) => (typeof t === 'string' ? { url: t } : (t as SavedTab)))
-          .filter((t) => t && typeof t.url === 'string' && /^(https?|ksuite|file):/i.test(t.url))
+          .filter((t) => t && typeof t.url === 'string' && /^(https?|ksuite|file|chrome-extension):/i.test(t.url))
           .map((t) => ({ url: t.url, pinned: Boolean(t.pinned), title: typeof t.title === 'string' ? t.title.slice(0, 300) : undefined })),
       )
       .filter((tabs) => tabs.length > 0);
@@ -671,6 +713,7 @@ function buildMenu(): Menu {
     },
     openSettings: () => current()?.openSettings(),
     customize: () => current()?.openSettings('appearance'),
+    openExtensions: () => (normalWindow() ?? openWindow(false, [])).openInternal('ksuite://extensions/'),
     find: () => current()?.focusChrome(IPC.evFind),
     findNext: (backwards) => current()?.send(IPC.evFindNext, { backwards }),
     zoom: (direction) => {
@@ -893,6 +936,39 @@ function showToolbarMenu(w: BrowserWindowController, item: string | null): void 
   if (!w.win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: w.win });
 }
 
+/** Menu of the extensions button: every extension, pinning, management. */
+function showExtensionsMenu(w: BrowserWindowController, anchor: Rect | null): void {
+  if (!extensions || w.isPrivate) return;
+  const host = extensions;
+  const buttons = host.buttons(w);
+  const icon = (b: { icon: string | null }) => (b.icon ? nativeImage.createFromDataURL(b.icon).resize({ width: 16, height: 16 }) : undefined);
+  const items: Electron.MenuItemConstructorOptions[] = buttons.length
+    ? buttons.map((b) => ({ label: b.name, icon: icon(b), enabled: b.enabled, click: () => host.clickAction(w, b.id, anchor, true) }))
+    : [{ label: 'Nessuna estensione installata', enabled: false }];
+  if (buttons.length) {
+    items.push(
+      { type: 'separator' },
+      { label: 'Fissa sulla barra', submenu: buttons.map((b) => ({ label: b.name, type: 'checkbox' as const, checked: b.pinned, click: () => host.registry.setPinned(b.id, !b.pinned) })) },
+    );
+  }
+  items.push(
+    { type: 'separator' },
+    { label: 'Gestisci le estensioni', click: () => w.openInternal('ksuite://extensions/') },
+    { label: 'Apri il Chrome Web Store', click: () => w.tabs.activate(w.tabs.create('https://chromewebstore.google.com/category/extensions')) },
+  );
+  Menu.buildFromTemplate(items).popup({ window: w.win, ...(anchor ? { x: Math.round(anchor.x), y: Math.round(anchor.y + anchor.height + 4) } : {}) });
+}
+
+async function confirmRemoveExtension(w: BrowserWindowController | null, id: string): Promise<boolean> {
+  if (!extensions) return false;
+  const name = extensions.summary().find((e) => e.id === id)?.name ?? 'l’estensione';
+  const options = { type: 'question' as const, buttons: ['Rimuovi', 'Annulla'], defaultId: 1, cancelId: 1, message: `Rimuovere «${name}»?`, detail: 'I suoi dati salvati in kSuite Browser vengono cancellati.' };
+  const { response } = w ? await dialog.showMessageBox(w.win, options) : await dialog.showMessageBox(options);
+  if (response !== 0) return false;
+  extensions.registry.remove(id);
+  return true;
+}
+
 async function showMediaMenu(w: BrowserWindowController): Promise<void> {
   const tabs = w.tabs.states().filter((t) => t.media || t.audible);
   const items: Electron.MenuItemConstructorOptions[] = [];
@@ -1022,6 +1098,11 @@ function registerChromeIpc(): void {
   });
   handle(IPC.tabsSwitch, (w, tabId: number) => switchToTab(w, Number(tabId)));
   handle(IPC.mediaMenu, (w) => showMediaMenu(w));
+  handle(IPC.extButtons, (w) => extensions?.buttons(w) ?? []);
+  handle(IPC.extClick, (w, id: string, rect?: Rect) => extensions?.clickAction(w, String(id), rect && typeof rect.x === 'number' ? rect : null));
+  handle(IPC.extMenu, (w, id: string) => extensions?.actionMenu(w, String(id), (x) => w.openInternal(`ksuite://extensions/#${x}`), (x) => void confirmRemoveExtension(w, x)));
+  handle(IPC.extPuzzle, (w, rect?: Rect) => showExtensionsMenu(w, rect && typeof rect.x === 'number' ? rect : null));
+  handle(IPC.extInstallStore, (w, id: string) => extensions?.installFromStore(w, String(id)) ?? { ok: false });
   handle(IPC.toolbarMenu, (w, item: string | null) => showToolbarMenu(w, item));
   handle(IPC.readerToggle, (w, tabId: number) => toggleReader(w, Number(tabId)));
   handle(IPC.tabHover, (w, tabId: number | null, rect?: Rect) => {
@@ -1136,7 +1217,7 @@ function handleInternal<A extends unknown[], R>(channel: string, hosts: string[]
 function registerInternalIpc(): void {
   const S = ['settings'];
   // Every internal page reads the settings (theme); only the settings page changes them.
-  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader'], () => settings.get());
+  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader', 'extensions'], () => settings.get());
   handleInternal(INTERNAL.settingsSet, S, (_e, patch: Partial<Settings>) => settings.update(patch));
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
   handleInternal(INTERNAL.defaultBrowserStatus, S, () => isDefaultBrowser());
@@ -1274,6 +1355,50 @@ function registerInternalIpc(): void {
   });
   handleInternal(INTERNAL.threatStatus, ['settings'], () => threats.status());
   handleInternal(INTERNAL.drmStatus, ['settings'], () => widevineStatus());
+  const E = ['extensions'];
+  const host = () => {
+    if (!extensions) throw new Error('Estensioni non disponibili');
+    return extensions;
+  };
+  const installWrap = async (fn: () => Promise<{ id: string } | null>) => {
+    try {
+      const item = await fn();
+      if (item) host().installed();
+      return { ok: Boolean(item), id: item?.id };
+    } catch (err) {
+      return { ok: false, error: err instanceof InstallError || err instanceof Error ? err.message : String(err) };
+    }
+  };
+  handleInternal(INTERNAL.extList, E, () => ({ items: host().summary(), developerMode: settings.get().extensionsDeveloperMode }));
+  handleInternal(INTERNAL.extSetEnabled, E, (_e, id: string, enabled: boolean) => host().registry.setEnabled(String(id), Boolean(enabled)));
+  handleInternal(INTERNAL.extSetPinned, E, (_e, id: string, pinned: boolean) => host().registry.setPinned(String(id), Boolean(pinned)));
+  handleInternal(INTERNAL.extRemove, E, (_e, id: string) => confirmRemoveExtension(current(), String(id)));
+  handleInternal(INTERNAL.extInstallStore, E, (_e, input: string) => host().installFromStore(current(), String(input ?? '')));
+  handleInternal(INTERNAL.extInstallFile, E, async () => {
+    const w = current();
+    const opts = { title: 'Installa estensione', properties: ['openFile' as const], filters: [{ name: 'Estensioni (.crx, .zip)', extensions: ['crx', 'zip'] }] };
+    const res = w ? await dialog.showOpenDialog(w.win, opts) : await dialog.showOpenDialog(opts);
+    if (res.canceled || !res.filePaths[0]) return { ok: false };
+    const file = res.filePaths[0];
+    const data = readFileSync(file);
+    const confirm = (p: Parameters<ExtensionHost['confirmInstall']>[1]) => host().confirmInstall(w, p);
+    return installWrap(() => (/\.crx$/i.test(file) ? host().registry.installCrx(data, 'file', confirm) : host().registry.installZip(data, confirm)));
+  });
+  handleInternal(INTERNAL.extLoadUnpacked, E, async () => {
+    const w = current();
+    const opts = { title: 'Carica la cartella di un’estensione', properties: ['openDirectory' as const] };
+    const res = w ? await dialog.showOpenDialog(w.win, opts) : await dialog.showOpenDialog(opts);
+    if (res.canceled || !res.filePaths[0]) return { ok: false };
+    return installWrap(() => host().registry.installUnpacked(res.filePaths[0], (p) => host().confirmInstall(w, p)));
+  });
+  handleInternal(INTERNAL.extReload, E, (_e, id: string) => host().registry.reload(String(id)));
+  handleInternal(INTERNAL.extOptions, E, (_e, id: string) => host().openOptions(String(id)));
+  handleInternal(INTERNAL.extCheckUpdates, E, () => wrap(() => host().registry.checkUpdates()));
+  handleInternal(INTERNAL.extApplyUpdate, E, (_e, id: string) => installWrap(async () => {
+    await host().registry.applyPendingUpdate(String(id), (p) => host().confirmInstall(current(), p));
+    return { id: String(id) };
+  }));
+  handleInternal(INTERNAL.extSetDevMode, E, (_e, on: boolean) => settings.update({ extensionsDeveloperMode: Boolean(on) }).extensionsDeveloperMode);
   handleInternal(INTERNAL.syncStatus, S, () => sync.status());
   handleInternal(INTERNAL.syncProbe, S, () => wrap(() => sync.probe()));
   handleInternal(INTERNAL.syncEnable, S, (_e, passphrase: string, deviceName?: string) => wrap(() => sync.enable(String(passphrase ?? ''), typeof deviceName === 'string' ? deviceName : undefined)));

@@ -228,6 +228,10 @@ export interface Settings {
   newTabBackground: NewTabBackground;
   newTabShowGreeting: boolean;
   newTabShowApps: boolean;
+  /** The extensions button was added to the toolbar (once, at the first installed extension). */
+  extensionsButtonAdded: boolean;
+  /** Extensions page: load unpacked folders and reload them. */
+  extensionsDeveloperMode: boolean;
   showBookmarksBar: boolean;
   panelOpen: boolean;
   /** What Ctrl+T and the + button open. */
@@ -486,4 +490,39 @@ export interface RemoteTabs {
 export interface PopupLook {
   dark: boolean;
   vars: Record<string, string>;
+}
+
+/** An extension's toolbar button, as the browser UI draws it. */
+export interface ExtensionButton {
+  id: string;
+  name: string;
+  title: string;
+  icon: string | null;
+  badge: string;
+  badgeBg: string;
+  badgeColor: string;
+  enabled: boolean;
+  pinned: boolean;
+}
+
+/** An installed extension, as the extensions page shows it. */
+export interface ExtensionSummary {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  icon: string | null;
+  source: 'store' | 'file' | 'unpacked';
+  /** Folder of an unpacked extension (developer mode). */
+  path: string | null;
+  enabled: boolean;
+  running: boolean;
+  pinned: boolean;
+  error: string | null;
+  hasOptions: boolean;
+  homepage: string | null;
+  warnings: string[];
+  unsupported: string[];
+  pendingUpdate: string | null;
+  installedAt: number;
 }

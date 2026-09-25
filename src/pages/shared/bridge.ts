@@ -1,5 +1,5 @@
 import { INTERNAL } from '../../shared/ipc';
-import type { AiEvent, AboutInfo, BreachReport, ReaderArticle, SyncCollectionOption, SyncStatus, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
+import type { ExtensionSummary, AiEvent, AboutInfo, BreachReport, ReaderArticle, SyncCollectionOption, SyncStatus, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
 
 interface InternalBridge {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -8,6 +8,7 @@ interface InternalBridge {
   onUpdate(listener: (status: UpdateStatus) => void): () => void;
   onAi(listener: (event: AiEvent) => void): () => void;
   onSync(listener: (status: SyncStatus) => void): () => void;
+  onExtensions(listener: () => void): () => void;
 }
 
 declare global {
@@ -54,6 +55,21 @@ export const internal = {
     reset: () => call<ApiResult<void>>(INTERNAL.syncReset),
     options: (options: { deviceName?: string; collections?: Partial<Record<SyncCollectionOption, boolean>> }) => call<void>(INTERNAL.syncOptions, options),
     onChange: (fn: (s: SyncStatus) => void) => bridge().onSync(fn),
+  },
+  extensions: {
+    list: () => call<{ items: ExtensionSummary[]; developerMode: boolean }>(INTERNAL.extList),
+    setEnabled: (id: string, enabled: boolean) => call<void>(INTERNAL.extSetEnabled, id, enabled),
+    setPinned: (id: string, pinned: boolean) => call<void>(INTERNAL.extSetPinned, id, pinned),
+    remove: (id: string) => call<boolean>(INTERNAL.extRemove, id),
+    installFromStore: (input: string) => call<{ ok: boolean; id?: string; error?: string }>(INTERNAL.extInstallStore, input),
+    installFile: () => call<{ ok: boolean; id?: string; error?: string }>(INTERNAL.extInstallFile),
+    loadUnpacked: () => call<{ ok: boolean; id?: string; error?: string }>(INTERNAL.extLoadUnpacked),
+    reload: (id: string) => call<void>(INTERNAL.extReload, id),
+    options: (id: string) => call<void>(INTERNAL.extOptions, id),
+    checkUpdates: () => call<ApiResult<number>>(INTERNAL.extCheckUpdates),
+    applyUpdate: (id: string) => call<{ ok: boolean; error?: string }>(INTERNAL.extApplyUpdate, id),
+    setDeveloperMode: (on: boolean) => call<boolean>(INTERNAL.extSetDevMode, on),
+    onChange: (fn: () => void) => bridge().onExtensions(fn),
   },
   drmStatus: () => call<{ supported: boolean; ready: boolean; version: string | null; status: string }>(INTERNAL.drmStatus),
   threatStatus: () => call<{ entries: number; loadedAt: number | null }>(INTERNAL.threatStatus),

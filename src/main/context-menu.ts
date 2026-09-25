@@ -15,6 +15,8 @@ export interface ContextMenuActions {
   aiEnabled(): boolean;
   askAboutText(action: TextAction, text: string): void;
   askAboutPage(action: PageAction): void;
+  /** Items added by the installed extensions (chrome.contextMenus). */
+  extensionItems?(params: Electron.ContextMenuParams): MenuItemConstructorOptions[];
 }
 
 /** Right-click menu for web pages, with the kSuite actions next to the usual browser ones. */
@@ -148,6 +150,8 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
     if (!link && !params.isEditable && params.mediaType === 'none' && /^(https?|file):/i.test(contents.getURL())) {
       items.push({ label: 'Visualizza sorgente pagina', click: () => actions.viewSource(contents) });
     }
+    const fromExtensions = actions.extensionItems?.(params) ?? [];
+    if (fromExtensions.length) items.push(...fromExtensions, { type: 'separator' });
     items.push({ label: 'Ispeziona', click: () => contents.inspectElement(params.x, params.y) });
     Menu.buildFromTemplate(items).popup();
   });

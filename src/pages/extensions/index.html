@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Estensioni</title>
+  <link rel="stylesheet" href="page.css" />
+  <link rel="stylesheet" href="extensions.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1><span class="title-icon" data-icon="puzzle" data-size="20"></span>Estensioni</h1>
+      <label class="dev-toggle"><input id="dev" type="checkbox" /> Modalità sviluppatore</label>
+    </header>
+
+    <section class="group install">
+      <h2><span data-icon="plus" data-size="14"></span>Aggiungi un’estensione</h2>
+      <div class="install-body">
+        <form id="store-form" class="store-form">
+          <input id="store-input" type="text" autocomplete="off" spellcheck="false" placeholder="Indirizzo della pagina nel Chrome Web Store, oppure l’ID dell’estensione" aria-label="Indirizzo o ID nel Chrome Web Store" />
+          <button id="store-install" class="primary" type="submit">Installa</button>
+        </form>
+        <div class="install-actions">
+          <a class="button-link" href="https://chromewebstore.google.com/category/extensions" target="_blank" rel="noopener"><span data-icon="external" data-size="14"></span>Apri il Chrome Web Store</a>
+          <button id="from-file" type="button"><span data-icon="file" data-size="14"></span>Da file (.crx, .zip)</button>
+          <button id="unpacked" type="button" hidden><span data-icon="folderOpen" data-size="14"></span>Carica cartella</button>
+          <button id="updates" type="button"><span data-icon="refresh" data-size="14"></span>Cerca aggiornamenti</button>
+        </div>
+        <p class="hint">Sfogliando il Chrome Web Store compare anche il pulsante «Aggiungi a kSuite Browser». Le estensioni funzionano nelle finestre normali, non in quelle private.</p>
+        <p id="status" class="status" role="status"></p>
+      </div>
+    </section>
+
+    <div id="list"></div>
+  </div>
+  <script src="extensions.js"></script>
+</body>
+</html>

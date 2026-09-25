@@ -40,6 +40,19 @@ quindi funzionano senza sorprese.
 - Nuova scheda con sfondo semplice, tinto o sfumato e blocchi a scelta (saluto, siti più visitati, app)
 - Anteprima dal vivo nelle impostazioni; tutto si applica subito, anche alle pagine del browser e ai popup
 
+**Estensioni** (`ksuite://extensions`, menu › Estensioni, o il pulsante a forma di puzzle)
+- Estensioni del **Chrome Web Store**: si installano dalla pagina dell'estensione nel Web Store (compare la barra
+  «Aggiungi a kSuite Browser»), incollandone l'indirizzo o l'ID, oppure da file `.crx`/`.zip`; in modalità sviluppatore
+  anche da una cartella, con «Ricarica»
+- Prima di installare il browser mostra cosa l'estensione potrà fare (siti a cui accede, cronologia, notifiche…) e le
+  funzioni che qui non ci sono
+- I pacchetti `.crx` sono verificati: l'ID deriva dalla chiave dello sviluppatore e la firma deve corrispondere
+  (un file alterato non si installa)
+- Pulsanti delle estensioni nella barra con icona, titolo e badge (per scheda), popup sotto il pulsante, menu con
+  «Opzioni», «Fissa/Togli dalla barra» e «Rimuovi»; voci aggiunte al menu contestuale; scorciatoie da tastiera
+- Aggiornamenti automatici dal Web Store; se una nuova versione chiede più permessi aspetta la tua conferma
+- Attivazione/disattivazione, rimozione, pagina delle opzioni. Non funzionano nelle finestre private
+
 **Browser**
 - Schede e più finestre, barra indirizzi/ricerca (DuckDuckGo, Qwant, Ecosia, Startpage, Google)
 - **Suggerimenti nella barra degli indirizzi** da preferiti e cronologia, con navigazione da tastiera
@@ -214,6 +227,25 @@ attraverso il tuo kDrive (Impostazioni → *Sincronizzazione*), senza server di 
 - Le **schede aperte** degli altri computer compaiono nella ricerca tra le schede (`Ctrl+Shift+A`). Le finestre private
   non vengono mai sincronizzate.
 - La chiave viene ricordata con il portachiavi del sistema; dove non c'è (alcuni Linux) la passphrase viene chiesta a ogni avvio.
+
+## Come funzionano le estensioni
+
+Electron esegue da sé una parte dell'API delle estensioni di Chrome (script nelle pagine, `storage`, `alarms`,
+`scripting`, `declarativeNetRequest`, `webRequest`, `offscreen`, messaggi). Il resto è implementato dal browser
+(`src/main/extensions/`, `src/preload/extensions.ts`), sopra le sue schede e finestre:
+
+- `action`/`browserAction` (pulsante, popup, badge, icone anche da `ImageData`), `tabs` (query, create, update,
+  remove, move, discard, captureVisibleTab, eventi), `windows` (anche finestre popup delle estensioni),
+  `contextMenus`, `notifications`, `cookies`, `webNavigation`, `permissions` (permessi opzionali con conferma),
+  `commands` (scorciatoie), `runtime.onInstalled`/`onStartup`/`openOptionsPage`, `downloads.download`, `sidePanel`
+  (mostrato come popup)
+- Gli ID delle schede sono quelli delle pagine (come in Chrome), quindi `tabs.sendMessage` e `sender.tab` combaciano;
+  le schede in pausa hanno un ID proprio e risultano «discarded»
+- Il service worker delle estensioni Manifest V3 viene risvegliato quando arriva un evento a cui è in ascolto;
+  le estensioni Manifest V2 funzionano anche con pagine di sfondo non persistenti
+
+Non disponibili: `bookmarks`, `history`, `nativeMessaging` (per esempio lo sblocco con l'app desktop di un gestore di
+password), `identity`, `tabGroups`, `sessions`, `debugger`. Chi le usa installa comunque, ma quelle funzioni non vanno.
 
 ## Sviluppo
 

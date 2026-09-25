@@ -320,6 +320,24 @@ body.layout-side #tabstrip { display: none; }
 #toast.toast-success { background: var(--success); color: #fff; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } }
 
+/* ---------- Extensions ---------- */
+
+.ext-slot, .ext-pinned { display: flex; align-items: center; gap: 2px; }
+.ext-pinned:empty { display: none; }
+body.private .ext-slot { display: none; }
+.ext-action img { width: 18px; height: 18px; object-fit: contain; }
+.ext-action.disabled img, .ext-action.disabled .ext-letter { opacity: .4; filter: grayscale(1); }
+.ext-letter {
+  display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px;
+  background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700;
+}
+.ext-badge {
+  position: absolute; right: 0; bottom: 2px;
+  min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px;
+  font-size: 9px; font-weight: 700; line-height: 14px; text-align: center;
+  box-shadow: 0 0 0 1.5px var(--titlebar); pointer-events: none;
+}
+
 /* ---------- Bookmarks bar ---------- */
 
 #bookmarks-bar { display: flex; align-items: center; gap: 2px; height: calc(var(--control) - 2px); padding: 0 var(--inset) calc(var(--gap)); margin-top: -2px; }

@@ -28,6 +28,7 @@ export const TOOLBAR_ITEMS = {
   bookmarks: { label: 'Preferiti', icon: 'bookmark' },
   history: { label: 'Cronologia', icon: 'history' },
   ai: { label: 'Assistente IA', icon: 'sparkles' },
+  extensions: { label: 'Estensioni', icon: 'puzzle' },
   panel: { label: 'Pannello kSuite', icon: 'panel' },
 } as const;
 

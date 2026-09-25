@@ -1,0 +1,44 @@
+.dev-toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 13px; }
+.dev-toggle input { accent-color: var(--accent); }
+.install-body { padding: 16px 18px; display: grid; gap: 12px; }
+.store-form { display: flex; gap: 8px; }
+.store-form input { flex: 1; }
+.install-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.button-link { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text); text-decoration: none; background: var(--surface); font-weight: 500; }
+.button-link:hover { background: var(--surface-2); border-color: var(--border-strong); }
+.hint { margin: 0; color: var(--muted); font-size: 13px; }
+.status.error { color: var(--danger); }
+.status.ok { color: var(--success); }
+
+.ext-card { display: flex; gap: 16px; padding: 18px; border-bottom: 1px solid var(--border); }
+.ext-card:last-child { border-bottom: none; }
+.ext-card.highlight { background: var(--accent-soft); }
+.ext-card.off .ext-icon, .ext-card.off .ext-main h3 { opacity: .55; }
+.ext-icon { width: 48px; height: 48px; flex: none; border-radius: 12px; object-fit: contain; }
+.ext-icon.letter { display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: 20px; font-weight: 700; }
+.ext-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.ext-main h3 { margin: 0; font-size: 15px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.ext-main .version { color: var(--muted); font-size: 12.5px; font-weight: 400; }
+.ext-main .desc { margin: 0; color: var(--text-2); font-size: 13.5px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-size: 11.5px; padding: 1px 8px; border-radius: 10px; background: var(--surface-2); color: var(--text-2); }
+.tag.warn { background: var(--warning-soft); color: var(--warning); }
+.tag.err { background: var(--danger-soft); color: var(--danger); }
+.ext-main details { font-size: 13px; color: var(--text-2); }
+.ext-main summary { cursor: default; color: var(--muted); }
+.ext-main details ul { margin: 6px 0 0; padding-left: 18px; }
+.ext-main .id { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); word-break: break-all; }
+.ext-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.ext-actions label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+.ext-actions label input { accent-color: var(--accent); }
+.switch { position: relative; width: 40px; height: 24px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.switch span { position: absolute; inset: 0; background: var(--border-strong); border-radius: 12px; transition: background .15s; }
+.switch span::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::after { transform: translateX(16px); }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ext-side { flex: none; }
+@media (max-width: 640px) { .ext-card { flex-wrap: wrap; } }
+[hidden] { display: none !important; }
+.switch { display: inline-block; }

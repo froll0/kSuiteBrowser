@@ -19,6 +19,8 @@ import { StatusBubble } from './status-bubble';
 import { TabSearchPopup } from './tab-search-popup';
 import { SuggestionsPopup } from './suggestions-popup';
 import { TabManager } from './tabs';
+import type { ExtensionHost } from './extensions/host';
+import { storeIdFrom } from './extensions/registry';
 
 export interface WindowContext {
   settings: SettingsStore;
@@ -37,6 +39,8 @@ export interface WindowContext {
   switchToTab(from: BrowserWindowController, tabId: number): boolean;
   recordFavicon(contents: WebContents, faviconUrl: string): void;
   onClosed(controller: BrowserWindowController): void;
+  /** Installed extensions (null before they are loaded). */
+  readonly extensions: ExtensionHost | null;
 }
 
 export const SETTINGS_URL = 'ksuite://settings/';
@@ -364,6 +368,16 @@ export class BrowserWindowController {
   private setupPage(contents: WebContents): void {
     // The tab may move to another window: always act on the window that holds it now.
     const owner = () => this.ctx.ownerOf(contents) ?? this;
+    if (!this.isPrivate) {
+      this.ctx.extensions?.attachPage(contents);
+      // On an extension's page in the Chrome Web Store: offer to add it here.
+      contents.on('did-navigate', (_e, url) => {
+        if (!/^https:\/\/(chromewebstore\.google\.com\/detail\/|chrome\.google\.com\/webstore\/detail\/)/.test(url)) return;
+        const id = storeIdFrom(url);
+        const w = owner();
+        if (id && w.tabs.activeContents() === contents) w.send(IPC.evExtOffer, { id, installed: Boolean(this.ctx.extensions?.isLoaded(id)) });
+      });
+    }
     // History (never for private windows) and per-site zoom.
     let visitId: string | null = null;
     const record = (url: string) => {
@@ -456,6 +470,7 @@ export class BrowserWindowController {
       aiEnabled: () => this.ctx.settings.get().aiEnabled,
       askAboutText: (action, text) => owner().send(IPC.evAiAsk, { action, text }),
       askAboutPage: (action) => owner().send(IPC.evAiAsk, { page: action }),
+      extensionItems: (params) => (this.isPrivate ? [] : this.ctx.extensions?.contextItems(contents, params) ?? []),
     });
   }
 }

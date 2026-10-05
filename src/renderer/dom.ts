@@ -1,3 +1,4 @@
+import { localeTag } from '../shared/i18n';
 type Child = Node | string | number | null | undefined | false;
 type Attrs = Record<string, string | number | boolean | EventListener | undefined | null>;
 
@@ -39,7 +40,7 @@ export function formatDateTime(value: string | number | null, withTime = true): 
   if (value === null || value === '') return '';
   const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString('it-IT', {
+  return date.toLocaleString(localeTag(), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',

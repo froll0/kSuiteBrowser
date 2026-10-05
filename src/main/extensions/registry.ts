@@ -5,6 +5,7 @@ import { net, type Extension, type Session } from 'electron';
 import { unzipSync } from 'fflate';
 import { extensionId, parseCrx } from './crx';
 import { actionOf, describePermissions, iconDataUrl, iconPath, localize, readManifest, type Manifest, type PermissionSummary } from './manifest';
+import { tr } from '../../shared/i18n';
 
 export type ExtensionSource = 'store' | 'file' | 'unpacked';
 
@@ -67,13 +68,13 @@ function unzipSafe(zip: Uint8Array): Map<string, Uint8Array> {
   try {
     entries = unzipSync(zip);
   } catch {
-    throw new InstallError('L’archivio dell’estensione è danneggiato');
+    throw new InstallError(tr('L’archivio dell’estensione è danneggiato'));
   }
   const files = new Map<string, Uint8Array>();
   for (const [name, data] of Object.entries(entries)) {
     if (name.endsWith('/')) continue;
     const clean = name.replace(/\\/g, '/');
-    if (clean.startsWith('/') || /^[a-zA-Z]:/.test(clean) || clean.split('/').some((p) => p === '..')) throw new InstallError('L’archivio contiene percorsi non validi');
+    if (clean.startsWith('/') || /^[a-zA-Z]:/.test(clean) || clean.split('/').some((p) => p === '..')) throw new InstallError(tr('L’archivio contiene percorsi non validi'));
     files.set(clean, data);
   }
   if (!files.has('manifest.json')) {
@@ -85,7 +86,7 @@ function unzipSafe(zip: Uint8Array): Map<string, Uint8Array> {
       for (const [n, d] of files) stripped.set(n.slice(top.length + 1), d);
       return stripped;
     }
-    throw new InstallError('Manca il file manifest.json');
+    throw new InstallError(tr('Manca il file manifest.json'));
   }
   return files;
 }
@@ -173,7 +174,7 @@ export class ExtensionRegistry {
   /** Downloads an extension from the Chrome Web Store and installs it. */
   async installFromStore(input: string, confirm: (p: InstallPreview) => Promise<boolean>): Promise<InstalledExtension | null> {
     const id = storeIdFrom(input);
-    if (!id) throw new InstallError('Indirizzo del Chrome Web Store non riconosciuto');
+    if (!id) throw new InstallError(tr('Indirizzo del Chrome Web Store non riconosciuto'));
     const data = await this.download(storeQuery('redirect', `id=${id}&uc`));
     return this.installCrx(data, 'store', confirm, id);
   }
@@ -183,19 +184,19 @@ export class ExtensionRegistry {
     try {
       res = await net.fetch(url, { redirect: 'follow' });
     } catch {
-      throw new InstallError('Chrome Web Store non raggiungibile');
+      throw new InstallError(tr('Chrome Web Store non raggiungibile'));
     }
-    if (res.status === 204 || res.status === 404) throw new InstallError('Estensione non trovata nel Chrome Web Store (o non disponibile)');
-    if (!res.ok) throw new InstallError(`Download non riuscito (HTTP ${res.status})`);
+    if (res.status === 204 || res.status === 404) throw new InstallError(tr('Estensione non trovata nel Chrome Web Store (o non disponibile)'));
+    if (!res.ok) throw new InstallError(tr('Download non riuscito (HTTP {0})', res.status));
     const data = Buffer.from(await res.arrayBuffer());
-    if (data.length > 200 * 1024 * 1024) throw new InstallError('Estensione troppo grande');
+    if (data.length > 200 * 1024 * 1024) throw new InstallError(tr('Estensione troppo grande'));
     return data;
   }
 
   /** Installs a signed .crx package. */
   async installCrx(data: Buffer, source: ExtensionSource, confirm: (p: InstallPreview) => Promise<boolean>, expectedId?: string): Promise<InstalledExtension | null> {
     const pkg = parseCrx(data);
-    if (expectedId && pkg.id !== expectedId) throw new InstallError('Il pacchetto scaricato non corrisponde all’estensione richiesta');
+    if (expectedId && pkg.id !== expectedId) throw new InstallError(tr('Il pacchetto scaricato non corrisponde all’estensione richiesta'));
     return this.installFiles(unzipSafe(pkg.zip), source, confirm, pkg.publicKey);
   }
 
@@ -212,7 +213,7 @@ export class ExtensionRegistry {
         const top = name.split('/')[0];
         if (top.startsWith('_') && top !== '_locales') continue;
         const target = normalize(join(staging, name));
-        if (!target.startsWith(normalize(staging) + sep)) throw new InstallError('L’archivio contiene percorsi non validi');
+        if (!target.startsWith(normalize(staging) + sep)) throw new InstallError(tr('L’archivio contiene percorsi non validi'));
         mkdirSync(dirname(target), { recursive: true });
         writeFileSync(target, data);
       }
@@ -271,7 +272,7 @@ export class ExtensionRegistry {
       if (source !== 'unpacked') rmSync(dir, { recursive: true, force: true });
       const reason = this.errors.get(item.id);
       this.changed();
-      throw new InstallError(`L’estensione non si carica: ${reason ?? 'errore sconosciuto'}`);
+      throw new InstallError(tr('L’estensione non si carica: {0}', reason ?? 'errore sconosciuto'));
     }
     if (previous && previous.path !== dir && previous.source !== 'unpacked') rmSync(previous.path, { recursive: true, force: true });
     this.cleanOldVersions(item);

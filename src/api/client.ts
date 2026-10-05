@@ -1,3 +1,4 @@
+import { tr } from '../shared/i18n';
 // Overridable only through the environment, to run the app against a local mock in tests.
 const env = typeof process !== 'undefined' ? process.env : {};
 export const API_BASE = env.VELO_API_BASE || 'https://api.infomaniak.com';
@@ -108,7 +109,7 @@ function endpointOf(url: string): string {
 }
 
 function describeError(status: number, code: string | null, description: string, endpoint: string): string {
-  if (status === 401) return 'Token non valido o scaduto (401). Controlla il token API nelle impostazioni.';
-  if (status === 403) return `Accesso negato (403) su ${endpoint}: il token non ha lo scope necessario. ${description}`;
-  return `Errore API ${status}${code ? ` [${code}]` : ''} su ${endpoint}: ${description}`;
+  if (status === 401) return tr('Token non valido o scaduto (401). Controlla il token API nelle impostazioni.');
+  if (status === 403) return tr('Accesso negato (403) su {0}: il token non ha lo scope necessario. {1}', endpoint, description);
+  return tr('Errore API {0}{1} su {2}: {3}', status, code ? ` [${code}]` : '', endpoint, description);
 }

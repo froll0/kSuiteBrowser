@@ -317,6 +317,17 @@ Electron esegue da sé una parte dell'API delle estensioni di Chrome (script nel
 Non disponibili: `bookmarks`, `history`, `nativeMessaging` (per esempio lo sblocco con l'app desktop di un gestore di
 password), `identity`, `tabGroups`, `sessions`, `debugger`. Chi le usa installa comunque, ma quelle funzioni non vanno.
 
+## Lingue
+
+L'interfaccia è in **italiano** e **inglese**: Velo usa la lingua del sistema (inglese se non è tra quelle
+disponibili) oppure quella scelta in Impostazioni › Generale › *Lingua* (vale dal riavvio). La lingua dell'interfaccia
+non cambia quella che i siti ricevono (`Accept-Language`), che resta quella del sistema.
+
+Nel codice i testi sono scritti in italiano dentro `tr('…')` (o `plural(n, '…', '…')`); il testo italiano è la chiave
+e `src/shared/locales/en.ts` lo traduce. Il testo statico delle pagine HTML viene tradotto all'apertura. Il test
+`test/i18n.test.ts` controlla che ogni testo abbia la traduzione e che i segnaposto `{0}`, `{n}` corrispondano.
+Per aggiungere una lingua: un nuovo catalogo in `src/shared/locales/`, la sua sigla in `LOCALES` (`src/shared/i18n.ts`).
+
 ## Sviluppo
 
 Requisiti: Node.js 22+.

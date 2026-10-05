@@ -15,6 +15,7 @@ import type { CalendarEvent, Drive, DriveFile, DriveListing, MailOverview, NewEv
 import { matchesAll } from '../shared/search-match';
 import { fileNameFromContentDisposition, fileNameFromUrl, safeFileName, uniquePath } from './files';
 import type { SettingsStore } from './settings';
+import { tr } from '../shared/i18n';
 
 /** Everything the browser does with the Infomaniak APIs (optional account), bound to the configured token and drive. */
 export class CloudServices {
@@ -33,7 +34,7 @@ export class CloudServices {
 
   private client(): InfomaniakClient {
     const token = this.settings.getToken();
-    if (!token) throw new InfomaniakApiError('Nessun token API configurato. Aprilo dalle impostazioni.', 401);
+    if (!token) throw new InfomaniakApiError(tr('Nessun token API configurato. Aprilo dalle impostazioni.'), 401);
     return new InfomaniakClient(token);
   }
 
@@ -51,7 +52,7 @@ export class CloudServices {
     if (configured) return configured;
     if (this.cachedDriveId) return this.cachedDriveId;
     const [first] = await this.drives();
-    if (!first) throw new InfomaniakApiError('Nessun kDrive trovato per questo account.', 404);
+    if (!first) throw new InfomaniakApiError(tr('Nessun kDrive trovato per questo account.'), 404);
     this.cachedDriveId = first.id;
     return first.id;
   }
@@ -78,7 +79,7 @@ export class CloudServices {
   async downloadToDisk(fileId: number, name: string, folder: string = app.getPath('downloads')): Promise<string> {
     const res = await drive.downloadFile(this.client(), await this.driveId(), fileId);
     const target = uniquePath(folder, safeFileName(name));
-    if (!res.body) throw new InfomaniakApiError('Risposta vuota dal server.', 500);
+    if (!res.body) throw new InfomaniakApiError(tr('Risposta vuota dal server.'), 500);
     await pipeline(Readable.fromWeb(res.body as unknown as WebReadableStream), createWriteStream(target));
     return target;
   }
@@ -91,7 +92,7 @@ export class CloudServices {
   async uploadLocalFile(path: string, directoryId?: number): Promise<DriveFile> {
     const info = await stat(path);
     if (info.size > drive.MAX_DIRECT_UPLOAD_BYTES) {
-      throw new InfomaniakApiError(`${basename(path)} supera 1 GB: caricalo dall'app web di kDrive.`, 413);
+      throw new InfomaniakApiError(tr('{0} supera 1 GB: caricalo dall\'app web di kDrive.', basename(path)), 413);
     }
     return this.uploadBytes(basename(path), new Uint8Array(await readFile(path)), directoryId);
   }
@@ -106,7 +107,7 @@ export class CloudServices {
   /** Fetches a link or image with the browser session (cookies included) and stores it in kDrive. */
   async saveUrlToDrive(session: Session, url: string): Promise<DriveFile> {
     const res = await session.fetch(url);
-    if (!res.ok) throw new InfomaniakApiError(`Download fallito (${res.status}) per ${url}`, res.status);
+    if (!res.ok) throw new InfomaniakApiError(tr('Download fallito ({0}) per {1}', res.status, url), res.status);
     const name = fileNameFromContentDisposition(res.headers.get('content-disposition')) ?? fileNameFromUrl(url);
     return this.uploadBytes(name, new Uint8Array(await res.arrayBuffer()));
   }

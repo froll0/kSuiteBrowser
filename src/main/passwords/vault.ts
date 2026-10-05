@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import { parsePasswordCsv, toCsv } from '../../shared/csv';
 import type { SavedLogin, VaultStatus } from '../../shared/types';
 import { deriveKey, newKdfParams, newKey, open, seal, type KdfParams, type Sealed } from './crypto';
+import { tr } from '../../shared/i18n';
 
 /** The OS keychain (Electron safeStorage), injected so the vault can be tested without Electron. */
 export interface Keychain {
@@ -29,13 +30,13 @@ interface Payload {
 
 export class VaultLockedError extends Error {
   constructor() {
-    super('Le password salvate sono bloccate: inserisci la password principale.');
+    super(tr('Le password salvate sono bloccate: inserisci la password principale.'));
   }
 }
 
 export class WrongPasswordError extends Error {
   constructor() {
-    super('Password principale errata.');
+    super(tr('Password principale errata.'));
   }
 }
 
@@ -243,7 +244,7 @@ export class Vault {
 
   /** Sets or changes the primary password (the current one is required to change it). */
   async setPrimary(next: string, current = ''): Promise<void> {
-    if (next.length < 8) throw new Error('La password principale deve avere almeno 8 caratteri.');
+    if (next.length < 8) throw new Error(tr('La password principale deve avere almeno 8 caratteri.'));
     if (this.file?.primary) {
       if (!(await this.checkPrimary(current))) throw new WrongPasswordError();
       await this.unlock(current);
@@ -262,7 +263,7 @@ export class Vault {
   /** Removes the primary password; the key goes back to the OS keychain. */
   async removePrimary(current: string): Promise<void> {
     if (!this.file?.primary) return;
-    if (!this.keychain.available()) throw new Error('Senza portachiavi di sistema la password principale è obbligatoria.');
+    if (!this.keychain.available()) throw new Error(tr('Senza portachiavi di sistema la password principale è obbligatoria.'));
     if (!(await this.checkPrimary(current))) throw new WrongPasswordError();
     await this.unlock(current);
     this.writeFile({ keychain: this.keychain.encrypt(this.key!).toString('base64') });
@@ -280,7 +281,7 @@ export class Vault {
     queueMicrotask(() => this.listeners.forEach((l) => l()));
     if (this.file?.primary) this.writeFile({ primary: this.file.primary });
     else if (this.keychain.available()) this.writeFile({ keychain: this.keychain.encrypt(this.key).toString('base64') });
-    else throw new Error('Imposta una password principale per salvare le password.');
+    else throw new Error(tr('Imposta una password principale per salvare le password.'));
   }
 
   private writeFile(protection: Pick<VaultFile, 'keychain' | 'primary'>): void {

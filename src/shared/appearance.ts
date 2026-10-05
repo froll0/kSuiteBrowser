@@ -1,3 +1,4 @@
+import { tr } from './i18n';
 /**
  * The look of the browser, as chosen by the user: colours, shapes, density, fonts and layout.
  * Turned into CSS custom properties shared by the browser UI, the internal pages and the popups,
@@ -16,20 +17,20 @@ export type AppIconStyle = 'mono' | 'color';
 export type NewTabBackground = 'plain' | 'tint' | 'gradient';
 
 export const TOOLBAR_ITEMS = {
-  back: { label: 'Indietro', icon: 'arrowLeft' },
-  forward: { label: 'Avanti', icon: 'arrowRight' },
-  reload: { label: 'Ricarica', icon: 'reload' },
-  home: { label: 'Pagina iniziale', icon: 'home' },
-  newTab: { label: 'Nuova scheda', icon: 'plus' },
-  shield: { label: 'Protezioni', icon: 'shieldCheck' },
-  media: { label: 'Audio e video', icon: 'volume' },
+  back: { label: tr('Indietro'), icon: 'arrowLeft' },
+  forward: { label: tr('Avanti'), icon: 'arrowRight' },
+  reload: { label: tr('Ricarica'), icon: 'reload' },
+  home: { label: tr('Pagina iniziale'), icon: 'home' },
+  newTab: { label: tr('Nuova scheda'), icon: 'plus' },
+  shield: { label: tr('Protezioni'), icon: 'shieldCheck' },
+  media: { label: tr('Audio e video'), icon: 'volume' },
   downloads: { label: 'Download', icon: 'download' },
-  tabSearch: { label: 'Cerca tra le schede', icon: 'chevronDown' },
-  bookmarks: { label: 'Preferiti', icon: 'bookmark' },
-  history: { label: 'Cronologia', icon: 'history' },
-  ai: { label: 'Assistente IA', icon: 'sparkles' },
-  extensions: { label: 'Estensioni', icon: 'puzzle' },
-  panel: { label: 'Pannello cloud', icon: 'panel' },
+  tabSearch: { label: tr('Cerca tra le schede'), icon: 'chevronDown' },
+  bookmarks: { label: tr('Preferiti'), icon: 'bookmark' },
+  history: { label: tr('Cronologia'), icon: 'history' },
+  ai: { label: tr('Assistente IA'), icon: 'sparkles' },
+  extensions: { label: tr('Estensioni'), icon: 'puzzle' },
+  panel: { label: tr('Pannello cloud'), icon: 'panel' },
 } as const;
 
 export type ToolbarItem = keyof typeof TOOLBAR_ITEMS;
@@ -54,15 +55,15 @@ export interface AppearanceSettings {
 }
 
 export const ACCENT_PRESETS: Array<{ name: string; color: string }> = [
-  { name: 'Lago', color: '#3264f0' },
-  { name: 'Ghiacciaio', color: '#0891b2' },
-  { name: 'Abete', color: '#16865a' },
-  { name: 'Oliva', color: '#6b7f1f' },
-  { name: 'Ambra', color: '#c2700c' },
-  { name: 'Corallo', color: '#e0533d' },
-  { name: 'Lampone', color: '#d0306f' },
-  { name: 'Lavanda', color: '#7c4ddb' },
-  { name: 'Ardesia', color: '#56606e' },
+  { name: tr('Lago'), color: '#3264f0' },
+  { name: tr('Ghiacciaio'), color: '#0891b2' },
+  { name: tr('Abete'), color: '#16865a' },
+  { name: tr('Oliva'), color: '#6b7f1f' },
+  { name: tr('Ambra'), color: '#c2700c' },
+  { name: tr('Corallo'), color: '#e0533d' },
+  { name: tr('Lampone'), color: '#d0306f' },
+  { name: tr('Lavanda'), color: '#7c4ddb' },
+  { name: tr('Ardesia'), color: '#56606e' },
 ];
 
 export const DEFAULT_ACCENT = ACCENT_PRESETS[0].color;
@@ -72,10 +73,10 @@ export const SIDE_TABS_RANGE = { min: 180, max: 420 } as const;
 
 export const UI_FONTS: Record<UiFont, { label: string; stack: string }> = {
   inter: { label: 'Inter', stack: "'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" },
-  system: { label: 'Del sistema', stack: "system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, sans-serif" },
-  rounded: { label: 'Arrotondato', stack: "ui-rounded, 'SF Pro Rounded', Nunito, 'Varela Round', 'Arial Rounded MT Bold', system-ui, sans-serif" },
-  serif: { label: 'Con grazie', stack: "ui-serif, 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif" },
-  mono: { label: 'Monospaziato', stack: "ui-monospace, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace" },
+  system: { label: tr('Del sistema'), stack: "system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, sans-serif" },
+  rounded: { label: tr('Arrotondato'), stack: "ui-rounded, 'SF Pro Rounded', Nunito, 'Varela Round', 'Arial Rounded MT Bold', system-ui, sans-serif" },
+  serif: { label: tr('Con grazie'), stack: "ui-serif, 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif" },
+  mono: { label: tr('Monospaziato'), stack: "ui-monospace, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace" },
 };
 
 // ---------- Colour helpers ----------

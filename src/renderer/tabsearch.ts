@@ -5,6 +5,9 @@ import type { TabSearchData, TabSearchItem } from '../shared/types';
 import { readableUrl } from '../shared/url';
 import { h } from './dom';
 import { icon, logoMark } from './icons';
+import { tr, translateDom } from '../shared/i18n';
+
+translateDom(document.documentElement);
 
 interface TabSearchBridge {
   onData(fn: (data: TabSearchData) => void): void;
@@ -84,9 +87,9 @@ function render(): void {
   selected = Math.min(selected, Math.max(0, rows.length - 1));
 
   const nodes: Node[] = [];
-  if (tabs.length) nodes.push(h('h2', {}, `Schede aperte · ${tabs.length}`));
+  if (tabs.length) nodes.push(h('h2', {}, tr('Schede aperte · {0}', tabs.length)));
   rows.forEach((row, i) => {
-    if (row.kind === 'closed' && (i === 0 || rows[i - 1].kind === 'tab')) nodes.push(h('h2', {}, 'Chiuse di recente'));
+    if (row.kind === 'closed' && (i === 0 || rows[i - 1].kind === 'tab')) nodes.push(h('h2', {}, tr('Chiuse di recente')));
     const prev = rows[i - 1];
     if (row.kind === 'remote' && !(prev?.kind === 'remote' && prev.device === row.device)) nodes.push(h('h2', {}, `Su ${row.device}`));
     const title = h('div', { class: 'title' });
@@ -96,9 +99,9 @@ function render(): void {
       const t = row.tab;
       title.append(highlight(t.title || t.url));
       sub.append(highlight(readableUrl(t.url)));
-      if (t.otherWindow) sub.append(' · Altra finestra');
-      if (t.sleeping) sub.append(' · In pausa');
-      const close = h('button', { class: 'close', title: 'Chiudi scheda', 'aria-label': `Chiudi ${t.title}` });
+      if (t.otherWindow) sub.append(tr(' · Altra finestra'));
+      if (t.sleeping) sub.append(tr(' · In pausa'));
+      const close = h('button', { class: 'close', title: tr('Chiudi scheda'), 'aria-label': tr('Chiudi {0}', t.title) });
       close.append(icon('close', 14));
       close.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -108,7 +111,7 @@ function render(): void {
         favicon(t.url, t.favicon),
         h('div', { class: 'text' }, title, sub),
         t.audible ? (() => { const s = h('span', { class: 'icon' }); s.append(icon('volume', 15)); return s; })() : null,
-        t.active && !t.otherWindow ? h('span', { class: 'badge current' }, 'Attuale') : null,
+        t.active && !t.otherWindow ? h('span', { class: 'badge current' }, tr('Attuale')) : null,
         close);
     } else {
       title.append(highlight(row.title || row.url));
@@ -130,7 +133,7 @@ function render(): void {
     });
     nodes.push(el);
   });
-  if (!rows.length) nodes.push(h('div', { class: 'empty' }, query ? `Nessuna scheda trovata per «${query}»` : 'Nessuna scheda'));
+  if (!rows.length) nodes.push(h('div', { class: 'empty' }, query ? tr('Nessuna scheda trovata per «{0}»', query) : tr('Nessuna scheda')));
   list.replaceChildren(...nodes);
   list.querySelector('.row.selected')?.scrollIntoView({ block: 'nearest' });
 }

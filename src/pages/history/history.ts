@@ -5,6 +5,7 @@ import { hydrateIcons } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 import { emptyState, iconButton } from '../shared/ui';
 import { followTheme } from '../shared/theme';
+import { localeTag, tr } from '../../shared/i18n';
 
 followTheme();
 
@@ -28,7 +29,7 @@ function dayLabel(time: number): string {
   const date = new Date(time);
   const today = new Date();
   const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
-  const full = date.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const full = date.toLocaleDateString(localeTag(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   if (date.toDateString() === today.toDateString()) return `Oggi — ${full}`;
   if (date.toDateString() === yesterday.toDateString()) return `Ieri — ${full}`;
   return full.charAt(0).toUpperCase() + full.slice(1);
@@ -39,11 +40,11 @@ function entry(v: HistoryVisit): HTMLElement {
   return h(
     'div',
     { class: 'entry' },
-    h('span', { class: 'time' }, new Date(v.visitedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })),
+    h('span', { class: 'time' }, new Date(v.visitedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' })),
     h('img', { class: 'site-icon', src: faviconUrl(v.url), alt: '' }),
     h('div', { class: 'main' }, h('a', { href: v.url, title: v.url }, v.title || v.url), h('span', { class: 'host' }, host)),
     h('div', { class: 'actions' },
-      iconButton('close', `Rimuovi ${v.title || v.url} dalla cronologia`, async () => {
+      iconButton('close', tr('Rimuovi {0} dalla cronologia', v.title || v.url), async () => {
         await internal.history.remove([v.id]);
         visits = visits.filter((x) => x.id !== v.id);
         render();
@@ -54,7 +55,7 @@ function entry(v: HistoryVisit): HTMLElement {
 
 function render(): void {
   if (visits.length === 0) {
-    list.replaceChildren(h('div', { class: 'group' }, emptyState(search.value ? 'search' : 'history', search.value ? 'Nessuna pagina trovata.' : 'La cronologia è vuota.')));
+    list.replaceChildren(h('div', { class: 'group' }, emptyState(search.value ? 'search' : 'history', search.value ? tr('Nessuna pagina trovata.') : tr('La cronologia è vuota.'))));
     return;
   }
   const groups = new Map<string, HistoryVisit[]>();
@@ -85,9 +86,9 @@ document.getElementById('clear')!.addEventListener('click', async () => {
   const select = document.getElementById('range') as HTMLSelectElement;
   const span = Number(select.value);
   const label = select.selectedOptions[0].textContent?.toLowerCase() ?? '';
-  if (!confirm(`Cancellare la cronologia (${label})?`)) return;
+  if (!confirm(tr('Cancellare la cronologia ({0})?', label))) return;
   await internal.history.clearSince(span === 0 ? 0 : Date.now() - span);
-  status.textContent = 'Cronologia cancellata.';
+  status.textContent = tr('Cronologia cancellata.');
   void load();
 });
 

@@ -1,3 +1,4 @@
+import { tr } from './i18n';
 export type WebSearchEngineId = 'duckduckgo' | 'qwant' | 'ecosia' | 'startpage' | 'google';
 /** "velo" is the unified search page (bookmarks, history and, with an account, your cloud data + the web engine). */
 export type SearchEngineId = WebSearchEngineId | 'velo';
@@ -11,7 +12,7 @@ export const WEB_SEARCH_ENGINES: Record<WebSearchEngineId, { name: string; templ
 };
 
 export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; template: string }> = {
-  velo: { name: 'Velo (ricerca unificata)', template: 'velo://search/?q=%s' },
+  velo: { name: tr('Velo (ricerca unificata)'), template: 'velo://search/?q=%s' },
   ...WEB_SEARCH_ENGINES,
 };
 
@@ -93,6 +94,6 @@ export function popupTitle(url: string, title: string): string {
   }
   const page = title && title !== url ? ` — ${title}` : '';
   if (parsed.protocol === 'https:') return `🔒 ${parsed.host}${page}`;
-  if (parsed.protocol === 'http:') return `⚠ Non sicuro: ${parsed.host}${page}`;
+  if (parsed.protocol === 'http:') return tr('⚠ Non sicuro: {0}{1}', parsed.host, page);
   return `${url}${page}`;
 }

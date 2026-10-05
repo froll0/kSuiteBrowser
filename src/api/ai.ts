@@ -1,6 +1,7 @@
 import { ChatStreamParser } from '../shared/sse';
 import type { AiMessage } from '../shared/types';
 import { API_BASE, InfomaniakApiError, type InfomaniakClient } from './client';
+import { tr } from '../shared/i18n';
 
 export interface AiProduct {
   id: number;
@@ -68,7 +69,7 @@ export async function streamChat(
     if (text) emit(text);
     return answer;
   }
-  if (!res.body) throw new InfomaniakApiError('Risposta vuota dal servizio IA.', 500);
+  if (!res.body) throw new InfomaniakApiError(tr('Risposta vuota dal servizio IA.'), 500);
 
   const parser = new ChatStreamParser();
   const reader = res.body.getReader();

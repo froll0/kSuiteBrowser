@@ -6,6 +6,7 @@ import { hydrateIcons } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 import { emptyState, iconButton } from '../shared/ui';
 import { followTheme } from '../shared/theme';
+import { tr } from '../../shared/i18n';
 
 followTheme();
 
@@ -19,8 +20,8 @@ let editing: string | null = null;
 let adding = false;
 
 const FOLDERS: Array<{ id: BookmarkFolder; label: string }> = [
-  { id: 'bar', label: 'Barra dei preferiti' },
-  { id: 'other', label: 'Altri preferiti' },
+  { id: 'bar', label: tr('Barra dei preferiti') },
+  { id: 'other', label: tr('Altri preferiti') },
 ];
 
 function hostOf(url: string): string {
@@ -36,18 +37,18 @@ function say(text: string): void {
 }
 
 function editor(initial: { title: string; url: string; folder: BookmarkFolder }, onSave: (v: typeof initial) => Promise<void>): HTMLElement {
-  const title = h('input', { type: 'text', value: initial.title, placeholder: 'Nome', 'aria-label': 'Nome' });
-  const url = h('input', { type: 'url', value: initial.url, placeholder: 'https://…', 'aria-label': 'Indirizzo', required: true });
-  const folder = h('select', { 'aria-label': 'Cartella' }, ...FOLDERS.map((f) => h('option', { value: f.id, selected: f.id === initial.folder }, f.label)));
-  const form = h('form', { class: 'edit' }, title, url, folder, h('button', { class: 'primary', type: 'submit' }, 'Salva'),
-    h('button', { type: 'button', onclick: () => { editing = null; adding = false; render(); } }, 'Annulla'));
+  const title = h('input', { type: 'text', value: initial.title, placeholder: tr('Nome'), 'aria-label': tr('Nome') });
+  const url = h('input', { type: 'url', value: initial.url, placeholder: 'https://…', 'aria-label': tr('Indirizzo'), required: true });
+  const folder = h('select', { 'aria-label': tr('Cartella') }, ...FOLDERS.map((f) => h('option', { value: f.id, selected: f.id === initial.folder }, f.label)));
+  const form = h('form', { class: 'edit' }, title, url, folder, h('button', { class: 'primary', type: 'submit' }, tr('Salva')),
+    h('button', { type: 'button', onclick: () => { editing = null; adding = false; render(); } }, tr('Annulla')));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
       const parsed = new URL(url.value.trim());
       if (!['http:', 'https:', 'file:', 'velo:'].includes(parsed.protocol)) throw new Error();
     } catch {
-      say('Indirizzo non valido.');
+      say(tr('Indirizzo non valido.'));
       url.focus();
       return;
     }
@@ -70,10 +71,10 @@ function row(b: Bookmark, index: number, count: number, filtered: boolean): HTML
     /^https?:/i.test(b.url) ? h('img', { class: 'site-icon', src: faviconUrl(b.url), alt: '' }) : h('span', { class: 'letter', 'aria-hidden': 'true' }, host.slice(0, 1).toUpperCase()),
     h('div', { class: 'main' }, h('a', { href: b.url, title: b.url }, b.title), h('span', { class: 'host' }, host)),
     h('div', { class: 'actions' },
-      filtered ? null : iconButton('arrowUp', `Sposta su ${b.title}`, () => void internal.bookmarks.shift(b.id, -1), { disabled: index === 0 }),
-      filtered ? null : iconButton('arrowDown', `Sposta giù ${b.title}`, () => void internal.bookmarks.shift(b.id, 1), { disabled: index === count - 1 }),
-      iconButton('pencil', `Modifica ${b.title}`, () => { editing = b.id; render(); }),
-      iconButton('trash', `Elimina ${b.title}`, async () => { await internal.bookmarks.remove(b.id); say(`“${b.title}” eliminato.`); }),
+      filtered ? null : iconButton('arrowUp', tr('Sposta su {0}', b.title), () => void internal.bookmarks.shift(b.id, -1), { disabled: index === 0 }),
+      filtered ? null : iconButton('arrowDown', tr('Sposta giù {0}', b.title), () => void internal.bookmarks.shift(b.id, 1), { disabled: index === count - 1 }),
+      iconButton('pencil', tr('Modifica {0}', b.title), () => { editing = b.id; render(); }),
+      iconButton('trash', tr('Elimina {0}', b.title), async () => { await internal.bookmarks.remove(b.id); say(`“${b.title}” eliminato.`); }),
     ),
   );
 }
@@ -82,15 +83,15 @@ function render(): void {
   const q = search.value.trim().toLowerCase();
   const matches = (b: Bookmark) => !q || `${b.title} ${b.url}`.toLowerCase().includes(q);
   list.replaceChildren(
-    ...(adding ? [h('section', { class: 'group' }, h('h2', {}, 'Nuovo preferito'), editor({ title: '', url: 'https://', folder: 'bar' }, async (v) => {
+    ...(adding ? [h('section', { class: 'group' }, h('h2', {}, tr('Nuovo preferito')), editor({ title: '', url: 'https://', folder: 'bar' }, async (v) => {
       await internal.bookmarks.add(v);
-      say('Preferito aggiunto.');
+      say(tr('Preferito aggiunto.'));
     }))] : []),
     ...FOLDERS.map((f) => {
       const items = bookmarks.filter((b) => b.folder === f.id && matches(b));
       return h('section', { class: 'group' },
         h('h2', {}, `${f.label} (${items.length})`),
-        ...(items.length ? items.map((b, i) => row(b, i, items.length, Boolean(q))) : [emptyState(q ? 'search' : 'star', q ? 'Nessun risultato.' : 'Nessun preferito in questa cartella.')]),
+        ...(items.length ? items.map((b, i) => row(b, i, items.length, Boolean(q))) : [emptyState(q ? 'search' : 'star', q ? tr('Nessun risultato.') : tr('Nessun preferito in questa cartella.'))]),
       );
     }),
   );
@@ -112,19 +113,19 @@ fileInput.addEventListener('change', async () => {
   fileInput.value = '';
   if (!file) return;
   const items = parseBookmarksHtml(await file.text());
-  if (items.length === 0) return say('Nessun preferito trovato nel file.');
+  if (items.length === 0) return say(tr('Nessun preferito trovato nel file.'));
   const added = await internal.bookmarks.import(items);
-  say(`Importati ${added} preferiti${added < items.length ? ` (${items.length - added} già presenti)` : ''}.`);
+  say(tr('Importati {0} preferiti{1}.', added, added < items.length ? ` (${items.length - added} già presenti)` : ''));
 });
 document.getElementById('export')!.addEventListener('click', () => {
   const blob = new Blob([exportBookmarksHtml(bookmarks)], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
-  const a = h('a', { href: url, download: `preferiti-velo-${new Date().toISOString().slice(0, 10)}.html` });
+  const a = h('a', { href: url, download: tr('preferiti-velo-{0}.html', new Date().toISOString().slice(0, 10)) });
   document.body.append(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-  say('File esportato nella cartella dei download.');
+  say(tr('File esportato nella cartella dei download.'));
 });
 
 hydrateIcons();

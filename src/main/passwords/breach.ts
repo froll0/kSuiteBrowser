@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { net } from 'electron';
 import { pwnedCount, splitHash } from '../../shared/pwned';
+import { tr } from '../../shared/i18n';
 
 /** Tests can point to a local copy of the API: VELO_PWNED_API=http://127.0.0.1:… */
 const API = process.env.VELO_PWNED_API ?? 'https://api.pwnedpasswords.com';
@@ -20,7 +21,7 @@ export class BreachChecker {
       pending = net
         .fetch(`${API}/range/${prefix}`, { headers: { 'Add-Padding': 'true', 'User-Agent': 'Velo-password-check' }, cache: 'no-store' })
         .then((res) => {
-          if (!res.ok) throw new Error(`Servizio non disponibile (${res.status})`);
+          if (!res.ok) throw new Error(tr('Servizio non disponibile ({0})', res.status));
           return res.text();
         });
       pending.catch(() => this.ranges.delete(prefix));

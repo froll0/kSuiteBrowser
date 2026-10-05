@@ -3,6 +3,7 @@ import type { AppUpdater, ProgressInfo, UpdateInfo } from 'electron-updater';
 import { REPOSITORY, releaseUrl, updateMode } from '../shared/release';
 import type { UpdateStatus } from '../shared/types';
 import type { SettingsStore } from './settings';
+import { tr } from '../shared/i18n';
 
 const FIRST_CHECK_MS = 30_000;
 const CHECK_EVERY_MS = 6 * 3600_000;
@@ -34,7 +35,7 @@ export class UpdateService {
       const { autoUpdater } = await import('electron-updater');
       this.updater = autoUpdater;
     } catch (err) {
-      this.set({ state: 'error', message: `Aggiornamenti non disponibili: ${String(err)}` });
+      this.set({ state: 'error', message: tr('Aggiornamenti non disponibili: {0}', String(err)) });
       return;
     }
     const u = this.updater;
@@ -99,7 +100,7 @@ export class UpdateService {
 
 function friendlyError(err: Error): string {
   const text = err?.message ?? String(err);
-  if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|net::ERR_/.test(text)) return 'Impossibile contattare il server degli aggiornamenti. Controlla la connessione.';
-  if (/404|No published versions|Cannot find latest/i.test(text)) return 'Nessuna versione pubblicata trovata.';
+  if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|net::ERR_/.test(text)) return tr('Impossibile contattare il server degli aggiornamenti. Controlla la connessione.');
+  if (/404|No published versions|Cannot find latest/i.test(text)) return tr('Nessuna versione pubblicata trovata.');
   return text.split('\n')[0].slice(0, 200);
 }

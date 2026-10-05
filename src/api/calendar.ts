@@ -1,5 +1,6 @@
 import type { CalendarEvent, NewEvent } from '../shared/types';
 import { API_BASE, InfomaniakApiError, type InfomaniakClient } from './client';
+import { tr } from '../shared/i18n';
 
 interface RawCalendar {
   id: number | string;
@@ -46,7 +47,7 @@ export async function upcomingEvents(client: InfomaniakClient, from: Date, to: D
     seen.add(key);
     events.push({
       id: String(e.id),
-      title: e.title || '(senza titolo)',
+      title: e.title || tr('(senza titolo)'),
       start: e.start,
       end: e.end,
       fullday: Boolean(e.fullday),
@@ -59,11 +60,11 @@ export async function upcomingEvents(client: InfomaniakClient, from: Date, to: D
 export async function createEvent(client: InfomaniakClient, event: NewEvent, timezone: string | null): Promise<void> {
   const calendars = await listCalendars(client);
   const calendar = calendars.find((c) => c.default) ?? calendars[0];
-  if (!calendar) throw new InfomaniakApiError('Nessun calendario disponibile.', 404);
+  if (!calendar) throw new InfomaniakApiError(tr('Nessun calendario disponibile.'), 404);
   const start = new Date(event.start);
   const end = new Date(event.end);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
-    throw new InfomaniakApiError('Date dell’evento non valide.', 400);
+    throw new InfomaniakApiError(tr('Date dell’evento non valide.'), 400);
   }
   const tz = timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   await client.send('POST', `${API_BASE}/1/calendar/pim/event`, {

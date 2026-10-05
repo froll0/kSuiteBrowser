@@ -3,6 +3,7 @@ import { hydrateIcons } from '../../renderer/icons';
 import type { ExtensionSummary } from '../../shared/types';
 import { internal } from '../shared/bridge';
 import { followTheme } from '../shared/theme';
+import { tr } from '../../shared/i18n';
 
 followTheme();
 hydrateIcons();
@@ -13,7 +14,7 @@ const dev = document.getElementById('dev') as HTMLInputElement;
 const unpackedBtn = document.getElementById('unpacked') as HTMLButtonElement;
 const storeInput = document.getElementById('store-input') as HTMLInputElement;
 
-const SOURCES: Record<ExtensionSummary['source'], string> = { store: 'Chrome Web Store', file: 'Da file', unpacked: 'Cartella (sviluppo)' };
+const SOURCES: Record<ExtensionSummary['source'], string> = { store: 'Chrome Web Store', file: tr('Da file'), unpacked: tr('Cartella (sviluppo)') };
 
 function say(text: string, kind: 'ok' | 'error' | '' = ''): void {
   statusEl.textContent = text;
@@ -29,27 +30,27 @@ async function act(label: string, fn: () => Promise<{ ok: boolean; error?: strin
 }
 
 function card(e: ExtensionSummary, developer: boolean): HTMLElement {
-  const enabled = h('input', { type: 'checkbox', role: 'switch', checked: e.enabled, 'aria-label': `Attiva ${e.name}` });
+  const enabled = h('input', { type: 'checkbox', role: 'switch', checked: e.enabled, 'aria-label': tr('Attiva {0}', e.name) });
   enabled.addEventListener('change', () => void internal.extensions.setEnabled(e.id, enabled.checked).then(render));
   const pinned = h('input', { type: 'checkbox', checked: e.pinned, disabled: !e.enabled });
   pinned.addEventListener('change', () => void internal.extensions.setPinned(e.id, pinned.checked));
 
   const tags = h('div', { class: 'tags' }, h('span', { class: 'tag' }, SOURCES[e.source]));
   if (e.error) tags.append(h('span', { class: 'tag err' }, `Errore: ${e.error}`));
-  if (e.pendingUpdate) tags.append(h('span', { class: 'tag warn' }, `Versione ${e.pendingUpdate} disponibile: chiede nuovi permessi`));
-  if (e.unsupported.length) tags.append(h('span', { class: 'tag warn', title: e.unsupported.join(', ') }, `Alcune funzioni non disponibili: ${e.unsupported.join(', ')}`));
+  if (e.pendingUpdate) tags.append(h('span', { class: 'tag warn' }, tr('Versione {0} disponibile: chiede nuovi permessi', e.pendingUpdate)));
+  if (e.unsupported.length) tags.append(h('span', { class: 'tag warn', title: e.unsupported.join(', ') }, tr('Alcune funzioni non disponibili: {0}', e.unsupported.join(', '))));
 
   const actions = h('div', { class: 'ext-actions' },
-    h('label', {}, pinned, 'Sulla barra'),
-    e.hasOptions ? h('button', { disabled: !e.running, onclick: () => void internal.extensions.options(e.id) }, 'Opzioni') : null,
-    e.source === 'unpacked' || developer ? h('button', { disabled: !e.enabled, onclick: () => void act('Ricarico…', () => internal.extensions.reload(e.id), 'Ricaricata.') }, 'Ricarica') : null,
-    e.pendingUpdate ? h('button', { class: 'primary', onclick: () => void act('Aggiorno…', () => internal.extensions.applyUpdate(e.id), 'Aggiornata.') }, 'Aggiorna') : null,
-    e.homepage ? h('a', { class: 'button-link', href: e.homepage, target: '_blank', rel: 'noopener' }, 'Sito') : null,
-    h('button', { class: 'danger', onclick: () => void internal.extensions.remove(e.id).then(async (ok) => { if (ok) await render(); }) }, 'Rimuovi'),
+    h('label', {}, pinned, tr('Sulla barra')),
+    e.hasOptions ? h('button', { disabled: !e.running, onclick: () => void internal.extensions.options(e.id) }, tr('Opzioni')) : null,
+    e.source === 'unpacked' || developer ? h('button', { disabled: !e.enabled, onclick: () => void act(tr('Ricarico…'), () => internal.extensions.reload(e.id), tr('Ricaricata.')) }, tr('Ricarica')) : null,
+    e.pendingUpdate ? h('button', { class: 'primary', onclick: () => void act(tr('Aggiorno…'), () => internal.extensions.applyUpdate(e.id), tr('Aggiornata.')) }, tr('Aggiorna')) : null,
+    e.homepage ? h('a', { class: 'button-link', href: e.homepage, target: '_blank', rel: 'noopener' }, tr('Sito')) : null,
+    h('button', { class: 'danger', onclick: () => void internal.extensions.remove(e.id).then(async (ok) => { if (ok) await render(); }) }, tr('Rimuovi')),
   );
 
   const perms = e.warnings.length
-    ? h('details', {}, h('summary', {}, 'Permessi'), h('ul', {}, ...e.warnings.map((w) => h('li', {}, w))))
+    ? h('details', {}, h('summary', {}, tr('Permessi')), h('ul', {}, ...e.warnings.map((w) => h('li', {}, w))))
     : null;
 
   return h('article', { class: `ext-card${e.enabled ? '' : ' off'}${location.hash === `#${e.id}` ? ' highlight' : ''}`, id: e.id },
@@ -62,7 +63,7 @@ function card(e: ExtensionSummary, developer: boolean): HTMLElement {
       developer ? h('div', { class: 'id' }, `ID ${e.id}${e.path ? ` · ${e.path}` : ''}`) : null,
       actions,
     ),
-    h('div', { class: 'ext-side' }, h('label', { class: 'switch', title: e.enabled ? 'Disattiva' : 'Attiva' }, enabled, h('span', {}))),
+    h('div', { class: 'ext-side' }, h('label', { class: 'switch', title: e.enabled ? tr('Disattiva') : tr('Attiva') }, enabled, h('span', {}))),
   );
 }
 
@@ -73,8 +74,8 @@ async function render(): Promise<void> {
   if (items.length === 0) {
     list.replaceChildren(h('div', { class: 'group' }, h('div', { class: 'empty' },
       h('span', { class: 'big-icon', 'data-icon': 'puzzle', 'data-size': '26' }),
-      h('strong', {}, 'Nessuna estensione installata'),
-      h('span', {}, 'Cerca nel Chrome Web Store: gestori di password, blocco della pubblicità, traduzione, strumenti di scrittura…'))));
+      h('strong', {}, tr('Nessuna estensione installata')),
+      h('span', {}, tr('Cerca nel Chrome Web Store: gestori di password, blocco della pubblicità, traduzione, strumenti di scrittura…')))));
   } else {
     const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name));
     list.replaceChildren(h('section', { class: 'group' }, h('h2', {}, `Installate · ${items.length}`), ...sorted.map((e) => card(e, developerMode))));
@@ -87,16 +88,16 @@ document.getElementById('store-form')!.addEventListener('submit', (e) => {
   e.preventDefault();
   const value = storeInput.value.trim();
   if (!value) return;
-  void act('Scarico dal Chrome Web Store…', () => internal.extensions.installFromStore(value), 'Estensione installata.').then(() => {
+  void act(tr('Scarico dal Chrome Web Store…'), () => internal.extensions.installFromStore(value), tr('Estensione installata.')).then(() => {
     if (statusEl.classList.contains('ok')) storeInput.value = '';
   });
 });
-document.getElementById('from-file')!.addEventListener('click', () => void act('', () => internal.extensions.installFile(), 'Estensione installata.'));
-unpackedBtn.addEventListener('click', () => void act('', () => internal.extensions.loadUnpacked(), 'Cartella caricata.'));
+document.getElementById('from-file')!.addEventListener('click', () => void act('', () => internal.extensions.installFile(), tr('Estensione installata.')));
+unpackedBtn.addEventListener('click', () => void act('', () => internal.extensions.loadUnpacked(), tr('Cartella caricata.')));
 document.getElementById('updates')!.addEventListener('click', async () => {
-  say('Cerco aggiornamenti…');
+  say(tr('Cerco aggiornamenti…'));
   const res = await internal.extensions.checkUpdates();
-  say(res.ok ? (res.data ? `Aggiornate: ${res.data}.` : 'Nessun aggiornamento.') : res.error, res.ok ? 'ok' : 'error');
+  say(res.ok ? (res.data ? `Aggiornate: ${res.data}.` : tr('Nessun aggiornamento.')) : res.error, res.ok ? 'ok' : 'error');
   await render();
 });
 dev.addEventListener('change', () => void internal.extensions.setDeveloperMode(dev.checked).then(render));

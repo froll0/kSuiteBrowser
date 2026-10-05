@@ -2,6 +2,7 @@ import { hydrateIcons } from '../../renderer/icons';
 import type { ReaderArticle, Settings } from '../../shared/types';
 import { internal } from '../shared/bridge';
 import { sanitizeArticle } from './sanitize';
+import { localeTag, tr } from '../../shared/i18n';
 
 hydrateIcons();
 
@@ -51,7 +52,7 @@ function readingMinutes(text: string): number {
 function formatDate(value: string | null): string | null {
   if (!value) return null;
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString(localeTag(), { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function render(article: ReaderArticle): void {
@@ -76,7 +77,7 @@ function render(article: ReaderArticle): void {
   const article_ = $('ks-reader-article');
   if (article.lang) article_.setAttribute('lang', article.lang);
   if (article.dir) article_.setAttribute('dir', article.dir);
-  const meta = [article.byline, formatDate(article.publishedTime), `${readingMinutes(content.textContent ?? '')} min di lettura`].filter(Boolean);
+  const meta = [article.byline, formatDate(article.publishedTime), tr('{0} min di lettura', readingMinutes(content.textContent ?? ''))].filter(Boolean);
   $('meta').textContent = meta.join(' · ');
   setupSpeech(article.lang);
 }
@@ -90,7 +91,7 @@ function stopSpeaking(): void {
   speechSynthesis.cancel();
   for (const el of document.querySelectorAll('.speaking')) el.classList.remove('speaking');
   const button = $('listen');
-  button.lastElementChild!.textContent = 'Ascolta';
+  button.lastElementChild!.textContent = tr('Ascolta');
 }
 
 function setupSpeech(lang: string | null): void {
@@ -108,7 +109,7 @@ function setupSpeech(lang: string | null): void {
     const wanted = (lang || document.documentElement.lang || 'it').slice(0, 2).toLowerCase();
     const voice = speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith(wanted)) ?? null;
     speaking = true;
-    button.lastElementChild!.textContent = 'Ferma';
+    button.lastElementChild!.textContent = tr('Ferma');
     let i = 0;
     const next = () => {
       for (const el of document.querySelectorAll('.speaking')) el.classList.remove('speaking');
@@ -139,6 +140,6 @@ void (async () => {
     return;
   }
   // Not in memory any more (e.g. after restarting the browser): back to the page.
-  $('content').replaceChildren(Object.assign(document.createElement('p'), { className: 'missing', textContent: 'Caricamento della pagina originale…' }));
+  $('content').replaceChildren(Object.assign(document.createElement('p'), { className: 'missing', textContent: tr('Caricamento della pagina originale…') }));
   if (/^https?:\/\//i.test(original)) location.replace(original);
 })();

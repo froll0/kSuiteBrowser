@@ -1,5 +1,6 @@
 import type { Mailbox, MailOverview, MailThread, OutgoingMail } from '../shared/types';
 import { MAIL_API_BASE, InfomaniakApiError, type InfomaniakClient } from './client';
+import { tr } from '../shared/i18n';
 
 interface RawMailbox {
   uuid: string;
@@ -51,10 +52,10 @@ export function formatSender(from: RawThread['from']): string {
 
 export async function getMailOverview(client: InfomaniakClient, limit = 15): Promise<MailOverview> {
   const [mailbox] = await listMailboxes(client);
-  if (!mailbox) throw new InfomaniakApiError('Nessuna casella di posta trovata per questo token.', 404);
+  if (!mailbox) throw new InfomaniakApiError(tr('Nessuna casella di posta trovata per questo token.'), 404);
 
   const inbox = findFolderByRole(await folders(client, mailbox.uuid), 'INBOX');
-  if (!inbox) throw new InfomaniakApiError('Cartella Posta in arrivo non trovata.', 404);
+  if (!inbox) throw new InfomaniakApiError(tr('Cartella Posta in arrivo non trovata.'), 404);
 
   const params = new URLSearchParams({ offset: '0', limit: String(limit), thread: 'on' });
   const data = await client.get<{ threads?: RawThread[] }>(
@@ -62,7 +63,7 @@ export async function getMailOverview(client: InfomaniakClient, limit = 15): Pro
   );
   const threads: MailThread[] = (data?.threads ?? []).map((t) => ({
     uid: t.uid,
-    subject: t.subject || '(nessun oggetto)',
+    subject: t.subject || tr('(nessun oggetto)'),
     from: formatSender(t.from),
     date: t.date ?? '',
     preview: t.messages?.[0]?.preview ?? '',
@@ -88,9 +89,9 @@ export function textToHtml(text: string): string {
 /** Sends an email through the kMail draft API (create draft, then send it). */
 export async function sendMail(client: InfomaniakClient, mail: OutgoingMail): Promise<void> {
   const to = parseRecipients(mail.to);
-  if (to.length === 0) throw new InfomaniakApiError('Specifica almeno un destinatario.', 400);
+  if (to.length === 0) throw new InfomaniakApiError(tr('Specifica almeno un destinatario.'), 400);
   const [mailbox] = await listMailboxes(client);
-  if (!mailbox) throw new InfomaniakApiError('Nessuna casella di posta trovata per questo token.', 404);
+  if (!mailbox) throw new InfomaniakApiError(tr('Nessuna casella di posta trovata per questo token.'), 404);
 
   const payload: Record<string, unknown> = {
     uuid: null,
@@ -141,14 +142,14 @@ export interface MailSearchHit {
 /** Full-text search in every folder of the primary mailbox (newest first). */
 export async function searchMail(client: InfomaniakClient, query: string, limit = 8): Promise<MailSearchHit[]> {
   const [mailbox] = await listMailboxes(client);
-  if (!mailbox) throw new InfomaniakApiError('Nessuna casella di posta trovata per questo token.', 404);
+  if (!mailbox) throw new InfomaniakApiError(tr('Nessuna casella di posta trovata per questo token.'), 404);
   const inbox = findFolderByRole(await folders(client, mailbox.uuid), 'INBOX');
-  if (!inbox) throw new InfomaniakApiError('Cartella Posta in arrivo non trovata.', 404);
+  if (!inbox) throw new InfomaniakApiError(tr('Cartella Posta in arrivo non trovata.'), 404);
   const params = new URLSearchParams({ offset: '0', limit: String(limit), thread: 'off', severywhere: '1', scontains: query });
   const data = await client.get<{ threads?: RawThread[] }>(`${MAIL_API_BASE}/mail/${mailbox.uuid}/folder/${inbox.id}/message?${params}`);
   return (data?.threads ?? []).map((t) => ({
     uid: t.uid,
-    subject: t.subject || '(nessun oggetto)',
+    subject: t.subject || tr('(nessun oggetto)'),
     from: formatSender(t.from),
     date: t.date ?? '',
     preview: t.messages?.[0]?.preview ?? '',

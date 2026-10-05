@@ -1,4 +1,5 @@
 import type { FingerprintProtection } from './fingerprint';
+import type { LanguageSetting } from './i18n';
 import type { AppIconStyle, Backdrop, CanvasStyle, Density, NewTabBackground, Palette, RailPosition, TabsLayout, ToolbarItem, UiFont } from './appearance';
 import type { SearchEngineId, WebSearchEngineId } from './url';
 import type { SecureDnsChoice } from './secure-dns';
@@ -287,6 +288,8 @@ export interface Settings {
   /** Warn when a password being saved appears in known data breaches. */
   breachCheckOnSave: boolean;
   /** Let streaming services play DRM-protected content (Widevine). */
+  /** Interface language: the system's (when supported) or a fixed one; applies at the next start. */
+  language: LanguageSetting;
   /** Protected content (Widevine): the module comes from Google, so only on the user's request. */
   drmOptIn: boolean;
   /** Fingerprinting protection: altered per site (standard) or uniform (strict). */

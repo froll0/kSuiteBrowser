@@ -3,6 +3,7 @@ import { session as electronSession, type Session } from 'electron';
 import { siteOf } from '../../shared/privacy-rules';
 import type { SessionRouter } from '../tabs';
 import type { SocksRelay } from './relay';
+import { tr } from '../../shared/i18n';
 
 /**
  * Everything the Tor windows share: one in-memory session per site, each going through its own relay
@@ -65,7 +66,7 @@ export class TorIdentity implements SessionRouter {
     const port = await this.relay.listen(`${generation}|${key}`, () => ({ username: key || 'velo', password: `${generation}:${this.nonces.get(key) ?? ''}` }));
     // Everything through Tor, the computer's own services included (sites can't probe them).
     await ses.setProxy({ mode: 'fixed_servers', proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
-    if (generation !== this.generation) throw new Error('Identità cambiata');
+    if (generation !== this.generation) throw new Error(tr('Identità cambiata'));
     this.sessions.set(key, ses);
     return ses;
   }

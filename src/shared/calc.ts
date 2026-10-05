@@ -1,3 +1,4 @@
+import { localeTag } from './i18n';
 /**
  * Small calculator for the search page: + - * / ^ %, parentheses, decimals with "." or ",".
  * Parses the expression itself (never eval) and returns null for anything that is not arithmetic.
@@ -74,5 +75,5 @@ export function calculate(input: string): number | null {
 }
 
 export function formatNumber(value: number): string {
-  return value.toLocaleString('it-IT', { maximumFractionDigits: 10 });
+  return value.toLocaleString(localeTag(), { maximumFractionDigits: 10 });
 }

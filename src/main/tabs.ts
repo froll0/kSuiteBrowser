@@ -1,6 +1,7 @@
 import { BrowserWindow, WebContentsView, dialog, type NavigationEntry, type Session, type WebContents } from 'electron';
 import type { Rect, TabState } from '../shared/types';
 import { readerOriginal } from './reader';
+import { locale, tr } from '../shared/i18n';
 
 /** A tab. It can move to another window, so its listeners always go through `owner`. */
 export interface Tab {
@@ -234,9 +235,9 @@ export class TabManager {
       askingUnresponsive = true;
       const { response } = await dialog.showMessageBox(tab.owner.window, {
         type: 'warning',
-        message: 'La pagina non risponde',
-        detail: `«${wc.getTitle() || wc.getURL()}» è bloccata. Puoi aspettare che torni a rispondere o chiuderla.`,
-        buttons: ['Aspetta', 'Chiudi la pagina'],
+        message: tr('La pagina non risponde'),
+        detail: tr('«{0}» è bloccata. Puoi aspettare che torni a rispondere o chiuderla.', wc.getTitle() || wc.getURL()),
+        buttons: [tr('Aspetta'), tr('Chiudi la pagina')],
         defaultId: 0,
         cancelId: 0,
         noLink: true,
@@ -672,7 +673,7 @@ export class TabManager {
         const sleep = t.sleep ?? { url: '', title: '', entries: [], index: 0, muted: false };
         return {
           id: t.id,
-          title: sleep.title || sleep.url || 'Nuova scheda',
+          title: sleep.title || sleep.url || tr('Nuova scheda'),
           url: sleep.url,
           favicon: t.favicon,
           loading: t.preparing,
@@ -696,7 +697,7 @@ export class TabManager {
       const url = t.failedUrl ?? original ?? wc.getURL();
       return {
         id: t.id,
-        title: url.startsWith('velo://newtab') ? 'Nuova scheda' : wc.getTitle() || url || 'Nuova scheda',
+        title: url.startsWith('velo://newtab') ? tr('Nuova scheda') : wc.getTitle() || url || tr('Nuova scheda'),
         url,
         favicon: t.favicon,
         loading: wc.isLoading(),
@@ -747,32 +748,32 @@ interface ErrorText {
 
 /** Friendly Italian text for the most common network errors (Chromium net error codes). */
 export function describeError(code: number): ErrorText {
-  if (code === -106) return { title: 'Nessuna connessione a Internet', hint: 'Controlla il Wi-Fi o il cavo di rete, poi riprova.' };
-  if (code === -105 || code === -137) return { title: 'Impossibile trovare il sito', hint: 'Controlla di aver scritto bene l’indirizzo. Se è corretto, il sito potrebbe non esistere più o la rete potrebbe avere problemi.' };
-  if (code === -102) return { title: 'Il sito ha rifiutato la connessione', hint: 'Il server non accetta connessioni in questo momento. Riprova più tardi.' };
-  if (code === -7 || code === -118) return { title: 'Il sito impiega troppo tempo a rispondere', hint: 'Il server potrebbe essere sovraccarico. Riprova tra qualche istante.' };
-  if (code === -21) return { title: 'La rete è cambiata', hint: 'La connessione è cambiata durante il caricamento. Riprova.' };
-  if (code === -109 || code === -101 || code === -100) return { title: 'Connessione interrotta', hint: 'La connessione al sito si è interrotta. Riprova.' };
-  if (code === -324) return { title: 'Il sito non ha inviato dati', hint: 'Il server ha chiuso la connessione senza rispondere. Riprova più tardi.' };
-  if (code === -310) return { title: 'Troppi reindirizzamenti', hint: 'Il sito rimanda continuamente a sé stesso. Prova a cancellare i cookie del sito.' };
-  if (code <= -200 && code > -300) return { title: 'La connessione non è sicura', hint: 'Il certificato di sicurezza del sito non è valido: qualcuno potrebbe cercare di intercettare i tuoi dati. La pagina non è stata aperta.' };
-  if (code === -20) return { title: 'Pagina bloccata', hint: 'Questa pagina è stata bloccata.' };
-  return { title: 'Impossibile caricare la pagina', hint: 'Si è verificato un errore di rete.' };
+  if (code === -106) return { title: tr('Nessuna connessione a Internet'), hint: tr('Controlla il Wi-Fi o il cavo di rete, poi riprova.') };
+  if (code === -105 || code === -137) return { title: tr('Impossibile trovare il sito'), hint: tr('Controlla di aver scritto bene l’indirizzo. Se è corretto, il sito potrebbe non esistere più o la rete potrebbe avere problemi.') };
+  if (code === -102) return { title: tr('Il sito ha rifiutato la connessione'), hint: tr('Il server non accetta connessioni in questo momento. Riprova più tardi.') };
+  if (code === -7 || code === -118) return { title: tr('Il sito impiega troppo tempo a rispondere'), hint: tr('Il server potrebbe essere sovraccarico. Riprova tra qualche istante.') };
+  if (code === -21) return { title: tr('La rete è cambiata'), hint: tr('La connessione è cambiata durante il caricamento. Riprova.') };
+  if (code === -109 || code === -101 || code === -100) return { title: tr('Connessione interrotta'), hint: tr('La connessione al sito si è interrotta. Riprova.') };
+  if (code === -324) return { title: tr('Il sito non ha inviato dati'), hint: tr('Il server ha chiuso la connessione senza rispondere. Riprova più tardi.') };
+  if (code === -310) return { title: tr('Troppi reindirizzamenti'), hint: tr('Il sito rimanda continuamente a sé stesso. Prova a cancellare i cookie del sito.') };
+  if (code <= -200 && code > -300) return { title: tr('La connessione non è sicura'), hint: tr('Il certificato di sicurezza del sito non è valido: qualcuno potrebbe cercare di intercettare i tuoi dati. La pagina non è stata aperta.') };
+  if (code === -20) return { title: tr('Pagina bloccata'), hint: tr('Questa pagina è stata bloccata.') };
+  return { title: tr('Impossibile caricare la pagina'), hint: tr('Si è verificato un errore di rete.') };
 }
 
 const CRASH_REASONS: Record<string, string> = {
-  crashed: 'La pagina si è arrestata in modo imprevisto.',
-  oom: 'La pagina ha esaurito la memoria.',
-  killed: 'La pagina è stata chiusa dal sistema.',
-  'launch-failed': 'Non è stato possibile avviare la pagina.',
-  'integrity-failure': 'Controllo di integrità non riuscito.',
-  'abnormal-exit': 'La pagina si è chiusa in modo anomalo.',
+  crashed: tr('La pagina si è arrestata in modo imprevisto.'),
+  oom: tr('La pagina ha esaurito la memoria.'),
+  killed: tr('La pagina è stata chiusa dal sistema.'),
+  'launch-failed': tr('Non è stato possibile avviare la pagina.'),
+  'integrity-failure': tr('Controllo di integrità non riuscito.'),
+  'abnormal-exit': tr('La pagina si è chiusa in modo anomalo.'),
 };
 
 function shellPage(title: string, heading: string, hint: string, url: string, glyph: string): string {
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-  const retry = /^(https?|file):/i.test(url) ? `<a class="btn" href="${esc(url)}">Riprova</a>` : '';
-  const html = `<!doctype html><html lang="it"><meta charset="utf-8"><title>${esc(title)}</title>
+  const retry = /^(https?|file):/i.test(url) ? `<a class="btn" href="${esc(url)}">${esc(tr('Riprova'))}</a>` : '';
+  const html = `<!doctype html><html lang="${locale()}"><meta charset="utf-8"><title>${esc(title)}</title>
 <style>
 :root{color-scheme:light dark;--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#5f6878;--accent:#0f6fff;--soft:#e8f0ff}
 @media (prefers-color-scheme:dark){:root{--bg:#15171b;--card:#1d2026;--text:#e7e9ee;--muted:#9aa3b2;--accent:#5b9dff;--soft:#1c2a44}}
@@ -796,9 +797,9 @@ const GLYPH_CRASH = svg('<circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-
 function errorPage(url: string, code: number, description: string): string {
   const text = describeError(code);
   const glyph = code === -106 ? GLYPH_OFFLINE : code <= -200 && code > -300 ? GLYPH_LOCK : GLYPH_WARNING;
-  return shellPage('Pagina non disponibile', text.title, `${text.hint} (${description || code})`, url, glyph);
+  return shellPage(tr('Pagina non disponibile'), text.title, `${text.hint} (${description || code})`, url, glyph);
 }
 
 function crashPage(url: string, reason: string): string {
-  return shellPage('Scheda bloccata', 'Questa scheda si è bloccata', `${CRASH_REASONS[reason] ?? 'Si è verificato un problema.'} Ricaricala per riprovare.`, url, GLYPH_CRASH);
+  return shellPage(tr('Scheda bloccata'), tr('Questa scheda si è bloccata'), tr('{0} Ricaricala per riprovare.', CRASH_REASONS[reason] ?? tr('Si è verificato un problema.')), url, GLYPH_CRASH);
 }

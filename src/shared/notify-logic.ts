@@ -1,4 +1,5 @@
 import type { CalendarEvent, MailOverview } from './types';
+import { localeTag, tr } from './i18n';
 
 export interface Notice {
   title: string;
@@ -26,15 +27,15 @@ export class MailWatcher {
     const fresh = overview.threads.filter((t) => t.unseen > 0 && t.unseen > (previous.get(t.uid) ?? 0));
     if (fresh.length === 0) return [];
     if (fresh.length <= 3) {
-      return fresh.map((t) => ({ title: `Nuova email da ${t.from || 'mittente sconosciuto'}`, body: t.subject }));
+      return fresh.map((t) => ({ title: tr('Nuova email da {0}', t.from || 'mittente sconosciuto'), body: t.subject }));
     }
     const subjects = fresh.slice(0, 3).map((t) => `• ${t.subject}`);
-    return [{ title: `${fresh.length} nuove email`, body: [...subjects, fresh.length > 3 ? '…' : ''].filter(Boolean).join('\n') }];
+    return [{ title: tr('{0} nuove email', fresh.length), body: [...subjects, fresh.length > 3 ? '…' : ''].filter(Boolean).join('\n') }];
   }
 }
 
 function time(date: Date): string {
-  return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' });
 }
 
 /** Reminders for events starting soon; each event (and each occurrence of a recurring one) is announced once. */
@@ -53,7 +54,7 @@ export class EventReminder {
       this.announced.set(key, start);
       const minutes = Math.max(0, Math.round((start - now) / 60_000));
       notices.push({
-        title: minutes === 0 ? `Adesso: ${e.title}` : `Tra ${minutes} min: ${e.title}`,
+        title: minutes === 0 ? `Adesso: ${e.title}` : tr('Tra {0} min: {1}', minutes, e.title),
         body: `${time(new Date(start))} – ${time(new Date(Date.parse(e.end)))}${e.location ? ` · ${e.location}` : ''}`,
       });
     }

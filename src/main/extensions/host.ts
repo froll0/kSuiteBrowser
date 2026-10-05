@@ -8,6 +8,7 @@ import type { ExtensionButton, ExtensionSummary, Rect, TabState } from '../../sh
 import type { BrowserWindowController } from '../window';
 import { actionOf, describePermissions, extensionFile, iconDataUrl, iconPath, localize, type Manifest } from './manifest';
 import { ExtensionRegistry, InstallError, type InstallPreview, type InstalledExtension } from './registry';
+import { tr } from '../../shared/i18n';
 
 /** Tabs asleep have no page: they get an ID of their own and are reported as discarded. */
 const SLEEPING_ID_BASE = 1_000_000;
@@ -199,7 +200,7 @@ export class ExtensionHost {
     ipcMain.handle('crx:call', (e, name: string, args: unknown[]) => {
       const url = e.senderFrame?.url ?? '';
       const m = /^chrome-extension:\/\/([a-p]{32})\//.exec(url);
-      if (!m || !this.loaded.has(m[1])) throw new Error('Contesto non autorizzato');
+      if (!m || !this.loaded.has(m[1])) throw new Error(tr('Contesto non autorizzato'));
       const frames = this.frames.get(m[1]) ?? new Set();
       if (!frames.has(e.sender)) {
         frames.add(e.sender);
@@ -232,7 +233,7 @@ export class ExtensionHost {
     const extId = m[1];
     this.workers.set(extId, worker);
     worker.ipc.handle('crx:call', (_e, name: string, args: unknown[]) => {
-      if (!this.loaded.has(extId)) throw new Error('Estensione non attiva');
+      if (!this.loaded.has(extId)) throw new Error(tr('Estensione non attiva'));
       if (name === 'ready') {
         this.readyWorkers.add(worker.versionId);
         this.lifecycle(extId);
@@ -357,7 +358,7 @@ export class ExtensionHost {
         enabled: info.enabled,
         running: Boolean(l),
         pinned: info.pinned,
-        error: this.registry.errors.get(info.id) ?? (manifest ? null : 'File dell’estensione mancanti'),
+        error: this.registry.errors.get(info.id) ?? (manifest ? null : tr('File dell’estensione mancanti')),
         hasOptions: Boolean(manifest?.options_ui?.page || manifest?.options_page),
         homepage: manifest?.homepage_url ?? (info.source === 'store' ? `https://chromewebstore.google.com/detail/${info.id}` : null),
         warnings: manifest ? describePermissions(manifest).warnings : [],
@@ -698,7 +699,7 @@ export class ExtensionHost {
 
   private async call(ctx: CallContext, name: string, args: unknown[]): Promise<{ value?: unknown; error?: string }> {
     const l = this.loaded.get(ctx.extId);
-    if (!l) return { error: 'Estensione non attiva' };
+    if (!l) return { error: tr('Estensione non attiva') };
     try {
       return { value: await this.run(l, ctx, name, args) };
     } catch (err) {
@@ -707,7 +708,7 @@ export class ExtensionHost {
   }
 
   private need(l: Loaded, permission: string): void {
-    if (!l.permissions.has(permission)) throw new Error(`Serve il permesso "${permission}" nel manifest`);
+    if (!l.permissions.has(permission)) throw new Error(tr('Serve il permesso "{0}" nel manifest', permission));
   }
 
   private async run(l: Loaded, ctx: CallContext, name: string, args: unknown[]): Promise<unknown> {
@@ -768,7 +769,7 @@ export class ExtensionHost {
         if (t) return this.tabInfo(l, t.w, t.state, t.index);
         const pw = this.popupWindowOfTab(Number(args[0]));
         if (pw) return this.popupTab(l, pw.id, pw.win);
-        throw new Error(`Nessuna scheda con id ${args[0]}`);
+        throw new Error(tr('Nessuna scheda con id {0}', args[0]));
       }
       case 'tabs.getCurrent': {
         if (!ctx.sender) return undefined;
@@ -799,7 +800,7 @@ export class ExtensionHost {
       case 'tabs.update': {
         const props = (args[1] ?? {}) as chrome.tabs.UpdateProperties & { selected?: boolean };
         const t = args[0] === null || args[0] === undefined ? this.activeOf(this.callerWindow(ctx)) : this.resolveTab(Number(args[0]));
-        if (!t) throw new Error('Scheda non trovata');
+        if (!t) throw new Error(tr('Scheda non trovata'));
         if (props.url) t.w.tabs.navigate(t.tabId, this.resolveUrl(l, props.url));
         if (props.active || props.highlighted || props.selected) t.w.tabs.activate(t.tabId);
         if (props.pinned !== undefined) t.w.tabs.setPinned(t.tabId, props.pinned);
@@ -818,7 +819,7 @@ export class ExtensionHost {
       }
       case 'tabs.reload': {
         const t = args[0] === null || args[0] === undefined ? this.activeOf(this.callerWindow(ctx)) : this.resolveTab(Number(args[0]));
-        if (!t) throw new Error('Scheda non trovata');
+        if (!t) throw new Error(tr('Scheda non trovata'));
         const wc = t.w.tabs.contents(t.tabId);
         if (wc && (args[1] as { bypassCache?: boolean } | undefined)?.bypassCache) wc.reloadIgnoringCache();
         else t.w.tabs.reload(t.tabId);
@@ -826,7 +827,7 @@ export class ExtensionHost {
       }
       case 'tabs.duplicate': {
         const t = this.resolveTab(Number(args[0]));
-        if (!t) throw new Error('Scheda non trovata');
+        if (!t) throw new Error(tr('Scheda non trovata'));
         t.w.tabs.duplicate(t.tabId);
         return undefined;
       }
@@ -849,7 +850,7 @@ export class ExtensionHost {
       }
       case 'tabs.discard': {
         const t = this.resolveTab(Number(args[0]));
-        if (!t) throw new Error('Scheda non trovata');
+        if (!t) throw new Error(tr('Scheda non trovata'));
         t.w.tabs.sleepTab(t.tabId);
         const after = this.resolveTabByTabId(t.w, t.tabId);
         return after ? this.tabInfo(l, t.w, after.state, after.index) : undefined;
@@ -858,7 +859,7 @@ export class ExtensionHost {
       case 'tabs.goForward': {
         const t = args[0] === null || args[0] === undefined ? this.activeOf(this.callerWindow(ctx)) : this.resolveTab(Number(args[0]));
         const wc = t ? t.w.tabs.contents(t.tabId) : undefined;
-        if (!wc) throw new Error('Scheda non trovata');
+        if (!wc) throw new Error(tr('Scheda non trovata'));
         if (name === 'tabs.goBack') wc.navigationHistory.goBack();
         else wc.navigationHistory.goForward();
         return undefined;
@@ -867,8 +868,8 @@ export class ExtensionHost {
         const w = (args[0] !== null && args[0] !== undefined && this.deps.windows().find((x) => this.windowId(x) === args[0])) || this.callerWindow(ctx);
         const t = this.activeOf(w);
         const wc = t ? t.w.tabs.contents(t.tabId) : undefined;
-        if (!t || !wc) throw new Error('Nessuna pagina visibile');
-        if (!this.hostAccess(l, t.state.url) && !this.activeTab.get(id)?.has(wc.id)) throw new Error('Serve l’accesso alla pagina (activeTab o permesso del sito)');
+        if (!t || !wc) throw new Error(tr('Nessuna pagina visibile'));
+        if (!this.hostAccess(l, t.state.url) && !this.activeTab.get(id)?.has(wc.id)) throw new Error(tr('Serve l’accesso alla pagina (activeTab o permesso del sito)'));
         const img = await wc.capturePage();
         const opts = (args[1] ?? {}) as { format?: string; quality?: number };
         return opts.format === 'jpeg' ? `data:image/jpeg;base64,${img.toJPEG(opts.quality ?? 92).toString('base64')}` : img.toDataURL();
@@ -882,7 +883,7 @@ export class ExtensionHost {
         if (w) return this.windowInfo(l, w, Boolean((args[1] as { populate?: boolean })?.populate));
         const p = this.popupWindows.get(wid);
         if (p && !p.win.isDestroyed()) return this.popupWindowInfo(l, wid, p.win, Boolean((args[1] as { populate?: boolean })?.populate));
-        throw new Error(`Nessuna finestra con id ${wid}`);
+        throw new Error(tr('Nessuna finestra con id {0}', wid));
       }
       case 'windows.getCurrent':
       case 'windows.getLastFocused': {
@@ -890,7 +891,7 @@ export class ExtensionHost {
         const pid = name === 'windows.getCurrent' ? this.callerPopupWindow(ctx) : null;
         if (pid !== null) return this.popupWindowInfo(l, pid, this.popupWindows.get(pid)!.win, populate);
         const w = name === 'windows.getCurrent' ? this.callerWindow(ctx) : this.deps.focused();
-        if (!w) throw new Error('Nessuna finestra');
+        if (!w) throw new Error(tr('Nessuna finestra'));
         return this.windowInfo(l, w, populate);
       }
       case 'windows.getAll': {
@@ -905,7 +906,7 @@ export class ExtensionHost {
         const wid = Number(args[0]);
         const info = (args[1] ?? {}) as chrome.windows.UpdateInfo;
         const bw = this.deps.windows().find((x) => this.windowId(x) === wid)?.win ?? this.popupWindows.get(wid)?.win;
-        if (!bw || bw.isDestroyed()) throw new Error(`Nessuna finestra con id ${wid}`);
+        if (!bw || bw.isDestroyed()) throw new Error(tr('Nessuna finestra con id {0}', wid));
         if (info.left !== undefined || info.top !== undefined || info.width !== undefined || info.height !== undefined) {
           const b = bw.getBounds();
           bw.setBounds({ x: info.left ?? b.x, y: info.top ?? b.y, width: info.width ?? b.width, height: info.height ?? b.height });
@@ -940,7 +941,7 @@ export class ExtensionHost {
       }
       case 'contextMenus.update': {
         const item = this.menus.get(id)?.get(String(args[0]));
-        if (!item) throw new Error(`Voce di menu ${args[0]} inesistente`);
+        if (!item) throw new Error(tr('Voce di menu {0} inesistente', args[0]));
         Object.assign(item, args[1]);
         return undefined;
       }
@@ -1049,7 +1050,7 @@ export class ExtensionHost {
         return Object.entries(l.manifest.commands ?? {}).map(([cmd, c]) => ({ name: cmd, description: c.description ?? '', shortcut: this.shortcutOf(c.suggested_key) ?? '' }));
       case 'downloads.download': {
         const url = String(a0?.url ?? '');
-        if (!/^(https?|data|blob):/i.test(url)) throw new Error('Indirizzo non scaricabile');
+        if (!/^(https?|data|blob):/i.test(url)) throw new Error(tr('Indirizzo non scaricabile'));
         this.deps.session.downloadURL(url);
         return ++this.downloadId;
       }
@@ -1099,7 +1100,7 @@ export class ExtensionHost {
         return undefined;
       }
     }
-    throw new Error(`${name} non è supportato in Velo`);
+    throw new Error(tr('{0} non è supportato in Velo', name));
   }
 
   private activeOf(w: BrowserWindowController | null): { w: BrowserWindowController; tabId: number; state: TabState; index: number } | null {
@@ -1123,15 +1124,15 @@ export class ExtensionHost {
   private resolveUrl(l: Loaded, url: string | undefined): string {
     if (!url) return 'velo://newtab/';
     if (/^[a-z][\w+.-]*:/i.test(url)) {
-      if (/^(javascript|file):/i.test(url)) throw new Error('Indirizzo non consentito');
+      if (/^(javascript|file):/i.test(url)) throw new Error(tr('Indirizzo non consentito'));
       if (/^chrome-extension:/i.test(url) && !url.startsWith(`chrome-extension://${l.ext.id}/`)) {
         const other = /^chrome-extension:\/\/([a-p]{32})\//.exec(url)?.[1];
-        if (!other || !this.loaded.has(other)) throw new Error('Indirizzo non consentito');
+        if (!other || !this.loaded.has(other)) throw new Error(tr('Indirizzo non consentito'));
       }
       if (/^chrome:\/\/newtab/i.test(url)) return 'velo://newtab/';
       if (/^chrome:\/\/extensions/i.test(url)) return 'velo://extensions/';
       // Of the browser's own pages, extensions may only open the new tab and the extensions page.
-      if (/^(velo|chrome):/i.test(url) && !/^velo:\/\/(newtab|extensions)\//i.test(url)) throw new Error('Indirizzo non consentito');
+      if (/^(velo|chrome):/i.test(url) && !/^velo:\/\/(newtab|extensions)\//i.test(url)) throw new Error(tr('Indirizzo non consentito'));
       return url;
     }
     return new URL(url, `chrome-extension://${l.ext.id}/`).toString();
@@ -1211,7 +1212,7 @@ export class ExtensionHost {
     this.need(l, 'cookies');
     const store = this.deps.session.cookies;
     const url = typeof d.url === 'string' ? d.url : '';
-    if (url && !this.hostAccess(l, url)) throw new Error(`Nessun accesso ai cookie di ${url}`);
+    if (url && !this.hostAccess(l, url)) throw new Error(tr('Nessun accesso ai cookie di {0}', url));
     switch (name) {
       case 'cookies.get': {
         const list = await store.get({ url, name: d.name });
@@ -1261,11 +1262,11 @@ export class ExtensionHost {
     const missing = wanted.filter((p) => !l.permissions.has(p) && !(p.includes('://') || p === '<all_urls>' ? this.coversOrigin(l, p) : false));
     if (missing.length === 0) return true;
     if (!missing.every((p) => optional.has(p) || [...optional].some((o) => o === '<all_urls>' || (o.includes('://') && p.includes('://'))))) {
-      throw new Error('Si possono chiedere solo i permessi opzionali indicati nel manifest');
+      throw new Error(tr('Si possono chiedere solo i permessi opzionali indicati nel manifest'));
     }
     const w = this.deps.focused();
-    const detail = missing.map((p) => `• ${p === '<all_urls>' ? 'tutti i siti' : p}`).join('\n');
-    const options = { type: 'question' as const, buttons: ['Consenti', 'Rifiuta'], defaultId: 0, cancelId: 1, message: `«${l.name}» chiede altri permessi`, detail };
+    const detail = missing.map((p) => `• ${p === '<all_urls>' ? tr('tutti i siti') : p}`).join('\n');
+    const options = { type: 'question' as const, buttons: [tr('Consenti'), tr('Rifiuta')], defaultId: 0, cancelId: 1, message: tr('«{0}» chiede altri permessi', l.name), detail };
     const { response } = w ? await dialog.showMessageBox(w.win, options) : await dialog.showMessageBox(options);
     if (response !== 0) return false;
     this.registry.grant(l.ext.id, missing);
@@ -1294,7 +1295,7 @@ export class ExtensionHost {
 
   private getAction(id: string, tabId?: number | null): ActionProps {
     const state = this.actions.get(id);
-    if (!state) throw new Error('Estensione non attiva');
+    if (!state) throw new Error(tr('Estensione non attiva'));
     return { ...state.global, ...(typeof tabId === 'number' ? state.tabs.get(tabId) : {}) };
   }
 
@@ -1380,11 +1381,11 @@ export class ExtensionHost {
     const items: MenuItemConstructorOptions[] = [{ label: l.name, enabled: false }, { type: 'separator' }];
     const actionItems = this.menuItemsFor(l, ['action', 'browser_action', 'page_action', 'all'], w, null);
     if (actionItems.length) items.push(...actionItems, { type: 'separator' });
-    if (l.manifest.options_ui?.page || l.manifest.options_page) items.push({ label: 'Opzioni', click: () => this.openOptions(id) });
+    if (l.manifest.options_ui?.page || l.manifest.options_page) items.push({ label: tr('Opzioni'), click: () => this.openOptions(id) });
     items.push(
-      { label: l.info.pinned ? 'Togli dalla barra' : 'Fissa sulla barra', click: () => this.registry.setPinned(id, !l.info.pinned) },
-      { label: 'Gestisci l’estensione', click: () => manage(id) },
-      { label: 'Rimuovi da Velo…', click: () => remove(id) },
+      { label: l.info.pinned ? tr('Togli dalla barra') : tr('Fissa sulla barra'), click: () => this.registry.setPinned(id, !l.info.pinned) },
+      { label: tr('Gestisci l’estensione'), click: () => manage(id) },
+      { label: tr('Rimuovi da Velo…'), click: () => remove(id) },
     );
     Menu.buildFromTemplate(items).popup({ window: w.win });
   }
@@ -1513,14 +1514,14 @@ export class ExtensionHost {
 
   /** Confirmation shown before installing (or updating with new permissions). */
   async confirmInstall(w: BrowserWindowController | null, p: InstallPreview): Promise<boolean> {
-    const lines = p.permissions.warnings.length ? `Potrà:\n${p.permissions.warnings.map((x) => `• ${x}`).join('\n')}` : 'Non chiede permessi particolari.';
-    const missing = p.permissions.unsupported.length ? `\n\nNon disponibile in Velo (alcune funzioni potrebbero non andare): ${p.permissions.unsupported.join(', ')}.` : '';
+    const lines = p.permissions.warnings.length ? tr('Potrà:\n{0}', p.permissions.warnings.map((x) => `• ${x}`).join('\n')) : tr('Non chiede permessi particolari.');
+    const missing = p.permissions.unsupported.length ? tr('\n\nNon disponibile in Velo (alcune funzioni potrebbero non andare): {0}.', p.permissions.unsupported.join(', ')) : '';
     const options = {
       type: 'question' as const,
-      buttons: [p.update ? 'Aggiorna' : 'Aggiungi estensione', 'Annulla'],
+      buttons: [p.update ? tr('Aggiorna') : tr('Aggiungi estensione'), tr('Annulla')],
       defaultId: 0,
       cancelId: 1,
-      message: p.update ? `Aggiornare «${p.name}» alla versione ${p.version}?` : `Aggiungere «${p.name}»?`,
+      message: p.update ? tr('Aggiornare «{0}» alla versione {1}?', p.name, p.version) : `Aggiungere «${p.name}»?`,
       detail: `${lines}${missing}`,
       icon: p.icon ? nativeImage.createFromDataURL(p.icon) : undefined,
     };

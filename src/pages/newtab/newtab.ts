@@ -6,6 +6,7 @@ import type { NewTabData, Settings, Suggestion } from '../../shared/types';
 import { hydrateIcons, icon, logoMark } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 import { followTheme, refreshTheme } from '../shared/theme';
+import { tr } from '../../shared/i18n';
 
 followTheme();
 hydrateIcons();
@@ -14,7 +15,7 @@ document.getElementById('logo')!.append(logoMark(44));
 const call = <T>(channel: string, ...args: unknown[]) => window.veloInternal!.invoke(channel, ...args) as Promise<T>;
 
 const hour = new Date().getHours();
-document.getElementById('greeting')!.textContent = hour < 5 ? 'Buonanotte' : hour < 13 ? 'Buongiorno' : hour < 18 ? 'Buon pomeriggio' : 'Buonasera';
+document.getElementById('greeting')!.textContent = hour < 5 ? tr('Buonanotte') : hour < 13 ? tr('Buongiorno') : hour < 18 ? tr('Buon pomeriggio') : tr('Buonasera');
 
 // ---------- Search box ----------
 // A real search field: suggestions from bookmarks and history come from the browser, the first one is
@@ -93,13 +94,13 @@ async function render(): Promise<void> {
   }
   const note = document.getElementById('private-note')!;
   note.hidden = !data.isPrivate;
-  if (data.isPrivate) document.getElementById('greeting')!.textContent = data.isTor ? 'Finestra Tor' : 'Finestra privata';
+  if (data.isPrivate) document.getElementById('greeting')!.textContent = data.isTor ? tr('Finestra Tor') : tr('Finestra privata');
   if (data.isTor) {
     document.body.classList.add('tor');
     note.textContent =
-      'Le pagine passano dalla rete Tor: i siti non vedono il tuo indirizzo IP e ognuno vede un indirizzo diverso. Ogni sito ha cookie e dati separati, l’impronta del browser è uguale per tutti e nulla resta quando chiudi la finestra. Dal pulsante Tor in alto puoi chiedere un nuovo circuito o una nuova identità.';
+      tr('Le pagine passano dalla rete Tor: i siti non vedono il tuo indirizzo IP e ognuno vede un indirizzo diverso. Ogni sito ha cookie e dati separati, l’impronta del browser è uguale per tutti e nulla resta quando chiudi la finestra. Dal pulsante Tor in alto puoi chiedere un nuovo circuito o una nuova identità.');
   }
-  search.placeholder = 'Cerca sul web o scrivi un indirizzo';
+  search.placeholder = tr('Cerca sul web o scrivi un indirizzo');
   if (document.activeElement === document.body) search.focus();
   const grid = document.getElementById('top-sites')!;
   grid.hidden = !data.showTopSites || data.topSites.length === 0;
@@ -126,8 +127,8 @@ document.getElementById('restore-btn')!.addEventListener('click', async () => {
 function removeButton(site: { url: string; title: string }): HTMLButtonElement {
   const button = h('button', {
     class: 'remove',
-    title: 'Rimuovi',
-    'aria-label': `Rimuovi ${site.title} dai siti più visitati`,
+    title: tr('Rimuovi'),
+    'aria-label': tr('Rimuovi {0} dai siti più visitati', site.title),
     onclick: async (e: Event) => {
       e.preventDefault();
       e.stopPropagation();

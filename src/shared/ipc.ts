@@ -102,6 +102,8 @@ export const IPC = {
 
 /** Channels of the internal pages (velo://…), see src/preload/page.ts. */
 export const INTERNAL = {
+  localeInfo: 'internal:locale:info',
+  restart: 'internal:restart',
   settingsGet: 'internal:settings:get',
   settingsSet: 'internal:settings:set',
   tokenStatus: 'internal:token:status',

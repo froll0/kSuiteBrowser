@@ -3,6 +3,7 @@ import { EventReminder, MailWatcher, type Notice } from '../shared/notify-logic'
 import type { CalendarEvent } from '../shared/types';
 import type { CloudServices } from './services';
 import type { SettingsStore } from './settings';
+import { tr } from '../shared/i18n';
 
 const MAIL_EVERY_MS = 2 * 60_000;
 const EVENTS_EVERY_MS = 5 * 60_000;
@@ -55,7 +56,7 @@ export class NotificationCenter {
 
   /** Test notification from the settings page. */
   test(): boolean {
-    return this.show({ title: 'Notifiche di Velo attive', body: 'Riceverai qui le nuove email e i promemoria degli eventi.' }, null);
+    return this.show({ title: tr('Notifiche di Velo attive'), body: tr('Riceverai qui le nuove email e i promemoria degli eventi.') }, null);
   }
 
   private get ready(): boolean {

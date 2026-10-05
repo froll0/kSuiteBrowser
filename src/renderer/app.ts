@@ -7,6 +7,9 @@ import { ks } from './bridge';
 import { h } from './dom';
 import { hydrateIcons, icon, logoMark, type IconName } from './icons';
 import { Panel } from './panel';
+import { tr, translateDom } from '../shared/i18n';
+
+translateDom(document.documentElement);
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const root = document.documentElement;
@@ -180,7 +183,7 @@ function placeholderIcon(): HTMLElement {
 }
 
 function tabIcon(t: TabState): Element {
-  if (t.loading) return h('span', { class: 'spinner', role: 'progressbar', 'aria-label': 'Caricamento' });
+  if (t.loading) return h('span', { class: 'spinner', role: 'progressbar', 'aria-label': tr('Caricamento') });
   if (t.url.startsWith('velo://')) {
     const span = h('span', { class: 'favicon internal' });
     span.append(logoMark(16));
@@ -255,8 +258,8 @@ function renderTabs(): void {
       const audio = t.audible || t.muted
         ? iconButton(t.muted ? 'volumeOff' : 'volume', {
             class: 'tab-audio',
-            title: t.muted ? 'Riattiva audio' : 'Disattiva audio',
-            'aria-label': t.muted ? 'Riattiva audio della scheda' : 'Disattiva audio della scheda',
+            title: t.muted ? tr('Riattiva audio') : tr('Disattiva audio'),
+            'aria-label': t.muted ? tr('Riattiva audio della scheda') : tr('Disattiva audio della scheda'),
             onclick: (e: Event) => { e.stopPropagation(); void ks.tabs.mute(t.id); },
           })
         : null;
@@ -266,14 +269,14 @@ function renderTabs(): void {
           class: `tab${t.active ? ' active' : ''}${t.loading ? ' loading' : ''}${t.pinned ? ' pinned' : ''}${t.sleeping ? ' sleeping' : ''}`,
           role: 'tab',
           'aria-selected': String(t.active),
-          title: `${t.title}\n${t.url}${t.sleeping ? '\nIn pausa per risparmiare memoria: si ricarica quando la apri' : ''}`,
+          title: `${t.title}\n${t.url}${t.sleeping ? tr('\nIn pausa per risparmiare memoria: si ricarica quando la apri') : ''}`,
           draggable: 'true',
           'data-id': String(t.id),
         },
         tabIcon(t),
         t.pinned ? null : h('span', { class: 'tab-title' }, t.title),
         audio,
-        t.pinned ? null : iconButton('close', { class: 'tab-close', title: 'Chiudi scheda (Ctrl+W)', 'aria-label': 'Chiudi scheda', onclick: (e: Event) => { e.stopPropagation(); void ks.tabs.close(t.id); } }),
+        t.pinned ? null : iconButton('close', { class: 'tab-close', title: tr('Chiudi scheda (Ctrl+W)'), 'aria-label': tr('Chiudi scheda'), onclick: (e: Event) => { e.stopPropagation(); void ks.tabs.close(t.id); } }),
       );
       el.addEventListener('click', () => void ks.tabs.activate(t.id));
       el.addEventListener('mouseenter', () => hoverTab(t.id, el));
@@ -309,7 +312,7 @@ function renderTabs(): void {
     });
   if (vertical()) {
     // Pinned tabs as a grid of icons on top, then the list, then "new tab".
-    const newRow = h('button', { class: 'new-tab-row', title: 'Nuova scheda (Ctrl+T)', onclick: () => void ks.tabs.create() }, h('span', {}, 'Nuova scheda'));
+    const newRow = h('button', { class: 'new-tab-row', title: tr('Nuova scheda (Ctrl+T)'), onclick: () => void ks.tabs.create() }, h('span', {}, tr('Nuova scheda')));
     newRow.prepend(icon('plus', 16));
     tabstrip.replaceChildren();
     sideList.replaceChildren(
@@ -319,7 +322,7 @@ function renderTabs(): void {
     );
   } else {
     sideList.replaceChildren();
-    tabstrip.replaceChildren(...els, iconButton('plus', { class: 'icon-btn small new-tab', title: 'Nuova scheda (Ctrl+T)', 'aria-label': 'Nuova scheda', onclick: () => void ks.tabs.create() }, 18));
+    tabstrip.replaceChildren(...els, iconButton('plus', { class: 'icon-btn small new-tab', title: tr('Nuova scheda (Ctrl+T)'), 'aria-label': tr('Nuova scheda'), onclick: () => void ks.tabs.create() }, 18));
   }
   tabsHost().querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
@@ -367,8 +370,8 @@ function renderToolbar(): void {
   backBtn.disabled = !tab?.canGoBack;
   forwardBtn.disabled = !tab?.canGoForward;
   reloadBtn.replaceChildren(icon(tab?.loading ? 'close' : 'reload', 18));
-  reloadBtn.title = tab?.loading ? 'Interrompi' : 'Ricarica (Ctrl+R)';
-  reloadBtn.setAttribute('aria-label', tab?.loading ? 'Interrompi' : 'Ricarica');
+  reloadBtn.title = tab?.loading ? tr('Interrompi') : tr('Ricarica (Ctrl+R)');
+  reloadBtn.setAttribute('aria-label', tab?.loading ? tr('Interrompi') : tr('Ricarica'));
   renderSiteInfo(tab);
   if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' && !tab.url.startsWith('velo://newtab') ? displayUrl(tab.url) : '';
   renderShield(tab);
@@ -378,19 +381,19 @@ function renderToolbar(): void {
   const media = tabs.filter((t) => t.media || t.audible);
   mediaBtn.hidden = media.length === 0;
   mediaBtn.classList.toggle('playing', media.some((t) => t.audible));
-  mediaBtn.title = media.some((t) => t.audible) ? 'Audio in riproduzione: controlli e picture-in-picture' : 'Audio e video delle schede';
+  mediaBtn.title = media.some((t) => t.audible) ? tr('Audio in riproduzione: controlli e picture-in-picture') : tr('Audio e video delle schede');
   readerBtn.hidden = !tab || !(tab.readerable || tab.reader);
   readerBtn.classList.toggle('on', Boolean(tab?.reader));
   readerBtn.setAttribute('aria-pressed', String(Boolean(tab?.reader)));
-  readerBtn.title = tab?.reader ? 'Esci dalla modalità lettura (F9)' : 'Modalità lettura (F9)';
+  readerBtn.title = tab?.reader ? tr('Esci dalla modalità lettura (F9)') : tr('Modalità lettura (F9)');
   starBtn.disabled = !bookmarkable;
   starBtn.classList.toggle('on', Boolean(tab?.bookmarked));
-  starBtn.title = tab?.bookmarked ? 'Modifica preferito (Ctrl+D)' : 'Aggiungi ai preferiti (Ctrl+D)';
+  starBtn.title = tab?.bookmarked ? tr('Modifica preferito (Ctrl+D)') : tr('Aggiungi ai preferiti (Ctrl+D)');
 
   const defaultZoom = currentSettings?.defaultZoom ?? 100;
   zoomBtn.hidden = !tab || tab.zoom === defaultZoom;
   zoomBtn.textContent = tab ? `${tab.zoom}%` : '';
-  const suffix = document.body.classList.contains('tor') ? 'Velo (Tor)' : document.body.classList.contains('private') ? 'Velo (privata)' : 'Velo';
+  const suffix = document.body.classList.contains('tor') ? 'Velo (Tor)' : document.body.classList.contains('private') ? tr('Velo (privata)') : 'Velo';
   document.title = tab ? `${tab.title} — ${suffix}` : suffix;
 }
 
@@ -407,18 +410,18 @@ function renderSiteInfo(tab: TabState | undefined): void {
   siteInfo.className = 'site-info';
   if (!tab || !url || url.startsWith('velo://newtab') || url === 'about:blank') {
     siteInfo.replaceChildren(icon('search', 16));
-    siteInfo.title = 'Cerca o inserisci un indirizzo';
+    siteInfo.title = tr('Cerca o inserisci un indirizzo');
   } else if (url.startsWith('velo://')) {
     siteInfo.classList.add('internal');
     siteInfo.replaceChildren(logoMark(16), h('span', {}, 'Velo'));
-    siteInfo.title = 'Pagina del browser';
+    siteInfo.title = tr('Pagina del browser');
   } else if (url.startsWith('https://')) {
     siteInfo.replaceChildren(icon('lock', 15));
-    siteInfo.title = 'Connessione sicura — clic per permessi e dati del sito';
+    siteInfo.title = tr('Connessione sicura — clic per permessi e dati del sito');
   } else if (url.startsWith('http://')) {
     siteInfo.classList.add('insecure');
-    siteInfo.replaceChildren(icon('warning', 15), h('span', {}, 'Non sicuro'));
-    siteInfo.title = 'La connessione a questo sito non è cifrata — clic per permessi e dati del sito';
+    siteInfo.replaceChildren(icon('warning', 15), h('span', {}, tr('Non sicuro')));
+    siteInfo.title = tr('La connessione a questo sito non è cifrata — clic per permessi e dati del sito');
   } else {
     siteInfo.replaceChildren(icon('info', 15));
     siteInfo.title = url;
@@ -435,10 +438,10 @@ function renderShield(tab: TabState | undefined): void {
   const count = shieldBtn.querySelector('.count')!;
   count.textContent = web && tab!.blocked > 0 ? (tab!.blocked > 999 ? '999+' : String(tab!.blocked)) : '';
   shieldBtn.title = !web
-    ? 'Protezioni'
+    ? tr('Protezioni')
     : tab!.protectionActive
-      ? `Protezione attiva: ${tab!.blocked} richieste bloccate`
-      : 'Protezione disattivata per questo sito';
+      ? tr('Protezione attiva: {0} richieste bloccate', tab!.blocked)
+      : tr('Protezione disattivata per questo sito');
 }
 
 function renderSidebar(): void {
@@ -447,7 +450,7 @@ function renderSidebar(): void {
     ...INFOMANIAK_APPS.map((app) => {
       const tile = h('span', { class: `tile app-${app.id}` });
       tile.append(icon(app.icon, 19));
-      const label = app.id === 'mail' && unread ? `${app.name} — ${unread} non lette` : app.name;
+      const label = app.id === 'mail' && unread ? tr('{0} — {1} non lette', app.name, unread) : app.name;
       return h(
         'button',
         { class: `app${activeApp === app.id ? ' active' : ''}`, title: label, 'aria-label': label, onclick: () => void ks.openApp(app.id) },
@@ -577,7 +580,7 @@ omnibox.addEventListener('keydown', (e) => {
 function renderBookmarksBar(): void {
   const bar = bookmarks.filter((b) => b.folder === 'bar');
   if (bar.length === 0) {
-    const hint = h('span', { class: 'bookmarks-hint' }, 'Premi la stella nella barra degli indirizzi (o Ctrl+D) per aggiungere qui una pagina.');
+    const hint = h('span', { class: 'bookmarks-hint' }, tr('Premi la stella nella barra degli indirizzi (o Ctrl+D) per aggiungere qui una pagina.'));
     hint.prepend(icon('star', 14));
     bookmarkItems.replaceChildren(hint);
     return;
@@ -644,27 +647,27 @@ ks.events.onPasswordPrompt((prompt) => {
   } catch {
     /* keep origin */
   }
-  const user = h('input', { type: 'text', value: prompt.username, placeholder: 'Nome utente', 'aria-label': 'Nome utente' });
+  const user = h('input', { type: 'text', value: prompt.username, placeholder: tr('Nome utente'), 'aria-label': tr('Nome utente') });
   const answer = (action: 'save' | 'never' | 'dismiss') => {
     void ks.passwords.answer(prompt.id, action, user.value);
     hideInfobar();
   };
   infobar.replaceChildren(
     barIcon('key'),
-    h('span', { class: 'msg' }, prompt.kind === 'update' ? `Aggiornare la password salvata per ${host}?` : `Salvare la password per ${host}?`),
+    h('span', { class: 'msg' }, prompt.kind === 'update' ? tr('Aggiornare la password salvata per {0}?', host) : tr('Salvare la password per {0}?', host)),
     user,
     h('span', { class: 'spacer' }),
-    h('button', { class: 'primary', onclick: () => answer('save') }, prompt.kind === 'update' ? 'Aggiorna' : 'Salva'),
-    h('button', { onclick: () => answer('dismiss') }, 'Non ora'),
+    h('button', { class: 'primary', onclick: () => answer('save') }, prompt.kind === 'update' ? tr('Aggiorna') : tr('Salva')),
+    h('button', { onclick: () => answer('dismiss') }, tr('Non ora')),
   );
-  if (prompt.kind === 'save') infobar.append(h('button', { onclick: () => answer('never') }, 'Mai per questo sito'));
+  if (prompt.kind === 'save') infobar.append(h('button', { onclick: () => answer('never') }, tr('Mai per questo sito')));
   infobar.hidden = false;
 });
 
 ks.events.onPasswordUnlock(() => {
-  const input = h('input', { type: 'password', placeholder: 'Password principale', 'aria-label': 'Password principale', autocomplete: 'off' });
+  const input = h('input', { type: 'password', placeholder: tr('Password principale'), 'aria-label': tr('Password principale'), autocomplete: 'off' });
   const error = h('span', { class: 'error', role: 'alert' });
-  const form = h('form', { class: 'row' }, input, h('button', { class: 'primary', type: 'submit' }, 'Sblocca'), h('button', { type: 'button', onclick: hideInfobar }, 'Annulla'), error);
+  const form = h('form', { class: 'row' }, input, h('button', { class: 'primary', type: 'submit' }, tr('Sblocca')), h('button', { type: 'button', onclick: hideInfobar }, tr('Annulla')), error);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const res = await ks.passwords.unlock(input.value);
@@ -674,7 +677,7 @@ ks.events.onPasswordUnlock(() => {
       input.select();
     }
   });
-  infobar.replaceChildren(barIcon('lock'), h('span', { class: 'msg' }, 'Le password salvate sono bloccate.'), form);
+  infobar.replaceChildren(barIcon('lock'), h('span', { class: 'msg' }, tr('Le password salvate sono bloccate.')), form);
   infobar.hidden = false;
   input.focus();
 });
@@ -694,7 +697,7 @@ ks.events.onAuthPrompt((prompt) => {
   // A newer request replaces the one on screen.
   if (authShown) void ks.auth.answer(authShown, null);
   authShown = prompt.id;
-  const user = h('input', { type: 'text', placeholder: 'Nome utente', 'aria-label': 'Nome utente', autocomplete: 'off' });
+  const user = h('input', { type: 'text', placeholder: tr('Nome utente'), 'aria-label': tr('Nome utente'), autocomplete: 'off' });
   const pass = h('input', { type: 'password', placeholder: 'Password', 'aria-label': 'Password', autocomplete: 'off' });
   const done = (credentials: { username: string; password: string } | null) => {
     authShown = null;
@@ -702,16 +705,16 @@ ks.events.onAuthPrompt((prompt) => {
     hideInfobar();
   };
   const form = h('form', { class: 'row' }, user, pass,
-    h('button', { class: 'primary', type: 'submit' }, 'Accedi'),
-    h('button', { type: 'button', onclick: () => done(null) }, 'Annulla'));
+    h('button', { class: 'primary', type: 'submit' }, tr('Accedi')),
+    h('button', { type: 'button', onclick: () => done(null) }, tr('Annulla')));
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     done({ username: user.value, password: pass.value });
   });
-  const who = prompt.isProxy ? `Il proxy ${prompt.host}` : prompt.host;
+  const who = prompt.isProxy ? tr('Il proxy {0}', prompt.host) : prompt.host;
   infobar.replaceChildren(
     barIcon('lock'),
-    h('span', { class: 'msg' }, `${who} richiede l’accesso${prompt.realm ? ` («${prompt.realm}»)` : ''}`),
+    h('span', { class: 'msg' }, tr('{0} richiede l’accesso{1}', who, prompt.realm ? ` («${prompt.realm}»)` : '')),
     form,
   );
   infobar.hidden = false;
@@ -729,12 +732,12 @@ ks.events.onUpdate((status) => {
   announcedUpdate = `${status.state}:${status.version}`;
   infobar.replaceChildren(
     barIcon('download'),
-    h('span', { class: 'msg' }, ready ? `Velo ${status.version} è pronto: verrà installato al prossimo riavvio.` : `È disponibile Velo ${status.version}.`),
+    h('span', { class: 'msg' }, ready ? tr('Velo {0} è pronto: verrà installato al prossimo riavvio.', status.version) : tr('È disponibile Velo {0}.', status.version)),
     h('span', { class: 'spacer' }),
     ready
-      ? h('button', { class: 'primary', onclick: () => void ks.updates.install() }, 'Riavvia ora')
-      : h('button', { class: 'primary', onclick: () => { hideInfobar(); void ks.openSettingsPage('updates'); } }, 'Dettagli'),
-    h('button', { onclick: hideInfobar }, 'Più tardi'),
+      ? h('button', { class: 'primary', onclick: () => void ks.updates.install() }, tr('Riavvia ora'))
+      : h('button', { class: 'primary', onclick: () => { hideInfobar(); void ks.openSettingsPage('updates'); } }, tr('Dettagli')),
+    h('button', { onclick: hideInfobar }, tr('Più tardi')),
   );
   infobar.hidden = false;
 });
@@ -792,7 +795,7 @@ ks.events.onFindNext(({ backwards }) => {
 ks.events.onFindResult((r) => {
   if (r.tabId !== activeTab()?.id || findbar.hidden) return;
   const empty = !findInput.value;
-  findCount.textContent = empty ? '' : r.total ? `${r.active} di ${r.total}` : 'Nessun risultato';
+  findCount.textContent = empty ? '' : r.total ? `${r.active} di ${r.total}` : tr('Nessun risultato');
   findInput.classList.toggle('notfound', !empty && r.total === 0);
 });
 
@@ -902,25 +905,25 @@ torBadge.addEventListener('click', () => void ks.torMenu());
 ks.events.onTorStatus((status) => {
   torBadge.className = status.state;
   const label = torBadge.querySelector('.tor-label')!;
-  label.textContent = status.state === 'starting' ? `Tor ${status.progress ?? 0}%` : status.state === 'error' ? 'Tor non connesso' : 'Tor';
+  label.textContent = status.state === 'starting' ? `Tor ${status.progress ?? 0}%` : status.state === 'error' ? tr('Tor non connesso') : 'Tor';
   torBadge.title =
     status.state === 'ready'
-      ? 'Connesso alla rete Tor: ogni sito vede un indirizzo diverso, nulla resta alla chiusura'
+      ? tr('Connesso alla rete Tor: ogni sito vede un indirizzo diverso, nulla resta alla chiusura')
       : status.state === 'starting'
-        ? `Connessione alla rete Tor… ${status.summary ?? ''}`
+        ? tr('Connessione alla rete Tor… {0}', status.summary ?? '')
         : status.state === 'error'
-          ? `Tor non riesce a connettersi: ${status.message ?? ''}`
-          : 'Tor non è avviato';
+          ? tr('Tor non riesce a connettersi: {0}', status.message ?? '')
+          : tr('Tor non è avviato');
 });
 
 ks.events.onDrmOffer((offer) => {
   if (!infobar.hidden) return;
   infobar.replaceChildren(
     barIcon('shield'),
-    h('span', { class: 'msg' }, `${offer.host || 'Questo sito'} vuole riprodurre contenuti protetti. Serve il modulo Widevine, che viene scaricato dai server di Google.`),
+    h('span', { class: 'msg' }, tr('{0} vuole riprodurre contenuti protetti. Serve il modulo Widevine, che viene scaricato dai server di Google.', offer.host || tr('Questo sito'))),
     h('span', { class: 'spacer' }),
-    h('button', { class: 'primary', onclick: () => void ks.enableDrm() }, 'Attiva e riavvia'),
-    h('button', { onclick: hideInfobar }, 'Non ora'),
+    h('button', { class: 'primary', onclick: () => void ks.enableDrm() }, tr('Attiva e riavvia')),
+    h('button', { onclick: hideInfobar }, tr('Non ora')),
   );
   infobar.hidden = false;
 });
@@ -928,21 +931,21 @@ ks.events.onDrmOffer((offer) => {
 // On an extension's page in the Chrome Web Store: offer to add it to this browser.
 ks.events.onExtensionOffer((offer) => {
   if (!infobar.hidden) return;
-  const add = h('button', { class: 'primary' }, 'Aggiungi a Velo');
+  const add = h('button', { class: 'primary' }, tr('Aggiungi a Velo'));
   add.addEventListener('click', async () => {
     add.disabled = true;
-    add.textContent = 'Installazione…';
+    add.textContent = tr('Installazione…');
     const res = await ks.extensions.installFromStore(offer.id);
     hideInfobar();
-    if (res.ok) toast('success', 'Estensione aggiunta: la trovi nel pulsante delle estensioni.');
+    if (res.ok) toast('success', tr('Estensione aggiunta: la trovi nel pulsante delle estensioni.'));
     else if (res.error) toast('error', res.error);
   });
   infobar.replaceChildren(
     barIcon('puzzle'),
-    h('span', { class: 'msg' }, offer.installed ? 'Questa estensione è già installata in Velo.' : 'Puoi aggiungere questa estensione a Velo.'),
+    h('span', { class: 'msg' }, offer.installed ? tr('Questa estensione è già installata in Velo.') : tr('Puoi aggiungere questa estensione a Velo.')),
     h('span', { class: 'spacer' }),
-    offer.installed ? h('button', { onclick: () => { hideInfobar(); void ks.tabs.create('velo://extensions/'); } }, 'Gestisci') : add,
-    h('button', { onclick: hideInfobar }, 'Chiudi'),
+    offer.installed ? h('button', { onclick: () => { hideInfobar(); void ks.tabs.create('velo://extensions/'); } }, tr('Gestisci')) : add,
+    h('button', { onclick: hideInfobar }, tr('Chiudi')),
   );
   infobar.hidden = false;
 });
@@ -965,7 +968,7 @@ function applyAppearance(settings: Settings): void {
   body.style.setProperty('--side-w', `${settings.sideTabsWidth}px`);
   const collapse = $('btn-side-collapse');
   collapse.replaceChildren(icon(settings.sideTabsCollapsed ? 'panelLeftOpen' : 'panelLeftClose', 16));
-  collapse.title = settings.sideTabsCollapsed ? 'Allarga la colonna delle schede' : 'Riduci la colonna delle schede';
+  collapse.title = settings.sideTabsCollapsed ? tr('Allarga la colonna delle schede') : tr('Riduci la colonna delle schede');
   collapse.setAttribute('aria-label', collapse.title);
 
   // With tabs on top, the toolbar gets its own row under them.

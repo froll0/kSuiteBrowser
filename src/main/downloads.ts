@@ -6,6 +6,7 @@ import type { DownloadItemState } from '../shared/types';
 import { uniquePath } from './files';
 import type { CloudServices } from './services';
 import type { SettingsStore } from './settings';
+import { tr } from '../shared/i18n';
 
 /** Saves browser downloads (folder and "ask where" from the settings) and optionally mirrors them to kDrive. */
 export class DownloadManager {
@@ -49,7 +50,7 @@ export class DownloadManager {
       if (s.threatProtection && [...item.getURLChain(), item.getURL()].some((u) => this.safety.threatCheck(u))) {
         item.cancel();
         state.state = 'cancelled';
-        state.blocked = 'Bloccato: il file è segnalato come malware';
+        state.blocked = tr('Bloccato: il file è segnalato come malware');
         this.emit();
         return;
       }
@@ -62,7 +63,7 @@ export class DownloadManager {
           if (keep) item.resume();
           else {
             item.cancel();
-            state.blocked = 'Annullato: file potenzialmente pericoloso';
+            state.blocked = tr('Annullato: file potenzialmente pericoloso');
             this.emit();
           }
         });
@@ -104,12 +105,14 @@ export class DownloadManager {
     }
     const options = {
       type: 'warning' as const,
-      buttons: ['Annulla', 'Scarica comunque'],
+      buttons: [tr('Annulla'), tr('Scarica comunque')],
       defaultId: 0,
       cancelId: 0,
       noLink: true,
-      message: `«${filename}» è ${kind} e potrebbe danneggiare il computer.`,
-      detail: `${insecure ? 'Arriva da una connessione non cifrata, quindi potrebbe essere stato modificato lungo la strada. ' : ''}Scaricalo solo se ti fidi di ${source} e sai cosa contiene.`,
+      message: tr('«{0}» è {1} e potrebbe danneggiare il computer.', filename, kind),
+      detail:
+        (insecure ? tr('Arriva da una connessione non cifrata, quindi potrebbe essere stato modificato lungo la strada.') + ' ' : '') +
+        tr('Scaricalo solo se ti fidi di {0} e sai cosa contiene.', source),
     };
     const win = this.safety.window();
     const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);

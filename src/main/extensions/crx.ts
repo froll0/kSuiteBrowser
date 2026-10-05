@@ -1,4 +1,5 @@
 import { createHash, sign, verify, type KeyLike } from 'node:crypto';
+import { tr } from '../../shared/i18n';
 
 /**
  * Chrome extension packages (CRX3): "Cr24", version 3, a protobuf header with the signatures,
@@ -31,12 +32,12 @@ function readVarint(buf: Buffer, pos: number): [number, number] {
   let result = 0;
   let shift = 0;
   for (;;) {
-    if (pos >= buf.length) throw new CrxError('Intestazione del pacchetto troncata');
+    if (pos >= buf.length) throw new CrxError(tr('Intestazione del pacchetto troncata'));
     const byte = buf[pos++];
     result += (byte & 0x7f) * 2 ** shift;
     if (!(byte & 0x80)) return [result, pos];
     shift += 7;
-    if (shift > 49) throw new CrxError('Intestazione del pacchetto non valida');
+    if (shift > 49) throw new CrxError(tr('Intestazione del pacchetto non valida'));
   }
 }
 
@@ -53,7 +54,7 @@ function fields(buf: Buffer): Map<number, Buffer[]> {
       pos = readVarint(buf, pos)[1];
     } else if (wire === 2) {
       const [len, start] = readVarint(buf, pos);
-      if (start + len > buf.length) throw new CrxError('Intestazione del pacchetto troncata');
+      if (start + len > buf.length) throw new CrxError(tr('Intestazione del pacchetto troncata'));
       const list = out.get(field) ?? [];
       list.push(buf.subarray(start, start + len));
       out.set(field, list);
@@ -63,24 +64,24 @@ function fields(buf: Buffer): Map<number, Buffer[]> {
     } else if (wire === 5) {
       pos += 4;
     } else {
-      throw new CrxError('Intestazione del pacchetto non valida');
+      throw new CrxError(tr('Intestazione del pacchetto non valida'));
     }
   }
   return out;
 }
 
 export function parseCrx(data: Buffer): CrxPackage {
-  if (data.length < 12 || data.toString('latin1', 0, 4) !== 'Cr24') throw new CrxError('Non è un pacchetto di estensione (.crx)');
+  if (data.length < 12 || data.toString('latin1', 0, 4) !== 'Cr24') throw new CrxError(tr('Non è un pacchetto di estensione (.crx)'));
   const version = data.readUInt32LE(4);
-  if (version !== 3) throw new CrxError(`Formato del pacchetto non supportato (CRX${version})`);
+  if (version !== 3) throw new CrxError(tr('Formato del pacchetto non supportato (CRX{0})', version));
   const headerSize = data.readUInt32LE(8);
-  if (12 + headerSize > data.length) throw new CrxError('Pacchetto troncato');
+  if (12 + headerSize > data.length) throw new CrxError(tr('Pacchetto troncato'));
   const header = fields(data.subarray(12, 12 + headerSize));
   const zip = data.subarray(12 + headerSize);
 
   const signedData = header.get(10000)?.[0];
   const crxId = signedData ? fields(signedData).get(1)?.[0] : undefined;
-  if (!signedData || !crxId || crxId.length !== 16) throw new CrxError('Il pacchetto non indica la propria identità');
+  if (!signedData || !crxId || crxId.length !== 16) throw new CrxError(tr('Il pacchetto non indica la propria identità'));
   const id = idFromBytes(crxId);
 
   // What every signature covers.
@@ -99,9 +100,9 @@ export function parseCrx(data: Buffer): CrxPackage {
   }
   // The developer's key is the one the ID comes from; its signature is required.
   const own = proofs.find((p) => extensionId(p.key) === id);
-  if (!own) throw new CrxError('Il pacchetto non è firmato dal suo sviluppatore');
+  if (!own) throw new CrxError(tr('Il pacchetto non è firmato dal suo sviluppatore'));
   const ok = verify('sha256', signed, { key: own.key, format: 'der', type: 'spki', ...(own.ecdsa ? { dsaEncoding: 'der' as const } : {}) }, own.signature);
-  if (!ok) throw new CrxError('La firma del pacchetto non è valida: il file è stato modificato');
+  if (!ok) throw new CrxError(tr('La firma del pacchetto non è valida: il file è stato modificato'));
   return { id, publicKey: own.key, zip };
 }
 

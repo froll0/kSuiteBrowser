@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { FiltersEngine, Request } from '@ghostery/adblocker';
 import { parse } from 'tldts';
 import type { TrackingProtection } from '../shared/types';
+import { localeTag, tr } from '../shared/i18n';
 
 /** Filter lists are refreshed once a week. */
 const MAX_CACHE_AGE_MS = 7 * 24 * 3600 * 1000;
@@ -45,8 +46,8 @@ export class TrackerBlocker {
 
   describe(): string | null {
     if (!this.engine || !this.loadedAt) return null;
-    const lists = this.level === 'strict' ? 'pubblicità, tracker e fastidi' : 'pubblicità e tracker';
-    return `${lists} · caricate il ${this.loadedAt.toLocaleString('it-IT')}`;
+    const lists = this.level === 'strict' ? tr('pubblicità, tracker e fastidi') : tr('pubblicità e tracker');
+    return tr('{0} · caricate il {1}', lists, this.loadedAt.toLocaleString(localeTag()));
   }
 
   /** Decision for a sub-resource request; main frames are never blocked. */

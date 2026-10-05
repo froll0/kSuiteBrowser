@@ -8,15 +8,16 @@ import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from '../../shared/url';
 import { ZOOM_STEPS } from '../../shared/zoom';
 import { hydrateIcons, logoMark } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
+import { LOCALES, LOCALE_NAMES, localeTag, tr } from '../../shared/i18n';
 
 const AI_PAGE = 'https://www.infomaniak.com/it/hosting/ai-services';
 const TOKEN_PAGE = 'https://manager.infomaniak.com/v3/ng/accounts/token/list';
 
 const PERMISSION_LABELS: Record<string, string> = {
-  media: 'Fotocamera e microfono',
-  notifications: 'Notifiche',
-  geolocation: 'Posizione',
-  'clipboard-read': 'Lettura appunti',
+  media: tr('Fotocamera e microfono'),
+  notifications: tr('Notifiche'),
+  geolocation: tr('Posizione'),
+  'clipboard-read': tr('Lettura appunti'),
 };
 
 const content = document.getElementById('content')!;
@@ -65,16 +66,16 @@ function radios<T extends string>(name: string, value: T, options: Array<{ value
 
 function hostList(items: string[], empty: string, onRemove: (host: string) => void): HTMLElement {
   if (items.length === 0) return h('p', { class: 'muted small' }, empty);
-  return h('ul', { class: 'list' }, ...items.map((host) => h('li', {}, h('span', {}, host), h('button', { class: 'link', onclick: () => onRemove(host) }, 'Rimuovi'))));
+  return h('ul', { class: 'list' }, ...items.map((host) => h('li', {}, h('span', {}, host), h('button', { class: 'link', onclick: () => onRemove(host) }, tr('Rimuovi')))));
 }
 
 // ---------- Sections ----------
 
 async function generalSection(): Promise<HTMLElement> {
-  const home = h('input', { type: 'url', value: settings.homePage, 'aria-label': 'Pagina iniziale' });
+  const home = h('input', { type: 'url', value: settings.homePage, 'aria-label': tr('Pagina iniziale') });
   home.addEventListener('change', () => void update({ homePage: home.value }));
 
-  const engine = h('select', { 'aria-label': 'Motore di ricerca' }, ...Object.entries(SEARCH_ENGINES).map(([id, e]) => h('option', { value: id, selected: settings.searchEngine === id }, e.name)));
+  const engine = h('select', { 'aria-label': tr('Motore di ricerca') }, ...Object.entries(SEARCH_ENGINES).map(([id, e]) => h('option', { value: id, selected: settings.searchEngine === id }, e.name)));
   engine.addEventListener('change', () => void update({ searchEngine: engine.value as Settings['searchEngine'] }));
 
   const folder = await internal.downloadDir();
@@ -85,42 +86,66 @@ async function generalSection(): Promise<HTMLElement> {
     : h('button', {
         onclick: async () => {
           const ok = await internal.defaultBrowser.set();
-          defaultMsg.textContent = ok ? 'Fatto: i link delle altre app si apriranno qui.' : 'Scegli Velo nelle impostazioni del sistema che si sono aperte (App predefinite › Browser web).';
+          defaultMsg.textContent = ok ? tr('Fatto: i link delle altre app si apriranno qui.') : tr('Scegli Velo nelle impostazioni del sistema che si sono aperte (App predefinite › Browser web).');
           defaultMsg.className = `message ${ok ? 'ok' : ''}`;
           if (ok) void render();
         },
-      }, 'Imposta come predefinito');
+      }, tr('Imposta come predefinito'));
   const folderControls = h(
     'div',
     { class: 'control' },
-    h('button', { onclick: async () => { if (await internal.chooseDownloadDir()) void render(); } }, 'Cambia…'),
-    settings.downloadDir ? h('button', { onclick: () => void update({ downloadDir: null }).then(render) }, 'Predefinita') : null,
+    h('button', { onclick: async () => { if (await internal.chooseDownloadDir()) void render(); } }, tr('Cambia…')),
+    settings.downloadDir ? h('button', { onclick: () => void update({ downloadDir: null }).then(render) }, tr('Predefinita')) : null,
   );
+
+  const langInfo = await internal.localeInfo();
+  const langMsg = h('span', { class: 'message', role: 'status' });
+  const restartBtn = h('button', { onclick: () => void internal.restart() }, tr('Riavvia ora'));
+  const showRestart = (value: Settings['language']) => {
+    const target = value === 'system' ? langInfo.system : value;
+    const same = target === langInfo.current;
+    // Through CSSOM: the button styles would override the hidden attribute.
+    restartBtn.style.display = same ? 'none' : '';
+    langMsg.textContent = same ? '' : tr('La nuova lingua si applica al riavvio.');
+  };
+  const language = h(
+    'select',
+    { 'aria-label': tr('Lingua') },
+    h('option', { value: 'system', selected: settings.language === 'system' }, tr('Come il sistema ({0})', LOCALE_NAMES[langInfo.system])),
+    ...LOCALES.map((l) => h('option', { value: l, selected: settings.language === l }, LOCALE_NAMES[l])),
+  );
+  language.addEventListener('change', () => {
+    const value = language.value as Settings['language'];
+    void update({ language: value });
+    showRestart(value);
+  });
+  showRestart(settings.language);
 
   return section(
     'general',
-    'Generale',
-    row('Browser predefinito', isDefault ? 'Velo è il tuo browser predefinito: i link delle altre app si aprono qui.' : h('span', {}, 'I link delle email e delle altre app si aprono in un altro browser. ', defaultMsg), defaultBtn),
-    h('div', { class: 'row stack', 'data-search': 'avvio sessione schede pagina iniziale' },
-      h('div', { class: 'title' }, 'All’avvio'),
+    tr('Generale'),
+    row(tr('Lingua'), h('span', {}, tr('La lingua di menu, pagine e messaggi di Velo. '), langMsg), h('div', { class: 'control' }, language, restartBtn)),
+    row(tr('Browser predefinito'), isDefault ? tr('Velo è il tuo browser predefinito: i link delle altre app si aprono qui.') : h('span', {}, tr('I link delle email e delle altre app si aprono in un altro browser. '), defaultMsg), defaultBtn),
+    h('div', { class: 'row stack', 'data-search': tr('avvio sessione schede pagina iniziale') },
+      h('div', { class: 'title' }, tr('All’avvio')),
       radios('startup', settings.startup, [
-        { value: 'restore', title: 'Riapri le schede della sessione precedente' },
-        { value: 'home', title: 'Apri la pagina iniziale' },
+        { value: 'restore', title: tr('Riapri le schede della sessione precedente') },
+        { value: 'home', title: tr('Apri la pagina iniziale') },
       ], (v) => void update({ startup: v })),
     ),
-    row('Pagina iniziale', 'Si apre all’avvio (se non riapri la sessione precedente) e nelle nuove schede se scegli così qui sotto.', home),
-    h('div', { class: 'row stack', 'data-search': 'nuova scheda pagina siti più visitati' },
-      h('div', { class: 'title' }, 'Le nuove schede aprono'),
+    row(tr('Pagina iniziale'), tr('Si apre all’avvio (se non riapri la sessione precedente) e nelle nuove schede se scegli così qui sotto.'), home),
+    h('div', { class: 'row stack', 'data-search': tr('nuova scheda pagina siti più visitati') },
+      h('div', { class: 'title' }, tr('Le nuove schede aprono')),
       radios('newtab', settings.newTabPage, [
-        { value: 'newtab', title: 'La pagina nuova scheda', desc: 'Ricerca, siti più visitati e le tue app.' },
-        { value: 'home', title: 'La pagina iniziale' },
+        { value: 'newtab', title: tr('La pagina nuova scheda'), desc: tr('Ricerca, siti più visitati e le tue app.') },
+        { value: 'home', title: tr('La pagina iniziale') },
       ], (v) => void update({ newTabPage: v }), true),
     ),
-    row('Motore di ricerca', 'Usato nella barra degli indirizzi. “Velo” cerca insieme in preferiti e cronologia (e, con un account Infomaniak, in file, email, contatti ed eventi) e ti porta sul web con un clic.', engine),
-    row('Motore per il web', 'Usato dalla ricerca unificata per i risultati sul web.', webEngineSelect()),
-    row('Metti in pausa le schede inattive', 'Le schede non usate da un po’ chiudono la pagina per liberare memoria e si ricaricano quando le apri. Mai quelle fissate, delle app, con audio in riproduzione o con moduli compilati.', sleepSelect()),
-    row('Cartella dei download', folder, folderControls),
-    row('Chiedi dove salvare ogni file', 'Mostra la finestra “Salva con nome” per ogni download.', toggle('askDownloadLocation', 'Chiedi dove salvare')),
+    row(tr('Motore di ricerca'), tr('Usato nella barra degli indirizzi. “Velo” cerca insieme in preferiti e cronologia (e, con un account Infomaniak, in file, email, contatti ed eventi) e ti porta sul web con un clic.'), engine),
+    row(tr('Motore per il web'), tr('Usato dalla ricerca unificata per i risultati sul web.'), webEngineSelect()),
+    row(tr('Metti in pausa le schede inattive'), tr('Le schede non usate da un po’ chiudono la pagina per liberare memoria e si ricaricano quando le apri. Mai quelle fissate, delle app, con audio in riproduzione o con moduli compilati.'), sleepSelect()),
+    row(tr('Cartella dei download'), folder, folderControls),
+    row(tr('Chiedi dove salvare ogni file'), tr('Mostra la finestra “Salva con nome” per ogni download.'), toggle('askDownloadLocation', tr('Chiedi dove salvare'))),
   );
 }
 
@@ -174,7 +199,7 @@ function segmented<T extends string | number>(label: string, value: T, options: 
 }
 
 function accentPicker(): HTMLElement {
-  const custom = h('input', { type: 'color', value: settings.accentColor, 'aria-label': 'Colore personalizzato', title: 'Scegli un altro colore' });
+  const custom = h('input', { type: 'color', value: settings.accentColor, 'aria-label': tr('Colore personalizzato'), title: tr('Scegli un altro colore') });
   const swatches = ACCENT_PRESETS.map((p) => {
     const b = h('button', { type: 'button', class: 'swatch', title: p.name, 'aria-label': p.name });
     // Through the CSSOM: the page's security policy forbids inline style attributes.
@@ -194,13 +219,13 @@ function accentPicker(): HTMLElement {
     });
   };
   custom.addEventListener('input', () => pick(custom.value));
-  const el = h('div', { class: 'swatches' }, ...swatches, h('label', { class: 'swatch custom', title: 'Scegli un altro colore' }, custom));
+  const el = h('div', { class: 'swatches' }, ...swatches, h('label', { class: 'swatch custom', title: tr('Scegli un altro colore') }, custom));
   queueMicrotask(mark);
   return el;
 }
 
 function radiusSlider(): HTMLElement {
-  const input = h('input', { type: 'range', min: String(RADIUS_RANGE.min), max: String(RADIUS_RANGE.max), step: '1', value: String(settings.cornerRadius), 'aria-label': 'Arrotondamento degli angoli' });
+  const input = h('input', { type: 'range', min: String(RADIUS_RANGE.min), max: String(RADIUS_RANGE.max), step: '1', value: String(settings.cornerRadius), 'aria-label': tr('Arrotondamento degli angoli') });
   const out = h('output', {}, `${settings.cornerRadius} px`);
   let timer: number | undefined;
   input.addEventListener('input', () => {
@@ -210,7 +235,7 @@ function radiusSlider(): HTMLElement {
     window.clearTimeout(timer);
     timer = window.setTimeout(() => look({ cornerRadius: Number(input.value) }), 120);
   });
-  return h('div', { class: 'range' }, h('span', { class: 'muted small' }, 'Squadrati'), input, h('span', { class: 'muted small' }, 'Tondi'), out);
+  return h('div', { class: 'range' }, h('span', { class: 'muted small' }, tr('Squadrati')), input, h('span', { class: 'muted small' }, tr('Tondi')), out);
 }
 
 function toolbarEditor(): HTMLElement {
@@ -226,7 +251,7 @@ function toolbarEditor(): HTMLElement {
     const def = TOOLBAR_ITEMS[id];
     const inBar = lane !== 'available';
     // In the two bar lanes the buttons look like in the real toolbar (icon only); the name is in the tooltip.
-    const c = h('div', { class: `chip${inBar ? ' in-bar' : ''}`, draggable: 'true', 'data-id': id, title: inBar ? `${def.label} — trascina per spostare` : 'Clic o trascina per aggiungere' },
+    const c = h('div', { class: `chip${inBar ? ' in-bar' : ''}`, draggable: 'true', 'data-id': id, title: inBar ? tr('{0} — trascina per spostare', def.label) : tr('Clic o trascina per aggiungere') },
       h('span', { 'data-icon': def.icon, 'data-size': inBar ? '18' : '16' }), inBar ? null : h('span', {}, def.label));
     c.tabIndex = 0;
     if (lane === 'available') {
@@ -239,7 +264,7 @@ function toolbarEditor(): HTMLElement {
         }
       });
     } else {
-      c.setAttribute('aria-label', `${def.label}: Canc per togliere, frecce per spostare`);
+      c.setAttribute('aria-label', tr('{0}: Canc per togliere, frecce per spostare', def.label));
       c.addEventListener('keydown', (e) => {
         const start = [...settings.toolbarStart];
         const end = [...settings.toolbarEnd];
@@ -259,7 +284,7 @@ function toolbarEditor(): HTMLElement {
         refocus = id;
         save(start, end);
       });
-      const remove = h('button', { type: 'button', class: 'chip-x', title: 'Togli dalla barra', 'aria-label': `Togli ${def.label} dalla barra`, 'data-icon': 'close', 'data-size': '13' });
+      const remove = h('button', { type: 'button', class: 'chip-x', title: tr('Togli dalla barra'), 'aria-label': tr('Togli {0} dalla barra', def.label), 'data-icon': 'close', 'data-size': '13' });
       remove.addEventListener('click', () => save(settings.toolbarStart.filter((x) => x !== id), settings.toolbarEnd.filter((x) => x !== id)));
       c.append(remove);
     }
@@ -309,18 +334,18 @@ function toolbarEditor(): HTMLElement {
     lanes.toolbarEnd.replaceChildren(...settings.toolbarEnd.map((id) => chip(id, 'toolbarEnd')));
     const unused = TOOLBAR_ITEM_IDS.filter((id) => !settings.toolbarStart.includes(id) && !settings.toolbarEnd.includes(id));
     lanes.available.replaceChildren(...unused.map((id) => chip(id, 'available')));
-    if (!unused.length) lanes.available.append(h('span', { class: 'muted small' }, 'Tutti i pulsanti sono già nella barra.'));
+    if (!unused.length) lanes.available.append(h('span', { class: 'muted small' }, tr('Tutti i pulsanti sono già nella barra.')));
     hydrateIcons(el);
     if (refocus) el.querySelector<HTMLElement>(`.lane-row .chip[data-id="${refocus}"]`)?.focus();
     refocus = null;
   };
   const el = h('div', { class: 'toolbar-editor' },
     h('div', { class: 'lane-row' },
-      h('div', { class: 'lane-box' }, h('div', { class: 'lane-title' }, 'Prima dell’indirizzo'), lanes.toolbarStart),
-      h('div', { class: 'omni-stub' }, h('span', { 'data-icon': 'search', 'data-size': '14' }), 'Indirizzo'),
-      h('div', { class: 'lane-box' }, h('div', { class: 'lane-title' }, 'Dopo l’indirizzo'), lanes.toolbarEnd),
-      h('div', { class: 'menu-stub', title: 'Il menu resta sempre in fondo' }, h('span', { 'data-icon': 'more', 'data-size': '16' }))),
-    h('div', { class: 'lane-box' }, h('div', { class: 'lane-title' }, 'Pulsanti disponibili'), lanes.available));
+      h('div', { class: 'lane-box' }, h('div', { class: 'lane-title' }, tr('Prima dell’indirizzo')), lanes.toolbarStart),
+      h('div', { class: 'omni-stub' }, h('span', { 'data-icon': 'search', 'data-size': '14' }), tr('Indirizzo')),
+      h('div', { class: 'lane-box' }, h('div', { class: 'lane-title' }, tr('Dopo l’indirizzo')), lanes.toolbarEnd),
+      h('div', { class: 'menu-stub', title: tr('Il menu resta sempre in fondo') }, h('span', { 'data-icon': 'more', 'data-size': '16' }))),
+    h('div', { class: 'lane-box' }, h('div', { class: 'lane-title' }, tr('Pulsanti disponibili')), lanes.available));
   draw();
   redrawToolbarEditor = draw;
   return el;
@@ -328,53 +353,53 @@ function toolbarEditor(): HTMLElement {
 let redrawToolbarEditor = () => {};
 
 function appearanceSection(): HTMLElement {
-  const font = h('select', { 'aria-label': 'Carattere dell’interfaccia' },
+  const font = h('select', { 'aria-label': tr('Carattere dell’interfaccia') },
     ...(Object.entries(UI_FONTS) as Array<[UiFont, { label: string; stack: string }]>).map(([id, f]) => {
       const option = h('option', { value: id, selected: settings.uiFont === id }, f.label);
       option.style.fontFamily = f.stack;
       return option;
     }));
   font.addEventListener('change', () => look({ uiFont: font.value as UiFont }));
-  const size = h('select', { 'aria-label': 'Dimensione del testo dell’interfaccia' },
-    ...FONT_SIZES.map((n) => h('option', { value: String(n), selected: settings.uiFontSize === n }, n === 13 ? `${n} px (predefinita)` : `${n} px`)));
+  const size = h('select', { 'aria-label': tr('Dimensione del testo dell’interfaccia') },
+    ...FONT_SIZES.map((n) => h('option', { value: String(n), selected: settings.uiFontSize === n }, n === 13 ? tr('{0} px (predefinita)', n) : `${n} px`)));
   size.addEventListener('change', () => look({ uiFontSize: Number(size.value) }));
 
   return section(
     'appearance',
-    'Aspetto',
-    h('div', { class: 'row stack preview-row', 'data-search': 'anteprima aspetto' }, preview()),
-    row('Tema', null, segmented('Tema', settings.theme, [
-      { value: 'system', title: 'Sistema', icon: 'monitor' },
-      { value: 'light', title: 'Chiaro', icon: 'sun' },
-      { value: 'dark', title: 'Scuro', icon: 'moon' },
+    tr('Aspetto'),
+    h('div', { class: 'row stack preview-row', 'data-search': tr('anteprima aspetto') }, preview()),
+    row(tr('Tema'), null, segmented(tr('Tema'), settings.theme, [
+      { value: 'system', title: tr('Sistema'), icon: 'monitor' },
+      { value: 'light', title: tr('Chiaro'), icon: 'sun' },
+      { value: 'dark', title: tr('Scuro'), icon: 'moon' },
     ], (v) => look({ theme: v }))),
-    row('Colore d’accento', 'Pulsanti, selezioni, link e la tinta dello sfondo.', accentPicker()),
-    row('Tavolozza', 'I toni neutri di superfici e testi.', segmented('Tavolozza', settings.palette, [
-      { value: 'standard', title: 'Neutra' },
-      { value: 'warm', title: 'Calda' },
-      { value: 'contrast', title: 'Alto contrasto' },
+    row(tr('Colore d’accento'), tr('Pulsanti, selezioni, link e la tinta dello sfondo.'), accentPicker()),
+    row(tr('Tavolozza'), tr('I toni neutri di superfici e testi.'), segmented(tr('Tavolozza'), settings.palette, [
+      { value: 'standard', title: tr('Neutra') },
+      { value: 'warm', title: tr('Calda') },
+      { value: 'contrast', title: tr('Alto contrasto') },
     ], (v) => look({ palette: v }))),
-    row('Sfondo della finestra', 'Il colore intorno alla pagina.', segmented('Sfondo', settings.backdrop, [
-      { value: 'neutral', title: 'Neutro' },
-      { value: 'tint', title: 'Tinta' },
-      { value: 'gradient', title: 'Sfumato' },
+    row(tr('Sfondo della finestra'), tr('Il colore intorno alla pagina.'), segmented(tr('Sfondo'), settings.backdrop, [
+      { value: 'neutral', title: tr('Neutro') },
+      { value: 'tint', title: tr('Tinta') },
+      { value: 'gradient', title: tr('Sfumato') },
     ], (v) => look({ backdrop: v }))),
-    row('La pagina', 'Sospesa come una tela con i bordi arrotondati, oppure da bordo a bordo.', segmented('Pagina', settings.canvasStyle, [
-      { value: 'floating', title: 'Tela sospesa' },
+    row(tr('La pagina'), tr('Sospesa come una tela con i bordi arrotondati, oppure da bordo a bordo.'), segmented(tr('Pagina'), settings.canvasStyle, [
+      { value: 'floating', title: tr('Tela sospesa') },
       { value: 'flush', title: 'Bordo a bordo' },
     ], (v) => look({ canvasStyle: v }))),
-    row('Angoli', 'Quanto sono arrotondati pagina, schede, pulsanti e riquadri.', radiusSlider()),
-    row('Densità', 'Lo spazio intorno a schede e pulsanti.', segmented('Densità', settings.density, [
-      { value: 'compact', title: 'Compatta' },
-      { value: 'normal', title: 'Normale' },
-      { value: 'comfortable', title: 'Ariosa' },
+    row(tr('Angoli'), tr('Quanto sono arrotondati pagina, schede, pulsanti e riquadri.'), radiusSlider()),
+    row(tr('Densità'), tr('Lo spazio intorno a schede e pulsanti.'), segmented(tr('Densità'), settings.density, [
+      { value: 'compact', title: tr('Compatta') },
+      { value: 'normal', title: tr('Normale') },
+      { value: 'comfortable', title: tr('Ariosa') },
     ], (v) => look({ density: v }))),
-    row('Carattere', 'Per schede, barre, menu e pagine del browser.', h('div', { class: 'control' }, font, size)),
-    row('Icone delle app', null, segmented('Icone app', settings.appIconStyle, [
-      { value: 'mono', title: 'Essenziali' },
-      { value: 'color', title: 'Colorate' },
+    row(tr('Carattere'), tr('Per schede, barre, menu e pagine del browser.'), h('div', { class: 'control' }, font, size)),
+    row(tr('Icone delle app'), null, segmented(tr('Icone app'), settings.appIconStyle, [
+      { value: 'mono', title: tr('Essenziali') },
+      { value: 'color', title: tr('Colorate') },
     ], (v) => look({ appIconStyle: v }))),
-    row('Ripristina', 'Torna ai colori, alle forme e alla disposizione iniziali.', h('button', {
+    row(tr('Ripristina'), tr('Torna ai colori, alle forme e alla disposizione iniziali.'), h('button', {
       onclick: () => {
         const d = DEFAULT_SETTINGS;
         void update({
@@ -383,46 +408,46 @@ function appearanceSection(): HTMLElement {
           toolbarStart: d.toolbarStart, toolbarEnd: d.toolbarEnd, showFullUrl: d.showFullUrl, sideTabsWidth: d.sideTabsWidth, sideTabsCollapsed: d.sideTabsCollapsed,
         }).then(render);
       },
-    }, 'Ripristina l’aspetto')),
+    }, tr('Ripristina l’aspetto'))),
   );
 }
 
 function layoutSection(): HTMLElement {
   return section(
     'layout',
-    'Disposizione',
-    h('div', { class: 'row stack', 'data-search': 'schede posizione disposizione riga laterali verticali' },
-      h('div', { class: 'title' }, 'Schede'),
+    tr('Disposizione'),
+    h('div', { class: 'row stack', 'data-search': tr('schede posizione disposizione riga laterali verticali') },
+      h('div', { class: 'title' }, tr('Schede')),
       radios('tabsLayout', settings.tabsLayout, [
-        { value: 'inline', title: 'Su una riga', desc: 'Schede e indirizzo insieme: più spazio alla pagina.' },
-        { value: 'top', title: 'Sopra l’indirizzo', desc: 'Due righe, più spazio alle schede.' },
-        { value: 'side', title: 'Di lato', desc: 'Una colonna verticale, ridimensionabile e riducibile.' },
+        { value: 'inline', title: tr('Su una riga'), desc: tr('Schede e indirizzo insieme: più spazio alla pagina.') },
+        { value: 'top', title: tr('Sopra l’indirizzo'), desc: tr('Due righe, più spazio alle schede.') },
+        { value: 'side', title: tr('Di lato'), desc: tr('Una colonna verticale, ridimensionabile e riducibile.') },
       ], (v) => look({ tabsLayout: v }), true),
     ),
-    row('Barra delle app', 'Compare quando colleghi un account Infomaniak: Mail, kDrive, Calendar e le altre app.', segmented('Barra delle app', settings.railPosition, [
-      { value: 'left', title: 'A sinistra' },
-      { value: 'right', title: 'A destra' },
-      { value: 'hidden', title: 'Nascosta' },
+    row(tr('Barra delle app'), tr('Compare quando colleghi un account Infomaniak: Mail, kDrive, Calendar e le altre app.'), segmented(tr('Barra delle app'), settings.railPosition, [
+      { value: 'left', title: tr('A sinistra') },
+      { value: 'right', title: tr('A destra') },
+      { value: 'hidden', title: tr('Nascosta') },
     ], (v) => look({ railPosition: v }))),
-    row('Barra dei preferiti', h('span', {}, 'Sotto la barra degli indirizzi (Ctrl+Shift+B). ', h('a', { href: 'velo://bookmarks/' }, 'Gestisci preferiti')), toggle('showBookmarksBar', 'Mostra barra dei preferiti')),
-    row('Indirizzo completo', 'Mostra sempre “https://” e “www.”; altrimenti compaiono solo quando modifichi l’indirizzo.', toggle('showFullUrl', 'Mostra l’indirizzo completo')),
-    h('div', { class: 'row stack', 'data-search': 'barra degli strumenti pulsanti personalizza ordine' },
+    row(tr('Barra dei preferiti'), h('span', {}, tr('Sotto la barra degli indirizzi (Ctrl+Shift+B). '), h('a', { href: 'velo://bookmarks/' }, tr('Gestisci preferiti'))), toggle('showBookmarksBar', tr('Mostra barra dei preferiti'))),
+    row(tr('Indirizzo completo'), tr('Mostra sempre “https://” e “www.”; altrimenti compaiono solo quando modifichi l’indirizzo.'), toggle('showFullUrl', tr('Mostra l’indirizzo completo'))),
+    h('div', { class: 'row stack', 'data-search': tr('barra degli strumenti pulsanti personalizza ordine') },
       h('div', { class: 'text' },
-        h('div', { class: 'title' }, 'Barra degli strumenti'),
-        h('div', { class: 'desc' }, 'Trascina i pulsanti per riordinarli o spostarli; clic su un pulsante disponibile per aggiungerlo. Anche il clic destro sulla barra permette di togliere o aggiungere pulsanti.')),
+        h('div', { class: 'title' }, tr('Barra degli strumenti')),
+        h('div', { class: 'desc' }, tr('Trascina i pulsanti per riordinarli o spostarli; clic su un pulsante disponibile per aggiungerlo. Anche il clic destro sulla barra permette di togliere o aggiungere pulsanti.'))),
       toolbarEditor(),
     ),
-    h('div', { class: 'row stack', 'data-search': 'nuova scheda sfondo saluto app siti' },
-      h('div', { class: 'title' }, 'Pagina nuova scheda'),
+    h('div', { class: 'row stack', 'data-search': tr('nuova scheda sfondo saluto app siti') },
+      h('div', { class: 'title' }, tr('Pagina nuova scheda')),
       h('div', { class: 'newtab-options' },
-        segmented('Sfondo della nuova scheda', settings.newTabBackground, [
-          { value: 'plain', title: 'Semplice' },
-          { value: 'tint', title: 'Tinta' },
-          { value: 'gradient', title: 'Sfumata' },
+        segmented(tr('Sfondo della nuova scheda'), settings.newTabBackground, [
+          { value: 'plain', title: tr('Semplice') },
+          { value: 'tint', title: tr('Tinta') },
+          { value: 'gradient', title: tr('Sfumata') },
         ], (v) => look({ newTabBackground: v })),
-        h('label', { class: 'check' }, checkbox('newTabShowGreeting'), 'Saluto'),
-        h('label', { class: 'check' }, checkbox('showTopSites'), 'Siti più visitati'),
-        h('label', { class: 'check' }, checkbox('newTabShowApps'), 'Le tue app')),
+        h('label', { class: 'check' }, checkbox('newTabShowGreeting'), tr('Saluto')),
+        h('label', { class: 'check' }, checkbox('showTopSites'), tr('Siti più visitati')),
+        h('label', { class: 'check' }, checkbox('newTabShowApps'), tr('Le tue app'))),
     ),
   );
 }
@@ -437,9 +462,9 @@ function zoomSection(): HTMLElement {
   return section(
     'zoom',
     'Zoom',
-    row('Zoom predefinito', 'Per le pagine senza uno zoom scelto da te. Ctrl + e Ctrl − cambiano lo zoom di un sito, Ctrl+0 lo ripristina.', zoomSelect()),
-    h('div', { class: 'row stack', 'data-search': 'zoom siti ingrandimento' },
-      h('div', { class: 'title' }, 'Zoom dei siti'),
+    row(tr('Zoom predefinito'), tr('Per le pagine senza uno zoom scelto da te. Ctrl + e Ctrl − cambiano lo zoom di un sito, Ctrl+0 lo ripristina.'), zoomSelect()),
+    h('div', { class: 'row stack', 'data-search': tr('zoom siti ingrandimento') },
+      h('div', { class: 'title' }, tr('Zoom dei siti')),
       Object.keys(settings.siteZoom).length
         ? h('ul', { class: 'list' }, ...Object.entries(settings.siteZoom).sort().map(([host, zoom]) =>
             h('li', {}, h('span', {}, h('strong', {}, host), ` · ${zoom}%`),
@@ -447,51 +472,51 @@ function zoomSection(): HTMLElement {
                 const next = { ...settings.siteZoom };
                 delete next[host];
                 void update({ siteZoom: next }).then(render);
-              } }, 'Rimuovi'))))
-        : h('p', { class: 'muted small' }, 'Nessun sito con uno zoom personalizzato.'),
+              } }, tr('Rimuovi')))))
+        : h('p', { class: 'muted small' }, tr('Nessun sito con uno zoom personalizzato.')),
     ),
   );
 }
 
 function webEngineSelect(): HTMLElement {
-  const select = h('select', { 'aria-label': 'Motore per il web' }, ...Object.entries(WEB_SEARCH_ENGINES).map(([id, e]) => h('option', { value: id, selected: settings.webSearchEngine === id }, e.name)));
+  const select = h('select', { 'aria-label': tr('Motore per il web') }, ...Object.entries(WEB_SEARCH_ENGINES).map(([id, e]) => h('option', { value: id, selected: settings.webSearchEngine === id }, e.name)));
   select.addEventListener('change', () => void update({ webSearchEngine: select.value as Settings['webSearchEngine'] }));
   return select;
 }
 
 function sleepSelect(): HTMLElement {
-  const label = (m: number) => (m === 0 ? 'Mai' : m < 60 ? `Dopo ${m} minuti` : m === 60 ? 'Dopo 1 ora' : `Dopo ${m / 60} ore`);
-  const select = h('select', { 'aria-label': 'Metti in pausa le schede inattive' }, ...SLEEP_MINUTES.map((m) => h('option', { value: String(m), selected: settings.sleepTabsAfter === m }, label(m))));
+  const label = (m: number) => (m === 0 ? tr('Mai') : m < 60 ? tr('Dopo {0} minuti', m) : m === 60 ? tr('Dopo 1 ora') : tr('Dopo {0} ore', m / 60));
+  const select = h('select', { 'aria-label': tr('Metti in pausa le schede inattive') }, ...SLEEP_MINUTES.map((m) => h('option', { value: String(m), selected: settings.sleepTabsAfter === m }, label(m))));
   select.addEventListener('change', () => void update({ sleepTabsAfter: Number(select.value) }));
   return select;
 }
 
 function zoomSelect(): HTMLElement {
-  const select = h('select', { 'aria-label': 'Zoom predefinito' }, ...ZOOM_STEPS.map((z) => h('option', { value: String(z), selected: settings.defaultZoom === z }, `${z}%`)));
+  const select = h('select', { 'aria-label': tr('Zoom predefinito') }, ...ZOOM_STEPS.map((z) => h('option', { value: String(z), selected: settings.defaultZoom === z }, `${z}%`)));
   select.addEventListener('change', () => void update({ defaultZoom: Number(select.value) }));
   return select;
 }
 
 async function notificationsSection(): Promise<HTMLElement> {
   const status = await internal.tokenStatus();
-  const lead = h('select', { 'aria-label': 'Anticipo del promemoria' }, ...REMINDER_MINUTES.map((m) => h('option', { value: String(m), selected: settings.eventReminderMinutes === m }, m === 60 ? '1 ora prima' : `${m} minuti prima`)));
+  const lead = h('select', { 'aria-label': tr('Anticipo del promemoria') }, ...REMINDER_MINUTES.map((m) => h('option', { value: String(m), selected: settings.eventReminderMinutes === m }, m === 60 ? tr('1 ora prima') : tr('{0} minuti prima', m))));
   lead.addEventListener('change', () => void update({ eventReminderMinutes: Number(lead.value) }));
   const message = h('span', { class: 'message', role: 'status' });
   const test = h('button', {
     onclick: async () => {
       const ok = await internal.testNotification();
-      message.textContent = ok ? 'Notifica inviata: se non la vedi, controlla le impostazioni di notifica del sistema operativo.' : 'Il sistema operativo non supporta le notifiche.';
+      message.textContent = ok ? tr('Notifica inviata: se non la vedi, controlla le impostazioni di notifica del sistema operativo.') : tr('Il sistema operativo non supporta le notifiche.');
       message.className = `message ${ok ? 'ok' : 'error'}`;
     },
-  }, 'Prova');
+  }, tr('Prova'));
   return section(
     'notifications',
-    'Notifiche',
-    status.configured ? null : row('Collega un account Infomaniak', h('span', {}, 'Le notifiche usano il token API. ', h('a', { href: '#account' }, 'Configuralo qui.')), null),
-    row('Nuove email', 'Controlla la posta in arrivo ogni 2 minuti e ti avvisa dei nuovi messaggi. Clic sulla notifica per aprire Mail.', toggle('notifyMail', 'Notifiche per le nuove email')),
-    row('Promemoria degli eventi', 'Avvisa prima dell’inizio degli eventi di Calendar (non per quelli di tutto il giorno).', toggle('notifyEvents', 'Promemoria degli eventi')),
-    row('Anticipo del promemoria', null, lead),
-    row('Prova le notifiche', message, test),
+    tr('Notifiche'),
+    status.configured ? null : row(tr('Collega un account Infomaniak'), h('span', {}, tr('Le notifiche usano il token API. '), h('a', { href: '#account' }, tr('Configuralo qui.'))), null),
+    row(tr('Nuove email'), tr('Controlla la posta in arrivo ogni 2 minuti e ti avvisa dei nuovi messaggi. Clic sulla notifica per aprire Mail.'), toggle('notifyMail', tr('Notifiche per le nuove email'))),
+    row(tr('Promemoria degli eventi'), tr('Avvisa prima dell’inizio degli eventi di Calendar (non per quelli di tutto il giorno).'), toggle('notifyEvents', tr('Promemoria degli eventi'))),
+    row(tr('Anticipo del promemoria'), null, lead),
+    row(tr('Prova le notifiche'), message, test),
   );
 }
 
@@ -499,41 +524,41 @@ async function passwordsSection(): Promise<HTMLElement> {
   const status = await internal.passwordStatus();
   const state =
     status.state === 'needs-setup'
-      ? 'Il portachiavi di sistema non è disponibile: imposta una password principale per poter salvare le password.'
+      ? tr('Il portachiavi di sistema non è disponibile: imposta una password principale per poter salvare le password.')
       : status.hasPrimary
-        ? 'Protette dalla password principale.'
-        : 'Cifrate con il portachiavi del sistema operativo.';
+        ? tr('Protette dalla password principale.')
+        : tr('Cifrate con il portachiavi del sistema operativo.');
   return section(
     'passwords',
     'Password',
-    row('Offri di salvare le password', 'Dopo un accesso compare una barra per salvare nome utente e password.', toggle('offerToSavePasswords', 'Offri di salvare le password')),
-    row('Avvisami se salvo una password violata', 'Quando salvi una password il browser controlla se compare in violazioni di dati note (Have I Been Pwned): esce solo l’inizio della sua impronta SHA-1, mai la password.', toggle('breachCheckOnSave', 'Avvisa per le password violate')),
-    row('Compila automaticamente', 'Se per un sito c’è un solo accesso salvato, il modulo viene compilato all’apertura (solo su pagine HTTPS). Altrimenti clicca nel campo per scegliere.', toggle('autofillPasswords', 'Compila automaticamente')),
-    row('Password salvate', state, h('a', { href: 'velo://passwords/', class: 'button-link' }, 'Gestisci password')),
+    row(tr('Offri di salvare le password'), tr('Dopo un accesso compare una barra per salvare nome utente e password.'), toggle('offerToSavePasswords', tr('Offri di salvare le password'))),
+    row(tr('Avvisami se salvo una password violata'), tr('Quando salvi una password il browser controlla se compare in violazioni di dati note (Have I Been Pwned): esce solo l’inizio della sua impronta SHA-1, mai la password.'), toggle('breachCheckOnSave', tr('Avvisa per le password violate'))),
+    row(tr('Compila automaticamente'), tr('Se per un sito c’è un solo accesso salvato, il modulo viene compilato all’apertura (solo su pagine HTTPS). Altrimenti clicca nel campo per scegliere.'), toggle('autofillPasswords', tr('Compila automaticamente'))),
+    row(tr('Password salvate'), state, h('a', { href: 'velo://passwords/', class: 'button-link' }, tr('Gestisci password'))),
   );
 }
 
 function drmRow(): HTMLElement {
-  const desc = h('span', {}, 'Permette ai servizi di streaming (Netflix, Disney+, Prime Video, Spotify…) di riprodurre film e musica protetti con Widevine. Il modulo è di Google e viene scaricato e aggiornato dai suoi server: per questo è spento finché non lo attivi. Vale dal prossimo avvio. ');
+  const desc = h('span', {}, tr('Permette ai servizi di streaming (Netflix, Disney+, Prime Video, Spotify…) di riprodurre film e musica protetti con Widevine. Il modulo è di Google e viene scaricato e aggiornato dai suoi server: per questo è spento finché non lo attivi. Vale dal prossimo avvio. '));
   void internal.drmStatus().then((st) => {
     desc.append(h('span', { class: 'muted' }, !st.supported
-      ? 'Non disponibile in questa versione del browser.'
+      ? tr('Non disponibile in questa versione del browser.')
       : st.ready
         ? `Widevine ${st.version ?? ''} pronto.`
-        : 'Widevine non ancora scaricato: serve una connessione a Internet (poi riavvia il browser).'));
+        : tr('Widevine non ancora scaricato: serve una connessione a Internet (poi riavvia il browser).')));
   });
-  return row('Contenuti protetti (DRM)', desc, toggle('drmOptIn', 'Consenti contenuti protetti'));
+  return row('Contenuti protetti (DRM)', desc, toggle('drmOptIn', tr('Consenti contenuti protetti')));
 }
 
 function dnsRow(): HTMLElement {
   const options: Array<[SecureDnsChoice, string]> = [
-    ['automatic', 'Automatico (consigliato)'],
+    ['automatic', tr('Automatico (consigliato)')],
     ...(Object.entries(SECURE_DNS_PROVIDERS) as Array<[SecureDnsChoice, { name: string }]>).map(([id, p]): [SecureDnsChoice, string] => [id, p.name]),
-    ['custom', 'Personalizzato…'],
-    ['off', 'Disattivato'],
+    ['custom', tr('Personalizzato…')],
+    ['off', tr('Disattivato')],
   ];
-  const select = h('select', { 'aria-label': 'DNS cifrato' }, ...options.map(([id, label]) => h('option', { value: id, selected: settings.secureDns === id }, label)));
-  const custom = h('input', { type: 'url', placeholder: 'https://dns.esempio.ch/dns-query', value: settings.secureDnsCustom, 'aria-label': 'Indirizzo DNS over HTTPS', spellcheck: false });
+  const select = h('select', { 'aria-label': tr('DNS cifrato') }, ...options.map(([id, label]) => h('option', { value: id, selected: settings.secureDns === id }, label)));
+  const custom = h('input', { type: 'url', placeholder: 'https://dns.esempio.ch/dns-query', value: settings.secureDnsCustom, 'aria-label': tr('Indirizzo DNS over HTTPS'), spellcheck: false });
   const message = h('span', { class: 'message', role: 'status' });
   const note = h('span', { class: 'muted' });
   const refresh = () => {
@@ -541,10 +566,10 @@ function dnsRow(): HTMLElement {
     custom.hidden = choice !== 'custom';
     const provider = SECURE_DNS_PROVIDERS[choice as keyof typeof SECURE_DNS_PROVIDERS];
     note.textContent = choice === 'automatic'
-      ? ' Cifrato con Quad9 (fondazione svizzera) quando è raggiungibile, altrimenti il DNS normale della rete: i siti si aprono sempre.'
+      ? tr(' Cifrato con Quad9 (fondazione svizzera) quando è raggiungibile, altrimenti il DNS normale della rete: i siti si aprono sempre.')
       : choice === 'off'
-        ? ' Le richieste DNS viaggiano in chiaro: il provider di rete vede i siti che apri.'
-        : ` ${provider?.note ?? ''} Se il servizio non è raggiungibile (alcune reti aziendali lo bloccano) i siti non si aprono: in quel caso scegli Automatico.`;
+        ? tr(' Le richieste DNS viaggiano in chiaro: il provider di rete vede i siti che apri.')
+        : tr(' {0} Se il servizio non è raggiungibile (alcune reti aziendali lo bloccano) i siti non si aprono: in quel caso scegli Automatico.', provider?.note ?? '');
   };
   select.addEventListener('change', () => {
     message.textContent = '';
@@ -554,21 +579,21 @@ function dnsRow(): HTMLElement {
   });
   custom.addEventListener('change', () => {
     const ok = validDohTemplate(custom.value);
-    message.textContent = ok ? 'Salvato' : 'Serve un indirizzo https:// completo, per esempio https://dns.quad9.net/dns-query';
+    message.textContent = ok ? tr('Salvato') : tr('Serve un indirizzo https:// completo, per esempio https://dns.quad9.net/dns-query');
     message.className = `message ${ok ? 'ok' : 'error'}`;
     if (ok) void update({ secureDns: 'custom', secureDnsCustom: custom.value.trim() });
   });
   refresh();
-  const desc = h('span', {}, 'Cifra le richieste con cui il browser trova l’indirizzo dei siti, così la rete (Wi-Fi pubblico, provider) non vede quali siti apri.', note);
+  const desc = h('span', {}, tr('Cifra le richieste con cui il browser trova l’indirizzo dei siti, così la rete (Wi-Fi pubblico, provider) non vede quali siti apri.'), note);
   return row('DNS cifrato (DNS over HTTPS)', desc, h('div', { class: 'control stack-control' }, select, custom, message));
 }
 
 function privacySection(): HTMLElement {
-  const threatDesc = h('span', {}, 'Blocca i siti che rubano password e dati e i download di malware conosciuti, con gli elenchi pubblici usati da uBlock Origin, controllati sul tuo computer. ');
+  const threatDesc = h('span', {}, tr('Blocca i siti che rubano password e dati e i download di malware conosciuti, con gli elenchi pubblici usati da uBlock Origin, controllati sul tuo computer. '));
   void internal.threatStatus().then((st) => {
     threatDesc.append(h('span', { class: 'muted' }, st.entries
-      ? `${st.entries.toLocaleString('it-IT')} siti nell’elenco${st.loadedAt ? `, aggiornato il ${new Date(st.loadedAt).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}` : ''}.`
-      : 'Elenchi non ancora scaricati.'));
+      ? tr('{0} siti nell’elenco{1}.', st.entries.toLocaleString(localeTag()), st.loadedAt ? tr(', aggiornato il {0}', new Date(st.loadedAt).toLocaleString(localeTag(), { dateStyle: 'short', timeStyle: 'short' })) : '')
+      : tr('Elenchi non ancora scaricati.')));
   });
   const selection: BrowsingDataSelection = { history: true, cookies: true, cache: true, downloads: false, permissions: false };
   const check = (key: keyof BrowsingDataSelection, label: string) => {
@@ -577,131 +602,131 @@ function privacySection(): HTMLElement {
     return h('label', {}, input, label);
   };
   const message = h('span', { class: 'message', role: 'status' });
-  const clearBtn = h('button', { class: 'primary' }, 'Cancella dati');
+  const clearBtn = h('button', { class: 'primary' }, tr('Cancella dati'));
   clearBtn.addEventListener('click', async () => {
     clearBtn.disabled = true;
-    message.textContent = 'Cancellazione in corso…';
+    message.textContent = tr('Cancellazione in corso…');
     message.className = 'message';
     const res = await internal.clearData({ ...selection });
     clearBtn.disabled = false;
-    message.textContent = res.ok ? 'Dati cancellati.' : res.error;
+    message.textContent = res.ok ? tr('Dati cancellati.') : res.error;
     message.className = `message ${res.ok ? 'ok' : 'error'}`;
   });
 
   return section(
     'privacy',
-    'Privacy e sicurezza',
-    row('Salva la cronologia', h('span', {}, 'Ricorda le pagine visitate (mai nelle finestre private). ', h('a', { href: 'velo://history/' }, 'Apri la cronologia')), toggle('saveHistory', 'Salva la cronologia')),
-    h('div', { class: 'row stack', 'data-search': 'protezione tracciamento tracker pubblicità blocco annunci cookie banner' },
-      h('div', { class: 'title' }, 'Protezione dal tracciamento'),
-      h('div', { class: 'desc muted small' }, 'Blocca le richieste verso tracker e reti pubblicitarie con le liste di Ghostery (EasyList, EasyPrivacy e altre), aggiornate ogni settimana.'),
+    tr('Privacy e sicurezza'),
+    row(tr('Salva la cronologia'), h('span', {}, tr('Ricorda le pagine visitate (mai nelle finestre private). '), h('a', { href: 'velo://history/' }, tr('Apri la cronologia'))), toggle('saveHistory', tr('Salva la cronologia'))),
+    h('div', { class: 'row stack', 'data-search': tr('protezione tracciamento tracker pubblicità blocco annunci cookie banner') },
+      h('div', { class: 'title' }, tr('Protezione dal tracciamento')),
+      h('div', { class: 'desc muted small' }, tr('Blocca le richieste verso tracker e reti pubblicitarie con le liste di Ghostery (EasyList, EasyPrivacy e altre), aggiornate ogni settimana.')),
       radios('tracking', settings.trackingProtection, [
-        { value: 'standard', title: 'Standard', desc: 'Blocca pubblicità e tracker. Consigliata.' },
-        { value: 'strict', title: 'Rigorosa', desc: 'Blocca anche banner dei cookie e altri fastidi. Qualche sito potrebbe non funzionare.' },
-        { value: 'off', title: 'Disattivata', desc: 'Nessun blocco.' },
+        { value: 'standard', title: 'Standard', desc: tr('Blocca pubblicità e tracker. Consigliata.') },
+        { value: 'strict', title: tr('Rigorosa'), desc: tr('Blocca anche banner dei cookie e altri fastidi. Qualche sito potrebbe non funzionare.') },
+        { value: 'off', title: tr('Disattivata'), desc: tr('Nessun blocco.') },
       ], (v) => void update({ trackingProtection: v }), true),
     ),
-    h('div', { class: 'row stack', 'data-search': 'impronta digitale fingerprinting canvas webgl audio anonimato' },
-      h('div', { class: 'title' }, 'Protezione dall’impronta digitale'),
-      h('div', { class: 'desc muted small' }, 'I siti possono riconoscerti senza cookie leggendo le caratteristiche del dispositivo (immagini canvas e WebGL, audio, processore, schermo, caratteri). Velo altera o uniforma questi valori.'),
+    h('div', { class: 'row stack', 'data-search': tr('impronta digitale fingerprinting canvas webgl audio anonimato') },
+      h('div', { class: 'title' }, tr('Protezione dall’impronta digitale')),
+      h('div', { class: 'desc muted small' }, tr('I siti possono riconoscerti senza cookie leggendo le caratteristiche del dispositivo (immagini canvas e WebGL, audio, processore, schermo, caratteri). Velo altera o uniforma questi valori.')),
       radios('fingerprint', settings.fingerprintProtection, [
-        { value: 'standard', title: 'Standard (consigliata)', desc: 'Valori leggermente diversi per ogni sito e a ogni avvio: un sito non può collegarti agli altri. Nessun sito smette di funzionare.' },
-        { value: 'strict', title: 'Rigorosa', desc: 'Valori uguali per tutti, come Tor Browser: letture canvas vuote, schermo arrotondato, lingua inglese, nessun elenco di dispositivi. Alcuni siti (editor di immagini, videochiamate) possono non funzionare.' },
-        { value: 'off', title: 'Disattivata', desc: 'I siti leggono i valori reali.' },
+        { value: 'standard', title: tr('Standard (consigliata)'), desc: tr('Valori leggermente diversi per ogni sito e a ogni avvio: un sito non può collegarti agli altri. Nessun sito smette di funzionare.') },
+        { value: 'strict', title: tr('Rigorosa'), desc: tr('Valori uguali per tutti, come Tor Browser: letture canvas vuote, schermo arrotondato, lingua inglese, nessun elenco di dispositivi. Alcuni siti (editor di immagini, videochiamate) possono non funzionare.') },
+        { value: 'off', title: tr('Disattivata'), desc: tr('I siti leggono i valori reali.') },
       ], (v) => void update({ fingerprintProtection: v }), true),
     ),
-    row('Blocca i cookie di terze parti', 'I contenuti di altri siti incorporati in una pagina (pulsanti social, pubblicità, tracker) non ricevono né impostano cookie tramite la rete: è il modo principale in cui ti seguono da un sito all’altro. I servizi del tuo account cloud, se collegato, non sono toccati.', toggle('blockThirdPartyCookies', 'Blocca cookie di terze parti')),
-    row('Chiedi ai siti di non tracciarti', 'Invia i segnali “Do Not Track” e Global Privacy Control (GPC). In alcuni Paesi il GPC ha valore legale.', toggle('doNotTrack', 'Invia DNT e GPC')),
+    row(tr('Blocca i cookie di terze parti'), tr('I contenuti di altri siti incorporati in una pagina (pulsanti social, pubblicità, tracker) non ricevono né impostano cookie tramite la rete: è il modo principale in cui ti seguono da un sito all’altro. I servizi del tuo account cloud, se collegato, non sono toccati.'), toggle('blockThirdPartyCookies', tr('Blocca cookie di terze parti'))),
+    row(tr('Chiedi ai siti di non tracciarti'), tr('Invia i segnali “Do Not Track” e Global Privacy Control (GPC). In alcuni Paesi il GPC ha valore legale.'), toggle('doNotTrack', tr('Invia DNT e GPC'))),
     drmRow(),
     dnsRow(),
-    h('div', { class: 'row stack', 'data-search': 'webrtc ip indirizzo vpn videochiamate' },
+    h('div', { class: 'row stack', 'data-search': tr('webrtc ip indirizzo vpn videochiamate') },
       h('div', { class: 'text' },
-        h('div', { class: 'title' }, 'Protezione dell’indirizzo IP (WebRTC)'),
-        h('div', { class: 'desc' }, 'Le videochiamate nel browser (WebRTC) possono rivelare ai siti il tuo indirizzo IP, anche quello reale quando usi una VPN.')),
+        h('div', { class: 'title' }, tr('Protezione dell’indirizzo IP (WebRTC)')),
+        h('div', { class: 'desc' }, tr('Le videochiamate nel browser (WebRTC) possono rivelare ai siti il tuo indirizzo IP, anche quello reale quando usi una VPN.'))),
       radios('webrtc', settings.webRtcProtection, [
-        { value: 'standard', title: 'Standard', desc: 'Come Chrome: indirizzi locali nascosti, IP pubblico visibile.' },
-        { value: 'public', title: 'Protetta (consigliata)', desc: 'Solo la connessione principale: con una VPN l’IP reale resta nascosto.' },
-        { value: 'proxy', title: 'Massima', desc: 'Nessun collegamento diretto: le videochiamate di altri siti potrebbero non funzionare.' },
+        { value: 'standard', title: 'Standard', desc: tr('Come Chrome: indirizzi locali nascosti, IP pubblico visibile.') },
+        { value: 'public', title: tr('Protetta (consigliata)'), desc: tr('Solo la connessione principale: con una VPN l’IP reale resta nascosto.') },
+        { value: 'proxy', title: tr('Massima'), desc: tr('Nessun collegamento diretto: le videochiamate di altri siti potrebbero non funzionare.') },
       ], (v) => void update({ webRtcProtection: v }), true),
     ),
-    row('Rimuovi i parametri di tracciamento dai link', 'Toglie dagli indirizzi le aggiunte che servono solo a seguirti tra i siti (utm_…, fbclid, gclid, msclkid…) prima di aprire la pagina. Non vale per i siti senza protezioni.', toggle('stripTrackingParams', 'Rimuovi i parametri di tracciamento')),
-    row('Protezione da phishing e malware', threatDesc, toggle('threatProtection', 'Protezione da phishing e malware')),
-    row('Modalità solo HTTPS', 'Carica sempre le pagine in modo cifrato. Se un sito non supporta HTTPS ti viene chiesto prima di continuare.', toggle('httpsOnly', 'Modalità solo HTTPS')),
-    h('div', { class: 'row stack', 'data-search': 'eccezioni siti protezione disattivata scudo' },
-      h('div', { class: 'title' }, 'Siti con protezione disattivata'),
-      h('div', { class: 'desc muted small' }, 'Aggiungili dal pulsante scudo nella barra degli indirizzi.'),
-      hostList(settings.protectionExceptions, 'Nessuna eccezione.', (host) => void update({ protectionExceptions: settings.protectionExceptions.filter((x) => x !== host) }).then(render)),
+    row(tr('Rimuovi i parametri di tracciamento dai link'), tr('Toglie dagli indirizzi le aggiunte che servono solo a seguirti tra i siti (utm_…, fbclid, gclid, msclkid…) prima di aprire la pagina. Non vale per i siti senza protezioni.'), toggle('stripTrackingParams', tr('Rimuovi i parametri di tracciamento'))),
+    row(tr('Protezione da phishing e malware'), threatDesc, toggle('threatProtection', tr('Protezione da phishing e malware'))),
+    row(tr('Modalità solo HTTPS'), tr('Carica sempre le pagine in modo cifrato. Se un sito non supporta HTTPS ti viene chiesto prima di continuare.'), toggle('httpsOnly', tr('Modalità solo HTTPS'))),
+    h('div', { class: 'row stack', 'data-search': tr('eccezioni siti protezione disattivata scudo') },
+      h('div', { class: 'title' }, tr('Siti con protezione disattivata')),
+      h('div', { class: 'desc muted small' }, tr('Aggiungili dal pulsante scudo nella barra degli indirizzi.')),
+      hostList(settings.protectionExceptions, tr('Nessuna eccezione.'), (host) => void update({ protectionExceptions: settings.protectionExceptions.filter((x) => x !== host) }).then(render)),
     ),
-    h('div', { class: 'row stack', 'data-search': 'http eccezioni non sicuro' },
-      h('div', { class: 'title' }, 'Siti consentiti senza HTTPS'),
-      hostList(settings.httpExceptions, 'Nessuno.', (host) => void update({ httpExceptions: settings.httpExceptions.filter((x) => x !== host) }).then(render)),
+    h('div', { class: 'row stack', 'data-search': tr('http eccezioni non sicuro') },
+      h('div', { class: 'title' }, tr('Siti consentiti senza HTTPS')),
+      hostList(settings.httpExceptions, tr('Nessuno.'), (host) => void update({ httpExceptions: settings.httpExceptions.filter((x) => x !== host) }).then(render)),
     ),
-    h('div', { class: 'row stack', 'data-search': 'cancella dati navigazione cookie cache cronologia download' },
-      h('div', { class: 'title' }, 'Cancella dati di navigazione'),
-      h('div', { class: 'desc muted small' }, 'Riguarda le finestre normali: le finestre private non salvano nulla. Cancellando i cookie dovrai rifare l’accesso ai siti, anche alle app web.'),
+    h('div', { class: 'row stack', 'data-search': tr('cancella dati navigazione cookie cache cronologia download') },
+      h('div', { class: 'title' }, tr('Cancella dati di navigazione')),
+      h('div', { class: 'desc muted small' }, tr('Riguarda le finestre normali: le finestre private non salvano nulla. Cancellando i cookie dovrai rifare l’accesso ai siti, anche alle app web.')),
       h('div', { class: 'checks' },
-        check('history', 'Cronologia di navigazione'),
-        check('cookies', 'Cookie e dati dei siti'),
-        check('cache', 'Immagini e file nella cache'),
-        check('downloads', 'Elenco dei download'),
-        check('permissions', 'Permessi dei siti'),
+        check('history', tr('Cronologia di navigazione')),
+        check('cookies', tr('Cookie e dati dei siti')),
+        check('cache', tr('Immagini e file nella cache')),
+        check('downloads', tr('Elenco dei download')),
+        check('permissions', tr('Permessi dei siti')),
       ),
       h('div', { class: 'control' }, clearBtn, message),
     ),
-    row('Cancella i cookie alla chiusura', 'Esci da tutti i siti ogni volta che chiudi il browser.', toggle('clearCookiesOnExit', 'Cancella cookie alla chiusura')),
-    row('Svuota la cache alla chiusura', null, toggle('clearCacheOnExit', 'Svuota cache alla chiusura')),
-    row('Finestre private', 'Con Ctrl+Shift+N (⌘+Shift+N su Mac) apri una finestra che non salva cronologia, cookie, cache e permessi: tutto viene eliminato quando la chiudi.', null),
+    row(tr('Cancella i cookie alla chiusura'), tr('Esci da tutti i siti ogni volta che chiudi il browser.'), toggle('clearCookiesOnExit', tr('Cancella cookie alla chiusura'))),
+    row(tr('Svuota la cache alla chiusura'), null, toggle('clearCacheOnExit', tr('Svuota cache alla chiusura'))),
+    row(tr('Finestre private'), tr('Con Ctrl+Shift+N (⌘+Shift+N su Mac) apri una finestra che non salva cronologia, cookie, cache e permessi: tutto viene eliminato quando la chiudi.'), null),
   );
 }
 
 function permissionsSection(): HTMLElement {
   const defaults = ASKABLE_PERMISSIONS.map((p: AskablePermission) => {
     const select = h('select', { 'aria-label': PERMISSION_LABELS[p] },
-      h('option', { value: 'ask', selected: settings.permissionDefaults[p] === 'ask' }, 'Chiedi'),
-      h('option', { value: 'block', selected: settings.permissionDefaults[p] === 'block' }, 'Blocca'),
+      h('option', { value: 'ask', selected: settings.permissionDefaults[p] === 'ask' }, tr('Chiedi')),
+      h('option', { value: 'block', selected: settings.permissionDefaults[p] === 'block' }, tr('Blocca')),
     );
     select.addEventListener('change', () => void update({ permissionDefaults: { ...settings.permissionDefaults, [p]: select.value as 'ask' | 'block' } }));
-    return row(PERMISSION_LABELS[p], p === 'media' ? 'Con un account Infomaniak collegato, kMeet e kChat sono sempre consentite.' : null, select);
+    return row(PERMISSION_LABELS[p], p === 'media' ? tr('Con un account Infomaniak collegato, kMeet e kChat sono sempre consentite.') : null, select);
   });
 
   const decisions = settings.sitePermissions.length
     ? h('ul', { class: 'list' }, ...settings.sitePermissions.map((sp) =>
         h('li', {},
-          h('span', {}, h('strong', {}, sp.host), ' · ', permissionLabel(sp.permission), ' ', h('span', { class: `tag ${sp.allowed ? 'allow' : 'block'}` }, sp.allowed ? 'Consentito' : 'Bloccato')),
+          h('span', {}, h('strong', {}, sp.host), ' · ', permissionLabel(sp.permission), ' ', h('span', { class: `tag ${sp.allowed ? 'allow' : 'block'}` }, sp.allowed ? tr('Consentito') : tr('Bloccato'))),
           h('button', {
             class: 'link',
             onclick: () => void update({ sitePermissions: settings.sitePermissions.filter((x) => !(x.host === sp.host && x.permission === sp.permission)) }).then(render),
-          }, 'Rimuovi'),
+          }, tr('Rimuovi')),
         )))
-    : h('p', { class: 'muted small' }, 'Nessuna scelta salvata.');
+    : h('p', { class: 'muted small' }, tr('Nessuna scelta salvata.'));
 
   return section(
     'permissions',
-    'Permessi dei siti',
+    tr('Permessi dei siti'),
     ...defaults,
-    h('div', { class: 'row stack', 'data-search': 'permessi siti scelte salvate fotocamera microfono notifiche posizione' }, h('div', { class: 'title' }, 'Scelte salvate'), decisions),
+    h('div', { class: 'row stack', 'data-search': tr('permessi siti scelte salvate fotocamera microfono notifiche posizione') }, h('div', { class: 'title' }, tr('Scelte salvate')), decisions),
   );
 }
 
 // ---------- Sync ----------
 
 const SYNC_COLLECTIONS: Array<[SyncCollectionOption, string]> = [
-  ['bookmarks', 'Preferiti'],
+  ['bookmarks', tr('Preferiti')],
   ['logins', 'Password'],
-  ['history', 'Cronologia (ultimi 90 giorni)'],
-  ['tabs', 'Schede aperte (per riaprirle da un altro dispositivo)'],
+  ['history', tr('Cronologia (ultimi 90 giorni)')],
+  ['tabs', tr('Schede aperte (per riaprirle da un altro dispositivo)')],
 ];
 
 function when(ms: number): string {
   const d = new Date(ms);
   const today = new Date().toDateString() === d.toDateString();
-  return today ? `oggi alle ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}` : d.toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' });
+  return today ? tr('oggi alle {0}', d.toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' })) : d.toLocaleString(localeTag(), { dateStyle: 'short', timeStyle: 'short' });
 }
 
 /** Encrypted sync through kDrive: the card redraws itself (no full page render while syncing). */
 function syncSection(): HTMLElement {
   const card = h('div', { class: 'card' });
-  const el = h('section', { id: 'sync' }, h('h2', {}, 'Sincronizzazione'), card);
+  const el = h('section', { id: 'sync' }, h('h2', {}, tr('Sincronizzazione')), card);
   const message = h('p', { class: 'message', role: 'status' });
   let setup: 'none' | 'create' | 'join' = 'none';
   let busy = false;
@@ -716,36 +741,36 @@ function syncSection(): HTMLElement {
     await draw();
     const res = await fn();
     busy = false;
-    if (res && 'ok' in res && !res.ok) say(res.error ?? 'Operazione non riuscita');
+    if (res && 'ok' in res && !res.ok) say(res.error ?? tr('Operazione non riuscita'));
     else if (done) say(done, true);
     await draw();
   };
 
-  const intro = () => h('div', { class: 'row stack', 'data-search': 'sincronizzazione kdrive cifrata dispositivi passphrase' },
+  const intro = () => h('div', { class: 'row stack', 'data-search': tr('sincronizzazione kdrive cifrata dispositivi passphrase') },
     h('div', { class: 'text' },
-      h('div', { class: 'title' }, 'Preferiti, password e schede su tutti i tuoi computer'),
-      h('div', { class: 'desc' }, 'I dati vengono cifrati su questo computer con una passphrase che conosci solo tu, poi salvati nella cartella «Velo Sync» del tuo kDrive. Infomaniak vede solo dati illeggibili e non può recuperare la passphrase.')));
+      h('div', { class: 'title' }, tr('Preferiti, password e schede su tutti i tuoi computer')),
+      h('div', { class: 'desc' }, tr('I dati vengono cifrati su questo computer con una passphrase che conosci solo tu, poi salvati nella cartella «Velo Sync» del tuo kDrive. Infomaniak vede solo dati illeggibili e non può recuperare la passphrase.'))));
 
   const passphraseForm = (mode: 'create' | 'join' | 'unlock', status: SyncStatus) => {
-    const pass = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Passphrase di sincronizzazione', 'aria-label': 'Passphrase di sincronizzazione' });
-    const confirm = mode === 'create' ? h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Ripeti la passphrase', 'aria-label': 'Ripeti la passphrase' }) : null;
-    const device = mode === 'unlock' ? null : h('input', { type: 'text', value: status.deviceName, placeholder: 'Nome di questo computer', 'aria-label': 'Nome di questo computer' });
+    const pass = h('input', { type: 'password', autocomplete: 'new-password', placeholder: tr('Passphrase di sincronizzazione'), 'aria-label': tr('Passphrase di sincronizzazione') });
+    const confirm = mode === 'create' ? h('input', { type: 'password', autocomplete: 'new-password', placeholder: tr('Ripeti la passphrase'), 'aria-label': tr('Ripeti la passphrase') }) : null;
+    const device = mode === 'unlock' ? null : h('input', { type: 'text', value: status.deviceName, placeholder: tr('Nome di questo computer'), 'aria-label': tr('Nome di questo computer') });
     const form = h('form', { class: 'sync-form' },
       h('p', { class: 'desc' },
         mode === 'create'
-          ? 'Scegli una passphrase di almeno 10 caratteri, diversa dalle altre password. Annotala in un posto sicuro: senza, i dati sincronizzati non si possono recuperare.'
+          ? tr('Scegli una passphrase di almeno 10 caratteri, diversa dalle altre password. Annotala in un posto sicuro: senza, i dati sincronizzati non si possono recuperare.')
           : mode === 'join'
-            ? 'La sincronizzazione è già attiva su un altro dispositivo: inserisci la stessa passphrase.'
-            : 'Questo computer non ha un portachiavi di sistema: inserisci la passphrase per riprendere la sincronizzazione.'),
+            ? tr('La sincronizzazione è già attiva su un altro dispositivo: inserisci la stessa passphrase.')
+            : tr('Questo computer non ha un portachiavi di sistema: inserisci la passphrase per riprendere la sincronizzazione.')),
       pass, confirm, device,
       h('div', { class: 'control' },
-        h('button', { class: 'primary', type: 'submit', disabled: busy }, mode === 'create' ? 'Attiva la sincronizzazione' : mode === 'join' ? 'Collega questo computer' : 'Sblocca'),
-        mode === 'unlock' ? null : h('button', { type: 'button', onclick: () => { setup = 'none'; void draw(); } }, 'Annulla')));
+        h('button', { class: 'primary', type: 'submit', disabled: busy }, mode === 'create' ? tr('Attiva la sincronizzazione') : mode === 'join' ? tr('Collega questo computer') : tr('Sblocca')),
+        mode === 'unlock' ? null : h('button', { type: 'button', onclick: () => { setup = 'none'; void draw(); } }, tr('Annulla'))));
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (confirm && confirm.value !== pass.value) return say('Le due passphrase non coincidono.');
-      if (pass.value.length < 10) return say('La passphrase deve avere almeno 10 caratteri.');
-      void act(() => (mode === 'unlock' ? internal.sync.unlock(pass.value) : internal.sync.enable(pass.value, device?.value)), 'Sincronizzazione attiva.').then(() => {
+      if (confirm && confirm.value !== pass.value) return say(tr('Le due passphrase non coincidono.'));
+      if (pass.value.length < 10) return say(tr('La passphrase deve avere almeno 10 caratteri.'));
+      void act(() => (mode === 'unlock' ? internal.sync.unlock(pass.value) : internal.sync.enable(pass.value, device?.value)), tr('Sincronizzazione attiva.')).then(() => {
         setup = 'none';
       });
     });
@@ -757,11 +782,11 @@ function syncSection(): HTMLElement {
     const status = await internal.sync.status();
     const rows: Node[] = [];
     if (!status.available) {
-      rows.push(intro(), row('Collega un account Infomaniak', h('span', {}, 'La sincronizzazione usa il tuo kDrive. ', h('a', { href: '#account' }, 'Configura il token.')), null));
+      rows.push(intro(), row(tr('Collega un account Infomaniak'), h('span', {}, tr('La sincronizzazione usa il tuo kDrive. '), h('a', { href: '#account' }, tr('Configura il token.'))), null));
     } else if (!status.enabled) {
       rows.push(intro());
       if (setup === 'none') {
-        rows.push(row('Attiva su questo computer', 'Serve una passphrase: la stessa su tutti i dispositivi.', h('button', {
+        rows.push(row(tr('Attiva su questo computer'), tr('Serve una passphrase: la stessa su tutti i dispositivi.'), h('button', {
           class: 'primary',
           disabled: busy,
           onclick: () => void act(async () => {
@@ -769,7 +794,7 @@ function syncSection(): HTMLElement {
             if (res.ok) setup = res.data.exists ? 'join' : 'create';
             return res;
           }),
-        }, busy ? 'Controllo kDrive…' : 'Attiva la sincronizzazione')));
+        }, busy ? tr('Controllo kDrive…') : tr('Attiva la sincronizzazione'))));
       } else {
         rows.push(passphraseForm(setup, status));
       }
@@ -777,37 +802,37 @@ function syncSection(): HTMLElement {
       rows.push(intro(), passphraseForm('unlock', status));
     } else {
       const line = status.state === 'syncing'
-        ? 'Sincronizzazione in corso…'
+        ? tr('Sincronizzazione in corso…')
         : status.state === 'error'
           ? `Errore: ${status.lastError ?? 'sconosciuto'}`
-          : status.lastSync ? `Ultima sincronizzazione ${when(status.lastSync)}` : 'Non ancora sincronizzato';
-      rows.push(row('Stato', h('span', { class: status.state === 'error' ? 'danger-text' : '' }, line),
-        h('button', { disabled: busy || status.state === 'syncing', onclick: () => void act(() => internal.sync.now(), 'Sincronizzato.') }, 'Sincronizza ora')));
-      if (status.passwordsWaiting) rows.push(row('Password in attesa', 'Le password sono bloccate dalla password principale: si sincronizzano dopo averle sbloccate.', null));
-      rows.push(h('div', { class: 'row stack', 'data-search': 'cosa sincronizzare preferiti password cronologia schede' },
-        h('div', { class: 'title' }, 'Cosa sincronizzare'),
+          : status.lastSync ? tr('Ultima sincronizzazione {0}', when(status.lastSync)) : tr('Non ancora sincronizzato');
+      rows.push(row(tr('Stato'), h('span', { class: status.state === 'error' ? 'danger-text' : '' }, line),
+        h('button', { disabled: busy || status.state === 'syncing', onclick: () => void act(() => internal.sync.now(), tr('Sincronizzato.')) }, tr('Sincronizza ora'))));
+      if (status.passwordsWaiting) rows.push(row(tr('Password in attesa'), tr('Le password sono bloccate dalla password principale: si sincronizzano dopo averle sbloccate.'), null));
+      rows.push(h('div', { class: 'row stack', 'data-search': tr('cosa sincronizzare preferiti password cronologia schede') },
+        h('div', { class: 'title' }, tr('Cosa sincronizzare')),
         h('div', { class: 'checks' }, ...SYNC_COLLECTIONS.map(([key, label]) => {
           const input = h('input', { type: 'checkbox', checked: status.collections[key] });
           input.addEventListener('change', () => void internal.sync.options({ collections: { [key]: input.checked } }));
           return h('label', {}, input, label);
         }))));
-      const name = h('input', { type: 'text', value: status.deviceName, 'aria-label': 'Nome di questo computer' });
+      const name = h('input', { type: 'text', value: status.deviceName, 'aria-label': tr('Nome di questo computer') });
       name.addEventListener('change', () => void internal.sync.options({ deviceName: name.value }));
-      rows.push(row('Nome di questo computer', 'Come appare sugli altri dispositivi.', name));
+      rows.push(row(tr('Nome di questo computer'), tr('Come appare sugli altri dispositivi.'), name));
       rows.push(h('div', { class: 'row stack' },
-        h('div', { class: 'title' }, 'Dispositivi collegati'),
+        h('div', { class: 'title' }, tr('Dispositivi collegati')),
         status.devices.length
           ? h('ul', { class: 'list' }, ...status.devices.map((d) => h('li', {},
-              h('span', {}, h('strong', {}, d.name), d.current ? ' (questo computer)' : '', ` · ${when(d.updatedAt)}${d.tabs ? ` · ${d.tabs} schede aperte` : ''}`))))
-          : h('p', { class: 'muted small' }, 'Compariranno dopo la prima sincronizzazione.')));
-      rows.push(row('Disattiva su questo computer', 'I dati restano su questo computer e sugli altri dispositivi.', h('button', { disabled: busy, onclick: () => void act(() => internal.sync.disable(), 'Sincronizzazione disattivata.') }, 'Disattiva')));
-      rows.push(row('Elimina i dati da kDrive', 'Cancella i file sincronizzati (vanno nel cestino di kDrive). Tutti i dispositivi dovranno riattivarla, anche con una nuova passphrase.', h('button', {
+              h('span', {}, h('strong', {}, d.name), d.current ? tr(' (questo computer)') : '', ` · ${when(d.updatedAt)}${d.tabs ? tr(' · {0} schede aperte', d.tabs) : ''}`))))
+          : h('p', { class: 'muted small' }, tr('Compariranno dopo la prima sincronizzazione.'))));
+      rows.push(row(tr('Disattiva su questo computer'), tr('I dati restano su questo computer e sugli altri dispositivi.'), h('button', { disabled: busy, onclick: () => void act(() => internal.sync.disable(), tr('Sincronizzazione disattivata.')) }, tr('Disattiva'))));
+      rows.push(row(tr('Elimina i dati da kDrive'), tr('Cancella i file sincronizzati (vanno nel cestino di kDrive). Tutti i dispositivi dovranno riattivarla, anche con una nuova passphrase.'), h('button', {
         class: 'danger',
         disabled: busy,
         onclick: () => {
-          if (confirm('Eliminare i dati sincronizzati da kDrive? I dati su questo computer restano.')) void act(() => internal.sync.reset(), 'Dati eliminati da kDrive.');
+          if (confirm(tr('Eliminare i dati sincronizzati da kDrive? I dati su questo computer restano.'))) void act(() => internal.sync.reset(), tr('Dati eliminati da kDrive.'));
         },
-      }, 'Elimina')));
+      }, tr('Elimina'))));
     }
     rows.push(message);
     card.replaceChildren(...rows);
@@ -827,40 +852,40 @@ function syncSection(): HTMLElement {
 
 async function aiSection(): Promise<HTMLElement> {
   const status = await internal.tokenStatus();
-  const enable = h('input', { type: 'checkbox', role: 'switch', 'aria-label': 'Attiva assistente IA', checked: settings.aiEnabled });
+  const enable = h('input', { type: 'checkbox', role: 'switch', 'aria-label': tr('Attiva assistente IA'), checked: settings.aiEnabled });
   // The rest of the section depends on this switch.
   enable.addEventListener('change', () => void update({ aiEnabled: enable.checked }).then(render));
   const rows: Array<Node | null> = [
-    row('Assistente IA', 'Attiva il pannello IA, le azioni “Chiedi all’IA” nel menu contestuale, le domande con “?” nella barra degli indirizzi e la bozza delle email.', h('label', { class: 'switch' }, enable, h('span', {}))),
+    row(tr('Assistente IA'), tr('Attiva il pannello IA, le azioni “Chiedi all’IA” nel menu contestuale, le domande con “?” nella barra degli indirizzi e la bozza delle email.'), h('label', { class: 'switch' }, enable, h('span', {}))),
   ];
   if (!status.configured) {
-    rows.push(row('Collega un account Infomaniak', h('span', {}, 'L’assistente usa il token API. ', h('a', { href: '#account' }, 'Configuralo qui.')), null));
+    rows.push(row(tr('Collega un account Infomaniak'), h('span', {}, tr('L’assistente usa il token API. '), h('a', { href: '#account' }, tr('Configuralo qui.'))), null));
   } else if (settings.aiEnabled) {
     const message = h('span', { class: 'message', role: 'status' });
-    const product = h('select', { 'aria-label': 'Prodotto AI Services', disabled: true }, h('option', { value: '' }, 'Caricamento…'));
-    const model = h('select', { 'aria-label': 'Modello', disabled: true }, h('option', { value: '' }, 'Caricamento…'));
+    const product = h('select', { 'aria-label': tr('Prodotto AI Services'), disabled: true }, h('option', { value: '' }, tr('Caricamento…')));
+    const model = h('select', { 'aria-label': tr('Modello'), disabled: true }, h('option', { value: '' }, tr('Caricamento…')));
     product.addEventListener('change', () => void update({ aiProductId: product.value ? Number(product.value) : null }));
     model.addEventListener('change', () => void update({ aiModel: model.value || null }));
     void internal.ai.products().then((res) => {
       if (!res.ok) {
-        product.replaceChildren(h('option', { value: '' }, 'Non disponibile'));
+        product.replaceChildren(h('option', { value: '' }, tr('Non disponibile')));
         message.textContent = res.error;
         message.className = 'message error';
         return;
       }
       if (res.data.length === 0) {
-        product.replaceChildren(h('option', { value: '' }, 'Nessun prodotto'));
-        message.textContent = 'AI Services non è attivo su questo account: attivalo nel Manager Infomaniak.';
+        product.replaceChildren(h('option', { value: '' }, tr('Nessun prodotto')));
+        message.textContent = tr('AI Services non è attivo su questo account: attivalo nel Manager Infomaniak.');
         message.className = 'message error';
         return;
       }
-      product.replaceChildren(h('option', { value: '', selected: settings.aiProductId === null }, 'Automatico (il primo)'),
+      product.replaceChildren(h('option', { value: '', selected: settings.aiProductId === null }, tr('Automatico (il primo)')),
         ...res.data.map((p) => h('option', { value: String(p.id), selected: settings.aiProductId === p.id }, `${p.name} (#${p.id})`)));
       product.disabled = false;
     });
     void internal.ai.models().then((res) => {
       const list = res.ok ? res.data : [];
-      model.replaceChildren(h('option', { value: '', selected: settings.aiModel === null }, 'Automatico (consigliato)'),
+      model.replaceChildren(h('option', { value: '', selected: settings.aiModel === null }, tr('Automatico (consigliato)')),
         ...list.map((m) => h('option', { value: m.name, selected: settings.aiModel === m.name, title: m.description ?? '' }, m.name)));
       // Keep a saved model visible even if the catalogue doesn't list it.
       if (settings.aiModel && !list.some((m) => m.name === settings.aiModel)) model.append(h('option', { value: settings.aiModel, selected: true }, settings.aiModel));
@@ -869,49 +894,49 @@ async function aiSection(): Promise<HTMLElement> {
     const test = h('button', {
       onclick: async () => {
         test.disabled = true;
-        message.textContent = 'Prova in corso…';
+        message.textContent = tr('Prova in corso…');
         message.className = 'message';
         const res = await internal.ai.test();
         test.disabled = false;
         message.textContent = res.ok ? `Funziona: ${res.data}` : res.error;
         message.className = `message ${res.ok ? 'ok' : 'error'}`;
       },
-    }, 'Prova');
+    }, tr('Prova'));
     rows.push(
-      row('Prodotto AI Services', 'Il prodotto del Manager Infomaniak a cui vengono addebitate le richieste.', product),
-      row('Modello', 'Il modello linguistico usato per le risposte.', model),
-      row('Risposta IA nella ricerca unificata', 'Mostra subito una risposta dell’IA in cima ai risultati, senza premere “Chiedi all’IA”. Ogni ricerca consuma crediti.', toggle('aiAutoAnswer', 'Risposta automatica nella ricerca')),
-      row('Verifica la connessione', message, test),
+      row(tr('Prodotto AI Services'), tr('Il prodotto del Manager Infomaniak a cui vengono addebitate le richieste.'), product),
+      row(tr('Modello'), tr('Il modello linguistico usato per le risposte.'), model),
+      row(tr('Risposta IA nella ricerca unificata'), tr('Mostra subito una risposta dell’IA in cima ai risultati, senza premere “Chiedi all’IA”. Ogni ricerca consuma crediti.'), toggle('aiAutoAnswer', tr('Risposta automatica nella ricerca'))),
+      row(tr('Verifica la connessione'), message, test),
     );
   }
-  rows.push(row('Come si attiva',
-    h('span', {}, 'Serve AI Services attivo nel Manager Infomaniak e un token API con lo scope per l’IA. ',
-      h('a', { href: AI_PAGE, target: '_blank' }, 'Scopri AI Services'), ' · ', h('a', { href: TOKEN_PAGE, target: '_blank' }, 'Crea un token')), null));
-  rows.push(row('Privacy', 'Il testo che scegli (una selezione, la pagina o la tua domanda) viene inviato ai server di Infomaniak in Svizzera solo quando chiedi qualcosa. Nelle finestre private la risposta automatica nella ricerca resta spenta.', null));
-  return section('ai', 'Intelligenza artificiale', ...rows);
+  rows.push(row(tr('Come si attiva'),
+    h('span', {}, tr('Serve AI Services attivo nel Manager Infomaniak e un token API con lo scope per l’IA. '),
+      h('a', { href: AI_PAGE, target: '_blank' }, tr('Scopri AI Services')), ' · ', h('a', { href: TOKEN_PAGE, target: '_blank' }, tr('Crea un token'))), null));
+  rows.push(row('Privacy', tr('Il testo che scegli (una selezione, la pagina o la tua domanda) viene inviato ai server di Infomaniak in Svizzera solo quando chiedi qualcosa. Nelle finestre private la risposta automatica nella ricerca resta spenta.'), null));
+  return section('ai', tr('Intelligenza artificiale'), ...rows);
 }
 
 async function accountSection(): Promise<HTMLElement> {
   const status = await internal.tokenStatus();
   const rows: Array<Node | null> = [
-    h('div', { class: 'row stack', 'data-search': 'account cloud facoltativo infomaniak kdrive mail calendario' },
+    h('div', { class: 'row stack', 'data-search': tr('account cloud facoltativo infomaniak kdrive mail calendario') },
       h('div', { class: 'text' },
-        h('div', { class: 'title' }, 'Facoltativo'),
-        h('div', { class: 'desc' }, 'Velo funziona del tutto senza account. Se usi i servizi di Infomaniak puoi collegarli: compaiono la barra delle app, il pannello con posta, file e calendario, il salvataggio su kDrive, la ricerca nei tuoi dati, la sincronizzazione e l’assistente IA. Il token resta su questo computer, cifrato con il portachiavi di sistema.'))),
+        h('div', { class: 'title' }, tr('Facoltativo')),
+        h('div', { class: 'desc' }, tr('Velo funziona del tutto senza account. Se usi i servizi di Infomaniak puoi collegarli: compaiono la barra delle app, il pannello con posta, file e calendario, il salvataggio su kDrive, la ricerca nei tuoi dati, la sincronizzazione e l’assistente IA. Il token resta su questo computer, cifrato con il portachiavi di sistema.')))),
   ];
 
   if (status.fromEnv) {
-    rows.push(row('Token API', 'Fornito dalla variabile d’ambiente VELO_API_TOKEN.', null));
+    rows.push(row(tr('Token API'), tr('Fornito dalla variabile d’ambiente VELO_API_TOKEN.'), null));
   } else {
-    const input = h('input', { type: 'password', autocomplete: 'off', placeholder: status.configured ? '•••••••• (token salvato)' : 'Incolla qui il token API', 'aria-label': 'Token API' });
+    const input = h('input', { type: 'password', autocomplete: 'off', placeholder: status.configured ? tr('•••••••• (token salvato)') : tr('Incolla qui il token API'), 'aria-label': tr('Token API') });
     const message = h('span', { class: 'message', role: 'status' });
-    const save = h('button', { class: 'primary', type: 'submit' }, 'Salva e verifica');
+    const save = h('button', { class: 'primary', type: 'submit' }, tr('Salva e verifica'));
     const form = h('form', { class: 'control' }, input, save,
-      status.configured ? h('button', { type: 'button', class: 'danger', onclick: async () => { await internal.clearToken(); void render(); } }, 'Scollega') : null);
+      status.configured ? h('button', { type: 'button', class: 'danger', onclick: async () => { await internal.clearToken(); void render(); } }, tr('Scollega')) : null);
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       save.disabled = true;
-      message.textContent = 'Verifica…';
+      message.textContent = tr('Verifica…');
       message.className = 'message';
       const res = await internal.setToken(input.value);
       save.disabled = false;
@@ -923,16 +948,16 @@ async function accountSection(): Promise<HTMLElement> {
       }
     });
     rows.push(
-      h('div', { class: 'row stack', 'data-search': 'token api account cloud infomaniak scope' },
-        h('div', { class: 'title' }, status.configured ? 'Account collegato' : 'Collega il tuo account'),
+      h('div', { class: 'row stack', 'data-search': tr('token api account cloud infomaniak scope') },
+        h('div', { class: 'title' }, status.configured ? tr('Account collegato') : tr('Collega il tuo account')),
         h('ol', { class: 'steps small' },
-          h('li', {}, 'Apri la ', h('a', { href: TOKEN_PAGE, target: '_blank' }, 'pagina dei token API'), ' del Manager Infomaniak.'),
-          h('li', {}, 'Crea un token con gli scope ', h('code', {}, 'user_info'), ' ', h('code', {}, 'drive'), ' ', h('code', {}, 'workspace:mail'), ' ', h('code', {}, 'workspace:calendar'), '.'),
-          h('li', {}, 'Incollalo qui sotto.'),
+          h('li', {}, tr('Apri la '), h('a', { href: TOKEN_PAGE, target: '_blank' }, tr('pagina dei token API')), tr(' del Manager Infomaniak.')),
+          h('li', {}, tr('Crea un token con gli scope '), h('code', {}, 'user_info'), ' ', h('code', {}, 'drive'), ' ', h('code', {}, 'workspace:mail'), ' ', h('code', {}, 'workspace:calendar'), '.'),
+          h('li', {}, tr('Incollalo qui sotto.')),
         ),
         form,
         message,
-        status.configured && !status.encrypted ? h('p', { class: 'warning' }, 'Il portachiavi di sistema non è disponibile: il token è salvato in chiaro nel profilo utente.') : null,
+        status.configured && !status.encrypted ? h('p', { class: 'warning' }, tr('Il portachiavi di sistema non è disponibile: il token è salvato in chiaro nel profilo utente.')) : null,
       ),
     );
   }
@@ -941,28 +966,28 @@ async function accountSection(): Promise<HTMLElement> {
     const drives = await internal.drives();
     if (drives.ok) {
       const select = h('select', { 'aria-label': 'kDrive' },
-        h('option', { value: '' }, 'Automatico (primo kDrive)'),
+        h('option', { value: '' }, tr('Automatico (primo kDrive)')),
         ...drives.data.map((d) => h('option', { value: String(d.id), selected: settings.driveId === d.id }, `${d.name} (#${d.id})`)),
       );
       select.addEventListener('change', () => void update({ driveId: select.value ? Number(select.value) : null, driveUploadFolderId: 1, driveUploadFolderName: 'kDrive' }));
-      rows.push(row('kDrive', 'Quello usato dal pannello e da “Salva su kDrive”.', select));
+      rows.push(row('kDrive', tr('Quello usato dal pannello e da “Salva su kDrive”.'), select));
     } else {
-      const input = h('input', { type: 'text', inputmode: 'numeric', value: settings.driveId ?? '', placeholder: 'ID dall’URL dell’app web', 'aria-label': 'ID kDrive' });
+      const input = h('input', { type: 'text', inputmode: 'numeric', value: settings.driveId ?? '', placeholder: tr('ID dall’URL dell’app web'), 'aria-label': tr('ID kDrive') });
       input.addEventListener('change', () => void update({ driveId: input.value ? Number(input.value) : null }));
       rows.push(row('kDrive', h('span', { class: 'message error' }, drives.error), input));
     }
     rows.push(
-      row('Cartella di destinazione', `${settings.driveUploadFolderName} — cambiala dal pannello kDrive con “Usa come destinazione”.`, null),
-      row('Carica i download su kDrive', 'Ogni download completato viene copiato anche nella cartella di destinazione (non nelle finestre private).', toggle('uploadDownloadsToDrive', 'Carica i download su kDrive')),
+      row(tr('Cartella di destinazione'), tr('{0} — cambiala dal pannello kDrive con “Usa come destinazione”.', settings.driveUploadFolderName), null),
+      row(tr('Carica i download su kDrive'), tr('Ogni download completato viene copiato anche nella cartella di destinazione (non nelle finestre private).'), toggle('uploadDownloadsToDrive', tr('Carica i download su kDrive'))),
     );
   }
-  return section('account', 'Account cloud', ...rows);
+  return section('account', tr('Account cloud'), ...rows);
 }
 
 function platformNote(): string {
   return /Mac/i.test(navigator.userAgent)
-    ? 'Su macOS l’installazione automatica richiede un’app firmata da Apple: quando esce una nuova versione ricevi un avviso e la scarichi dalla pagina della release.'
-    : 'Il pacchetto .deb non si aggiorna da solo: quando esce una nuova versione ricevi un avviso e la scarichi dalla pagina della release (oppure usa l’AppImage, che si aggiorna automaticamente).';
+    ? tr('Su macOS l’installazione automatica richiede un’app firmata da Apple: quando esce una nuova versione ricevi un avviso e la scarichi dalla pagina della release.')
+    : tr('Il pacchetto .deb non si aggiorna da solo: quando esce una nuova versione ricevi un avviso e la scarichi dalla pagina della release (oppure usa l’AppImage, che si aggiorna automaticamente).');
 }
 
 function updateRow(status: UpdateStatus): HTMLElement {
@@ -970,34 +995,34 @@ function updateRow(status: UpdateStatus): HTMLElement {
   let text: string;
   switch (status.state) {
     case 'checking':
-      text = 'Ricerca di aggiornamenti…';
+      text = tr('Ricerca di aggiornamenti…');
       break;
     case 'available':
-      text = status.mode === 'auto' ? `È disponibile la versione ${status.version}.` : `È disponibile la versione ${status.version}: scaricala dalla pagina della release.`;
+      text = status.mode === 'auto' ? tr('È disponibile la versione {0}.', status.version) : tr('È disponibile la versione {0}: scaricala dalla pagina della release.', status.version);
       break;
     case 'downloading':
-      text = `Download della versione ${status.version ?? ''} in corso… ${status.percent ?? 0}%`;
+      text = tr('Download della versione {0} in corso… {1}%', status.version ?? '', status.percent ?? 0);
       break;
     case 'downloaded':
-      text = `La versione ${status.version} è pronta: verrà installata al riavvio.`;
+      text = tr('La versione {0} è pronta: verrà installata al riavvio.', status.version);
       break;
     case 'not-available':
-      text = 'Stai usando la versione più recente.';
+      text = tr('Stai usando la versione più recente.');
       break;
     case 'error':
-      text = status.message ?? 'Errore durante la ricerca di aggiornamenti.';
+      text = status.message ?? tr('Errore durante la ricerca di aggiornamenti.');
       break;
     default:
-      text = status.mode === 'disabled' ? 'Gli aggiornamenti funzionano solo nella versione installata (non avviando con npm start).' : 'Controllo automatico ogni 6 ore.';
+      text = status.mode === 'disabled' ? tr('Gli aggiornamenti funzionano solo nella versione installata (non avviando con npm start).') : tr('Controllo automatico ogni 6 ore.');
   }
   const actions = h('div', { class: 'control' });
   if (status.mode !== 'disabled') {
-    if (status.state === 'downloaded') actions.append(h('button', { class: 'primary', onclick: () => void internal.updates.install() }, 'Riavvia e aggiorna'));
-    else if (status.state === 'available') actions.append(h('button', { class: 'primary', onclick: () => void internal.updates.download() }, status.mode === 'auto' ? 'Scarica' : 'Apri la pagina di download'));
-    else actions.append(h('button', { disabled: busy, onclick: () => void internal.updates.check() }, 'Controlla ora'));
+    if (status.state === 'downloaded') actions.append(h('button', { class: 'primary', onclick: () => void internal.updates.install() }, tr('Riavvia e aggiorna')));
+    else if (status.state === 'available') actions.append(h('button', { class: 'primary', onclick: () => void internal.updates.download() }, status.mode === 'auto' ? tr('Scarica') : tr('Apri la pagina di download')));
+    else actions.append(h('button', { disabled: busy, onclick: () => void internal.updates.check() }, tr('Controlla ora')));
   }
   const desc = h('span', { class: status.state === 'error' ? 'message error' : '' }, text);
-  return h('div', { class: 'row', id: 'update-row', 'data-search': 'aggiornamenti versione update' },
+  return h('div', { class: 'row', id: 'update-row', 'data-search': tr('aggiornamenti versione update') },
     h('div', { class: 'text' }, h('div', { class: 'title' }, `Versione ${status.current}`), h('div', { class: 'desc' }, desc)),
     actions,
   );
@@ -1007,24 +1032,24 @@ async function aboutSection(): Promise<HTMLElement> {
   const status = await internal.updates.status();
   const modeNote =
     status.mode === 'notify'
-      ? row('Aggiornamenti manuali', platformNote(), null)
+      ? row(tr('Aggiornamenti manuali'), platformNote(), null)
       : null;
-  const autoRow = status.mode === 'auto' ? row('Scarica e installa automaticamente', 'Gli aggiornamenti vengono scaricati in background e installati al successivo riavvio del browser.', toggle('autoUpdate', 'Aggiornamenti automatici')) : null;
-  const updatesCard = section('updates', 'Aggiornamenti', updateRow(status), autoRow, modeNote);
+  const autoRow = status.mode === 'auto' ? row(tr('Scarica e installa automaticamente'), tr('Gli aggiornamenti vengono scaricati in background e installati al successivo riavvio del browser.'), toggle('autoUpdate', tr('Aggiornamenti automatici'))) : null;
+  const updatesCard = section('updates', tr('Aggiornamenti'), updateRow(status), autoRow, modeNote);
   const a = await internal.about();
   const item = (k: string, v: string) => [h('dt', {}, k), h('dd', {}, v)];
   const aboutCard = section(
     'about',
-    'Informazioni',
+    tr('Informazioni'),
     h('div', { class: 'row stack' },
       h('dl', { class: 'about' },
         ...item('Velo', a.version),
         ...item('Chromium', a.chrome),
         ...item('Electron', a.electron),
         ...item('Node.js', a.node),
-        ...item('Sistema', a.platform),
-        ...item('Liste di blocco', a.blockerLists ?? 'non caricate'),
-        ...item('Profilo', a.userData),
+        ...item(tr('Sistema'), a.platform),
+        ...item(tr('Liste di blocco'), a.blockerLists ?? tr('non caricate')),
+        ...item(tr('Profilo'), a.userData),
       ),
     ),
   );

@@ -1,5 +1,6 @@
 import { INTERNAL } from '../../shared/ipc';
 import type { ExtensionSummary, AiEvent, AboutInfo, BreachReport, ReaderArticle, SyncCollectionOption, SyncStatus, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
+import { translateDom, tr, type Locale } from '../../shared/i18n';
 
 interface InternalBridge {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -18,7 +19,7 @@ declare global {
 }
 
 function bridge(): InternalBridge {
-  if (!window.veloInternal) throw new Error('Questa pagina funziona solo dentro Velo.');
+  if (!window.veloInternal) throw new Error(tr('Questa pagina funziona solo dentro Velo.'));
   return window.veloInternal;
 }
 
@@ -28,6 +29,10 @@ const call = <T>(channel: string, ...args: unknown[]) => bridge().invoke(channel
 export const internal = {
   settings: () => call<Settings>(INTERNAL.settingsGet),
   update: (patch: Partial<Settings>) => call<Settings>(INTERNAL.settingsSet, patch),
+  /** Language in use (chosen at start) and the one the system setting would give. */
+  localeInfo: () => call<{ current: Locale; system: Locale }>(INTERNAL.localeInfo),
+  /** Restarts Velo, reopening the tabs. */
+  restart: () => call<void>(INTERNAL.restart),
   onSettings: (fn: (s: Settings) => void) => bridge().onSettings(fn),
   tokenStatus: () => call<TokenStatus>(INTERNAL.tokenStatus),
   setToken: (token: string) => call<ApiResult<Profile>>(INTERNAL.tokenSet, token),
@@ -129,3 +134,6 @@ export const internal = {
     onChange: (fn: (list: Bookmark[]) => void) => bridge().onBookmarks(fn),
   },
 };
+
+// The static text of every internal page, in the interface language.
+translateDom(document.documentElement);

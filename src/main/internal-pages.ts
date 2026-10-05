@@ -1,6 +1,7 @@
 import { protocol, type Session } from 'electron';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
+import { tr } from '../shared/i18n';
 
 export const INTERNAL_SCHEME = 'velo';
 
@@ -38,12 +39,12 @@ export function serveInternalPages(session: Session, pagesDir: string, favicon: 
         headers: { 'Content-Type': icon.mime, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:" },
       });
     }
-    if (!PAGES.has(url.hostname)) return new Response('Pagina non trovata', { status: 404 });
+    if (!PAGES.has(url.hostname)) return new Response(tr('Pagina non trovata'), { status: 404 });
 
     const root = join(pagesDir, url.hostname);
     const relative = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
     const file = normalize(join(root, relative));
-    if (!file.startsWith(root + sep)) return new Response('Accesso negato', { status: 403 });
+    if (!file.startsWith(root + sep)) return new Response(tr('Accesso negato'), { status: 403 });
 
     try {
       const body = await readFile(file);
@@ -56,7 +57,7 @@ export function serveInternalPages(session: Session, pagesDir: string, favicon: 
         },
       });
     } catch {
-      return new Response('Pagina non trovata', { status: 404 });
+      return new Response(tr('Pagina non trovata'), { status: 404 });
     }
   });
 }

@@ -1,3 +1,4 @@
+import { tr } from './i18n';
 /**
  * Links that open another program (mailto:, zoommtg:, tel:…). Some schemes have been used to run code
  * or open files from a web page (Follina with ms-msdt:, search-ms:, ms-appinstaller:…): those are
@@ -26,21 +27,21 @@ export function externalVerdict(url: string): ExternalVerdict {
 /** Name shown to the user for a scheme. */
 export function externalAppName(scheme: string): string {
   const names: Record<string, string> = {
-    mailto: 'l’app di posta', tel: 'l’app per le chiamate', sms: 'l’app dei messaggi', zoommtg: 'Zoom', zoomus: 'Zoom',
+    mailto: tr('l’app di posta'), tel: tr('l’app per le chiamate'), sms: tr('l’app dei messaggi'), zoommtg: 'Zoom', zoomus: 'Zoom',
     msteams: 'Microsoft Teams', slack: 'Slack', spotify: 'Spotify', skype: 'Skype', tg: 'Telegram', whatsapp: 'WhatsApp',
-    webcal: 'il calendario', magnet: 'il client torrent', steam: 'Steam', discord: 'Discord',
+    webcal: tr('il calendario'), magnet: tr('il client torrent'), steam: 'Steam', discord: 'Discord',
   };
-  return names[scheme] ?? `l’app per i link «${scheme}:»`;
+  return names[scheme] ?? tr('l’app per i link «{0}:»', scheme);
 }
 
 /** Label of a remembered site permission, including "open external app" decisions. */
 export function permissionLabel(permission: string): string {
   if (permission.startsWith('external:')) return `Aprire ${externalAppName(permission.slice('external:'.length))}`;
   const labels: Record<string, string> = {
-    media: 'Fotocamera e microfono',
-    notifications: 'Notifiche',
-    geolocation: 'Posizione',
-    'clipboard-read': 'Lettura appunti',
+    media: tr('Fotocamera e microfono'),
+    notifications: tr('Notifiche'),
+    geolocation: tr('Posizione'),
+    'clipboard-read': tr('Lettura appunti'),
   };
   return labels[permission] ?? permission;
 }

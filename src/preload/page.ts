@@ -6,6 +6,8 @@ import { contextBridge, ipcRenderer } from 'electron';
  * The main process checks the sender URL again for every call.
  */
 if (window.location.protocol === 'velo:' && window === window.top) {
+  // Interface language, before the page's scripts run (see shared/i18n.ts). Never given to web pages.
+  contextBridge.exposeInMainWorld('veloLocale', ipcRenderer.sendSync('i18n:locale') as string);
   contextBridge.exposeInMainWorld('veloInternal', {
     invoke: (channel: string, ...args: unknown[]) =>
       channel.startsWith('internal:') ? ipcRenderer.invoke(channel, ...args) : Promise.reject(new Error('Canale non consentito')),

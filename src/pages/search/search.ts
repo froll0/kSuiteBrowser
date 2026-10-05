@@ -9,6 +9,7 @@ import { faviconUrl } from '../../shared/top-sites';
 import type { AiEvent, ApiResult, Bookmark, CalendarEvent, DriveFile, HistoryVisit } from '../../shared/types';
 import { WEB_SEARCH_ENGINES, webSearchUrl, type WebSearchEngineId } from '../../shared/url';
 import { followTheme } from '../shared/theme';
+import { localeTag, tr } from '../../shared/i18n';
 
 followTheme();
 hydrateIcons();
@@ -104,7 +105,7 @@ function checkEmpty(): void {
   if (pending > 0 || results.querySelector('.section')) return;
   const badge = h('span', { class: 'big-icon' });
   badge.append(icon('search', 24));
-  results.append(h('div', { class: 'nothing' }, badge, h('div', {}, `Nessun risultato nei tuoi dati per «${query}».`), h('div', {}, 'Prova con il web: trovi i collegamenti qui a fianco.')));
+  results.append(h('div', { class: 'nothing' }, badge, h('div', {}, tr('Nessun risultato nei tuoi dati per «{0}».', query)), h('div', {}, tr('Prova con il web: trovi i collegamenti qui a fianco.'))));
 }
 
 function track<T>(promise: Promise<T>, done: (value: T) => void): void {
@@ -118,7 +119,7 @@ function track<T>(promise: Promise<T>, done: (value: T) => void): void {
 function eventChip(start: Date): HTMLElement {
   return h('span', { class: 'date-chip', 'aria-hidden': 'true' },
     h('span', { class: 'd' }, String(start.getDate())),
-    h('span', { class: 'm' }, start.toLocaleDateString('it-IT', { month: 'short' }).replace('.', '')));
+    h('span', { class: 'm' }, start.toLocaleDateString(localeTag(), { month: 'short' }).replace('.', '')));
 }
 
 function initials(name: string): string {
@@ -132,14 +133,14 @@ function initials(name: string): string {
 function aiCard(auto: boolean): HTMLElement {
   const body = h('div', { class: 'ai-body' });
   const status = h('span', { class: 'ai-status', role: 'status' });
-  const head = h('div', { class: 'section-head' }, h('h2', {}, icon('sparkles', 15), 'Risposta dell’IA'), status);
+  const head = h('div', { class: 'section-head' }, h('h2', {}, icon('sparkles', 15), tr('Risposta dell’IA')), status);
   const card = h('div', { class: 'cards ai-answer' }, body);
   const el = h('section', { class: 'section ai-section' }, head, card);
   let streamId: string | null = null;
   let text = '';
   let off: (() => void) | null = null;
 
-  const stop = h('button', { class: 'link more', type: 'button', hidden: true, onclick: () => streamId && void call(INTERNAL.aiCancel, streamId) }, 'Interrompi');
+  const stop = h('button', { class: 'link more', type: 'button', hidden: true, onclick: () => streamId && void call(INTERNAL.aiCancel, streamId) }, tr('Interrompi'));
   head.append(stop);
 
   const paint = () => body.replaceChildren(renderMarkdown(text, (url) => (location.href = url)));
@@ -150,15 +151,15 @@ function aiCard(auto: boolean): HTMLElement {
     stop.hidden = true;
     status.textContent = '';
     card.classList.remove('streaming');
-    if (error) body.replaceChildren(h('div', { class: 'section-error' }, icon('alert', 16), error), h('button', { class: 'ai-ask', type: 'button', onclick: start }, icon('reload', 15), 'Riprova'));
-    else if (!text.trim()) body.replaceChildren(h('div', { class: 'section-error' }, 'Nessuna risposta.'));
-    else body.append(h('p', { class: 'ai-note' }, 'Generata dall’IA di Infomaniak: può contenere errori.'));
+    if (error) body.replaceChildren(h('div', { class: 'section-error' }, icon('alert', 16), error), h('button', { class: 'ai-ask', type: 'button', onclick: start }, icon('reload', 15), tr('Riprova')));
+    else if (!text.trim()) body.replaceChildren(h('div', { class: 'section-error' }, tr('Nessuna risposta.')));
+    else body.append(h('p', { class: 'ai-note' }, tr('Generata dall’IA di Infomaniak: può contenere errori.')));
   };
   async function start(): Promise<void> {
     text = '';
     card.classList.add('streaming');
     body.replaceChildren(h('div', { class: 'typing', 'aria-hidden': 'true' }, h('i', {}), h('i', {}), h('i', {})));
-    status.textContent = 'Sto scrivendo…';
+    status.textContent = tr('Sto scrivendo…');
     stop.hidden = false;
     const buffered: AiEvent[] = [];
     // Listen before starting: the first delta can arrive before invoke resolves.
@@ -179,7 +180,7 @@ function aiCard(auto: boolean): HTMLElement {
   }
 
   if (auto) void start();
-  else body.append(h('button', { class: 'ai-ask', type: 'button', onclick: start }, icon('sparkles', 15), `Chiedi all’IA: «${query}»`));
+  else body.append(h('button', { class: 'ai-ask', type: 'button', onclick: start }, icon('sparkles', 15), tr('Chiedi all’IA: «{0}»', query)));
   addEventListener('pagehide', () => streamId && void call(INTERNAL.aiCancel, streamId));
   return el;
 }
@@ -188,30 +189,30 @@ function aiCard(auto: boolean): HTMLElement {
 
 function renderSide(meta: Meta): void {
   const engine = WEB_SEARCH_ENGINES[meta.webSearchEngine];
-  const main = h('a', { class: 'button web-main', href: webSearchUrl(query, meta.webSearchEngine) }, icon('globe', 16), h('span', {}, `Cerca su ${engine.name}`));
+  const main = h('a', { class: 'button web-main', href: webSearchUrl(query, meta.webSearchEngine) }, icon('globe', 16), h('span', {}, tr('Cerca su {0}', engine.name)));
   const chips = h('div', { class: 'chips' },
     ...(Object.keys(WEB_SEARCH_ENGINES) as WebSearchEngineId[])
       .filter((id) => id !== meta.webSearchEngine)
       .map((id) => h('a', { class: 'chip', href: webSearchUrl(query, id) }, WEB_SEARCH_ENGINES[id].name)));
-  side.replaceChildren(h('div', { class: 'side-card' }, h('h3', {}, icon('globe', 16), 'Sul web'), h('p', {}, `«${query}»`), main, chips));
+  side.replaceChildren(h('div', { class: 'side-card' }, h('h3', {}, icon('globe', 16), tr('Sul web')), h('p', {}, `«${query}»`), main, chips));
 
   if (!meta.tokenConfigured) {
     side.append(h('div', { class: 'side-card' },
-      h('h3', {}, icon('key', 16), 'Cerca anche nei tuoi dati'),
-      h('p', {}, 'Collega un account Infomaniak per trovare qui anche file di kDrive, email, contatti ed eventi.'),
-      h('a', { class: 'button', href: 'velo://settings/#account' }, 'Collega l’account')));
+      h('h3', {}, icon('key', 16), tr('Cerca anche nei tuoi dati')),
+      h('p', {}, tr('Collega un account Infomaniak per trovare qui anche file di kDrive, email, contatti ed eventi.')),
+      h('a', { class: 'button', href: 'velo://settings/#account' }, tr('Collega l’account'))));
   }
   if (!meta.isDefault) {
     side.append(h('div', { class: 'side-card' },
-      h('h3', {}, icon('search', 16), 'Usala dalla barra degli indirizzi'),
-      h('p', {}, 'Fai della ricerca unificata il motore predefinito: cerchi nei tuoi dati e sul web in un colpo solo.'),
+      h('h3', {}, icon('search', 16), tr('Usala dalla barra degli indirizzi')),
+      h('p', {}, tr('Fai della ricerca unificata il motore predefinito: cerchi nei tuoi dati e sul web in un colpo solo.')),
       h('button', {
         type: 'button',
         onclick: async (e: Event) => {
           await call(INTERNAL.searchSetDefault);
           (e.currentTarget as HTMLElement).closest('.side-card')?.remove();
         },
-      }, 'Imposta come predefinita')));
+      }, tr('Imposta come predefinita'))));
   }
 }
 
@@ -220,24 +221,24 @@ function renderSide(meta: Meta): void {
 async function run(): Promise<void> {
   input.value = query;
   if (!query) {
-    results.replaceChildren(h('div', { class: 'welcome' }, h('h1', {}, 'Ricerca unificata'), h('p', {}, 'Cerca in una volta sola tra preferiti, cronologia, file di kDrive, email, contatti ed eventi, con i collegamenti per continuare sul web.')));
+    results.replaceChildren(h('div', { class: 'welcome' }, h('h1', {}, tr('Ricerca unificata')), h('p', {}, tr('Cerca in una volta sola tra preferiti, cronologia, file di kDrive, email, contatti ed eventi, con i collegamenti per continuare sul web.'))));
     input.focus();
     return;
   }
-  document.title = `${query} — Ricerca unificata`;
+  document.title = tr('{0} — Ricerca unificata', query);
   const meta = await call<Meta>(INTERNAL.searchMeta);
   renderSide(meta);
 
   const value = calculate(query);
   if (value !== null) {
     results.append(h('section', { class: 'section' },
-      h('div', { class: 'section-head' }, h('h2', {}, icon('calculator', 15), 'Calcolo')),
+      h('div', { class: 'section-head' }, h('h2', {}, icon('calculator', 15), tr('Calcolo'))),
       h('div', { class: 'cards calc' }, h('span', { class: 'expr' }, `${query} =`), h('span', { class: 'value' }, formatNumber(value)))));
   }
 
   if (meta.aiEnabled) results.append(aiCard(meta.aiAutoAnswer));
 
-  const local = section({ id: 'local', title: 'Preferiti e cronologia', icon: 'history' });
+  const local = section({ id: 'local', title: tr('Preferiti e cronologia'), icon: 'history' });
   results.append(local.el);
   track(call<{ bookmarks: Bookmark[]; history: HistoryVisit[] }>(INTERNAL.searchLocal, query), (r) =>
     local.fill([
@@ -248,10 +249,10 @@ async function run(): Promise<void> {
   if (!meta.tokenConfigured) return;
   const openApp = (appId: string) => () => void call(INTERNAL.searchOpenApp, appId);
 
-  const drive = section({ id: 'drive', title: 'kDrive', icon: 'cloud', more: { label: 'Apri kDrive', onclick: openApp('drive') } });
-  const mail = section({ id: 'mail', title: 'Email', icon: 'mail', more: { label: 'Apri Mail', onclick: openApp('mail') } });
-  const contacts = section({ id: 'contacts', title: 'Contatti', icon: 'bookUser', more: { label: 'Apri Contacts', onclick: openApp('contacts') } });
-  const events = section({ id: 'events', title: 'Eventi', icon: 'calendar', more: { label: 'Apri Calendar', onclick: openApp('calendar') } });
+  const drive = section({ id: 'drive', title: 'kDrive', icon: 'cloud', more: { label: tr('Apri kDrive'), onclick: openApp('drive') } });
+  const mail = section({ id: 'mail', title: 'Email', icon: 'mail', more: { label: tr('Apri Mail'), onclick: openApp('mail') } });
+  const contacts = section({ id: 'contacts', title: tr('Contatti'), icon: 'bookUser', more: { label: tr('Apri Contacts'), onclick: openApp('contacts') } });
+  const events = section({ id: 'events', title: tr('Eventi'), icon: 'calendar', more: { label: tr('Apri Calendar'), onclick: openApp('calendar') } });
   results.append(drive.el, mail.el, contacts.el, events.el);
 
   const settle = <T>(s: ReturnType<typeof section>, channel: string, rows: (data: T) => HTMLElement[]) =>
@@ -261,7 +262,7 @@ async function run(): Promise<void> {
     files.map((f) => row({
       lead: lead(icon(fileIcon(f), 18), f.type === 'dir'),
       title: f.name,
-      sub: f.type === 'dir' ? 'Cartella' : f.mimeType ?? 'File',
+      sub: f.type === 'dir' ? tr('Cartella') : f.mimeType ?? 'File',
       meta: f.lastModified ? formatDateTime(f.lastModified, false) : undefined,
       onclick: async () => {
         const res = await call<ApiResult<string>>(INTERNAL.searchOpenDrive, f);
@@ -274,15 +275,15 @@ async function run(): Promise<void> {
     list.map((c) => {
       const email = c.emails[0];
       const write = email
-        ? h('span', { class: 'action' }, h('span', { class: 'chip', title: `Scrivi a ${email}` }, icon('pencil', 13), ' Scrivi'))
+        ? h('span', { class: 'action' }, h('span', { class: 'chip', title: `Scrivi a ${email}` }, icon('pencil', 13), tr(' Scrivi')))
         : null;
-      return row({ lead: lead(initials(c.name || email || '?'), true), title: c.name || email || '(senza nome)', sub: c.emails.join(', '), action: write, onclick: email ? () => void call(INTERNAL.searchCompose, email) : openApp('contacts') });
+      return row({ lead: lead(initials(c.name || email || '?'), true), title: c.name || email || tr('(senza nome)'), sub: c.emails.join(', '), action: write, onclick: email ? () => void call(INTERNAL.searchCompose, email) : openApp('contacts') });
     }));
   settle<CalendarEvent[]>(events, INTERNAL.searchEvents, (list) =>
     list.map((e) => {
       const start = new Date(e.start);
-      const when = e.fullday ? 'Tutto il giorno' : start.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-      return row({ lead: eventChip(start), title: e.title, sub: `${start.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })} · ${when}${e.location ? ` · ${e.location}` : ''}`, onclick: openApp('calendar') });
+      const when = e.fullday ? tr('Tutto il giorno') : start.toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' });
+      return row({ lead: eventChip(start), title: e.title, sub: `${start.toLocaleDateString(localeTag(), { weekday: 'long', day: 'numeric', month: 'long' })} · ${when}${e.location ? ` · ${e.location}` : ''}`, onclick: openApp('calendar') });
     }));
 }
 

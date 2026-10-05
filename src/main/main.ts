@@ -1,3 +1,5 @@
+// Must stay first: the interface language is chosen before the other modules load.
+import './locale-boot';
 import {
   BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, nativeTheme, session as electronSession, shell,
   webContents as allWebContents, type IpcMainInvokeEvent, type Session,
@@ -55,6 +57,7 @@ import { adoptLegacyProfile } from './legacy';
 import { TorProcess, findTor, type TorStatus } from './tor/process';
 import { SocksRelay } from './tor/relay';
 import { TorIdentity } from './tor/identity';
+import { locale, resolveLocale, tr } from '../shared/i18n';
 
 adoptLegacyProfile();
 // Widevine comes from Google's component updater: unless the user turned protected content on, it
@@ -199,7 +202,7 @@ async function makeDefaultBrowser(): Promise<boolean> {
 // ---------- Startup ----------
 
 async function start(): Promise<void> {
-  app.setAboutPanelOptions({ applicationName: 'Velo', applicationVersion: app.getVersion(), copyright: 'Licenza MIT' });
+  app.setAboutPanelOptions({ applicationName: 'Velo', applicationVersion: app.getVersion(), copyright: tr('Licenza MIT') });
   // Look like a regular Chrome: the default user agent names Electron and this app, which makes the
   // browser easy to fingerprint and gets sign-ins refused by some sites (e.g. Google).
   app.userAgentFallback = chromeUserAgent(app.userAgentFallback);
@@ -475,8 +478,8 @@ async function openTorWindow(url?: string): Promise<BrowserWindowController | nu
   if (!tor.process!.available()) {
     void dialog.showMessageBox({
       type: 'warning',
-      message: 'Tor non è disponibile',
-      detail: 'Questa installazione di Velo non include Tor. Scarica Velo dalla pagina delle versioni ufficiali, oppure installa Tor sul sistema.',
+      message: tr('Tor non è disponibile'),
+      detail: tr('Questa installazione di Velo non include Tor. Scarica Velo dalla pagina delle versioni ufficiali, oppure installa Tor sul sistema.'),
     });
     return null;
   }
@@ -504,10 +507,10 @@ async function newTorCircuit(w: BrowserWindowController, tabId: number): Promise
 }
 
 function torStatusLabel(status: TorStatus | undefined): string {
-  if (!status || status.state === 'off') return 'Tor non è avviato';
-  if (status.state === 'starting') return `Connessione alla rete Tor… ${status.progress}%`;
-  if (status.state === 'error') return `Tor non riesce a connettersi: ${status.message}`;
-  return 'Connesso alla rete Tor';
+  if (!status || status.state === 'off') return tr('Tor non è avviato');
+  if (status.state === 'starting') return tr('Connessione alla rete Tor… {0}%', status.progress);
+  if (status.state === 'error') return tr('Tor non riesce a connettersi: {0}', status.message);
+  return tr('Connesso alla rete Tor');
 }
 
 /** Menu of the Tor badge of a Tor window. */
@@ -518,11 +521,11 @@ function showTorMenu(w: BrowserWindowController): void {
   const status = tor.process?.status;
   Menu.buildFromTemplate([
     { label: torStatusLabel(status), enabled: false },
-    ...(site ? [{ label: `Questo sito vede un indirizzo diverso dagli altri (${site})`, enabled: false }] : []),
+    ...(site ? [{ label: tr('Questo sito vede un indirizzo diverso dagli altri ({0})', site), enabled: false }] : []),
     { type: 'separator' },
-    { label: 'Nuovo circuito Tor per questo sito', enabled: Boolean(site && id !== null), click: () => void newTorCircuit(w, id!) },
-    { label: 'Nuova identità', click: () => void newTorIdentity() },
-    ...(status?.state === 'error' ? [{ label: 'Riprova a connettersi', click: () => void tor.process?.start() }] : []),
+    { label: tr('Nuovo circuito Tor per questo sito'), enabled: Boolean(site && id !== null), click: () => void newTorCircuit(w, id!) },
+    { label: tr('Nuova identità'), click: () => void newTorIdentity() },
+    ...(status?.state === 'error' ? [{ label: tr('Riprova a connettersi'), click: () => void tor.process?.start() }] : []),
   ]).popup({ window: w.win });
 }
 
@@ -557,28 +560,28 @@ function tabContextMenu(w: BrowserWindowController, tabId: number): void {
     for (const id of list) w.tabs.close(id);
   };
   Menu.buildFromTemplate([
-    { label: 'Nuova scheda a destra', click: () => w.tabs.create(settings.get().newTabPage === 'newtab' ? NEWTAB_URL : settings.get().homePage, { index: index + 1 }) },
+    { label: tr('Nuova scheda a destra'), click: () => w.tabs.create(settings.get().newTabPage === 'newtab' ? NEWTAB_URL : settings.get().homePage, { index: index + 1 }) },
     { type: 'separator' },
-    { label: 'Ricarica', click: () => w.tabs.reload(tabId) },
-    { label: 'Duplica', click: () => w.tabs.duplicate(tabId) },
-    { label: state.pinned ? 'Sblocca scheda' : 'Fissa scheda', click: () => w.tabs.setPinned(tabId, !state.pinned) },
-    { label: state.muted ? 'Riattiva audio del sito' : 'Disattiva audio del sito', click: () => w.tabs.setMuted(tabId, !state.muted) },
+    { label: tr('Ricarica'), click: () => w.tabs.reload(tabId) },
+    { label: tr('Duplica'), click: () => w.tabs.duplicate(tabId) },
+    { label: state.pinned ? tr('Sblocca scheda') : tr('Fissa scheda'), click: () => w.tabs.setPinned(tabId, !state.pinned) },
+    { label: state.muted ? tr('Riattiva audio del sito') : tr('Disattiva audio del sito'), click: () => w.tabs.setMuted(tabId, !state.muted) },
     {
-      label: state.sleeping ? 'In pausa per risparmiare memoria' : 'Metti in pausa (libera memoria)',
+      label: state.sleeping ? tr('In pausa per risparmiare memoria') : tr('Metti in pausa (libera memoria)'),
       enabled: !state.sleeping && !state.active,
       click: () => w.tabs.sleepTab(tabId),
     },
     { type: 'separator' },
-    { label: 'Sposta in una nuova finestra', enabled: ids.length > 1, click: () => moveTab(w, tabId, 'new') },
+    { label: tr('Sposta in una nuova finestra'), enabled: ids.length > 1, click: () => moveTab(w, tabId, 'new') },
     ...(others.length
-      ? [{ label: 'Sposta nella finestra', submenu: others.map((o) => ({ label: o.tabs.states().find((t) => t.active)?.title.slice(0, 50) ?? 'Finestra', click: () => moveTab(w, tabId, o) })) }]
+      ? [{ label: tr('Sposta nella finestra'), submenu: others.map((o) => ({ label: o.tabs.states().find((t) => t.active)?.title.slice(0, 50) ?? tr('Finestra'), click: () => moveTab(w, tabId, o) })) }]
       : []),
     { type: 'separator' },
-    { label: 'Chiudi scheda', click: () => w.closeTab(tabId) },
-    { label: 'Chiudi le altre schede', enabled: ids.length > 1, click: () => closeMany(ids.filter((id) => id !== tabId && !isPinned(id))) },
-    { label: 'Chiudi le schede a destra', enabled: index < ids.length - 1, click: () => closeMany(ids.slice(index + 1)) },
+    { label: tr('Chiudi scheda'), click: () => w.closeTab(tabId) },
+    { label: tr('Chiudi le altre schede'), enabled: ids.length > 1, click: () => closeMany(ids.filter((id) => id !== tabId && !isPinned(id))) },
+    { label: tr('Chiudi le schede a destra'), enabled: index < ids.length - 1, click: () => closeMany(ids.slice(index + 1)) },
     { type: 'separator' },
-    { label: 'Riapri scheda chiusa', enabled: w.tabs.hasClosed(), click: () => w.tabs.reopenClosed() },
+    { label: tr('Riapri scheda chiusa'), enabled: w.tabs.hasClosed(), click: () => w.tabs.reopenClosed() },
   ]).popup({ window: w.win });
 }
 
@@ -625,6 +628,11 @@ function offerDrm(contents: Electron.WebContents): void {
 /** Turns protected content on: the module is downloaded at the next start, so restart now (tabs come back). */
 function enableDrmAndRestart(): void {
   settings.update({ drmOptIn: true });
+  restartVelo();
+}
+
+/** Restarts the browser, reopening the tabs. */
+function restartVelo(): void {
   saveSessionNow();
   app.relaunch();
   app.quit();
@@ -777,16 +785,16 @@ function bookmarkPageMenu(w: BrowserWindowController, tabId: number): void {
   const existing = bookmarks.find(url);
   if (!existing) {
     bookmarks.add({ title: wc.getTitle(), url, folder: 'bar' });
-    w.send(IPC.evToast, { kind: 'success', message: 'Aggiunto alla barra dei preferiti' });
+    w.send(IPC.evToast, { kind: 'success', message: tr('Aggiunto alla barra dei preferiti') });
     return;
   }
   const other: BookmarkFolder = existing.folder === 'bar' ? 'other' : 'bar';
   Menu.buildFromTemplate([
-    { label: `Nei preferiti: ${existing.title}`, enabled: false },
+    { label: tr('Nei preferiti: {0}', existing.title), enabled: false },
     { type: 'separator' },
-    { label: other === 'other' ? 'Sposta in Altri preferiti' : 'Sposta nella barra dei preferiti', click: () => bookmarks.update(existing.id, { folder: other }) },
-    { label: 'Modifica…', click: () => w.openInternal('velo://bookmarks/') },
-    { label: 'Rimuovi dai preferiti', click: () => bookmarks.remove(existing.id) },
+    { label: other === 'other' ? tr('Sposta in Altri preferiti') : tr('Sposta nella barra dei preferiti'), click: () => bookmarks.update(existing.id, { folder: other }) },
+    { label: tr('Modifica…'), click: () => w.openInternal('velo://bookmarks/') },
+    { label: tr('Rimuovi dai preferiti'), click: () => bookmarks.remove(existing.id) },
   ]).popup({ window: w.win });
 }
 
@@ -795,15 +803,15 @@ function bookmarkContextMenu(w: BrowserWindowController, id: string): void {
   if (!b) return;
   const other: BookmarkFolder = b.folder === 'bar' ? 'other' : 'bar';
   Menu.buildFromTemplate([
-    { label: 'Apri', click: () => openUrl(w, b.url, 'current') },
-    { label: 'Apri in una nuova scheda', click: () => openUrl(w, b.url, 'background') },
-    { label: 'Apri in una nuova finestra', click: () => openUrl(w, b.url, 'window') },
-    { label: 'Apri in una finestra privata', click: () => openUrl(w, b.url, 'private') },
-    { label: 'Apri in una finestra Tor', click: () => openUrl(w, b.url, 'tor') },
+    { label: tr('Apri'), click: () => openUrl(w, b.url, 'current') },
+    { label: tr('Apri in una nuova scheda'), click: () => openUrl(w, b.url, 'background') },
+    { label: tr('Apri in una nuova finestra'), click: () => openUrl(w, b.url, 'window') },
+    { label: tr('Apri in una finestra privata'), click: () => openUrl(w, b.url, 'private') },
+    { label: tr('Apri in una finestra Tor'), click: () => openUrl(w, b.url, 'tor') },
     { type: 'separator' },
-    { label: other === 'other' ? 'Sposta in Altri preferiti' : 'Sposta nella barra dei preferiti', click: () => bookmarks.update(b.id, { folder: other }) },
-    { label: 'Modifica…', click: () => w.openInternal('velo://bookmarks/') },
-    { label: 'Elimina', click: () => bookmarks.remove(b.id) },
+    { label: other === 'other' ? tr('Sposta in Altri preferiti') : tr('Sposta nella barra dei preferiti'), click: () => bookmarks.update(b.id, { folder: other }) },
+    { label: tr('Modifica…'), click: () => w.openInternal('velo://bookmarks/') },
+    { label: tr('Elimina'), click: () => bookmarks.remove(b.id) },
   ]).popup({ window: w.win });
 }
 
@@ -814,9 +822,9 @@ function allBookmarksMenu(w: BrowserWindowController): void {
   Menu.buildFromTemplate([
     ...bar.map(item),
     ...(bar.length ? [{ type: 'separator' as const }] : []),
-    { label: 'Altri preferiti', submenu: others.length ? others.map(item) : [{ label: 'Vuoto', enabled: false }] },
+    { label: tr('Altri preferiti'), submenu: others.length ? others.map(item) : [{ label: tr('Vuoto'), enabled: false }] },
     { type: 'separator' },
-    { label: 'Gestisci preferiti', click: () => w.openInternal('velo://bookmarks/') },
+    { label: tr('Gestisci preferiti'), click: () => w.openInternal('velo://bookmarks/') },
   ]).popup({ window: w.win });
 }
 
@@ -926,9 +934,9 @@ function showShieldMenu(w: BrowserWindowController, tabId: number): void {
   if (site && guard && wc) {
     const exempt = s.protectionExceptions.includes(site);
     items.push(
-      { label: `Protezioni per ${site}`, enabled: false },
+      { label: tr('Protezioni per {0}', site), enabled: false },
       {
-        label: 'Protezioni attive su questo sito (tracker, cookie, impronta digitale)',
+        label: tr('Protezioni attive su questo sito (tracker, cookie, impronta digitale)'),
         type: 'checkbox',
         checked: !exempt,
         click: () => {
@@ -937,15 +945,15 @@ function showShieldMenu(w: BrowserWindowController, tabId: number): void {
           wc.reload();
         },
       },
-      { label: `${guard.blockedCount(wc.id)} richieste bloccate in questa pagina`, enabled: false },
+      { label: tr('{0} richieste bloccate in questa pagina', guard.blockedCount(wc.id)), enabled: false },
     );
-    if (guard.wasCleaned(wc.id)) items.push({ label: 'Parametri di tracciamento rimossi dall’indirizzo', enabled: false });
-    if (s.trackingProtection === 'off') items.push({ label: 'Il blocco dei tracker è disattivato nelle impostazioni', enabled: false });
+    if (guard.wasCleaned(wc.id)) items.push({ label: tr('Parametri di tracciamento rimossi dall’indirizzo'), enabled: false });
+    if (s.trackingProtection === 'off') items.push({ label: tr('Il blocco dei tracker è disattivato nelle impostazioni'), enabled: false });
     items.push({ type: 'separator' });
   } else {
-    items.push({ label: 'Nessuna protezione necessaria per questa pagina', enabled: false }, { type: 'separator' });
+    items.push({ label: tr('Nessuna protezione necessaria per questa pagina'), enabled: false }, { type: 'separator' });
   }
-  items.push({ label: 'Impostazioni privacy…', click: () => w.openSettings('privacy') });
+  items.push({ label: tr('Impostazioni privacy…'), click: () => w.openSettings('privacy') });
   Menu.buildFromTemplate(items).popup({ window: w.win });
 }
 
@@ -960,18 +968,18 @@ function showSiteMenu(w: BrowserWindowController, tabId: number): void {
   const items: Electron.MenuItemConstructorOptions[] = [
     { label: hostname, enabled: false },
     {
-      label: secure ? 'La connessione è sicura' : 'La connessione non è sicura',
-      sublabel: secure ? 'Le informazioni che invii restano private' : 'Non inserire password o dati della carta',
+      label: secure ? tr('La connessione è sicura') : tr('La connessione non è sicura'),
+      sublabel: secure ? tr('Le informazioni che invii restano private') : tr('Non inserire password o dati della carta'),
       enabled: false,
     },
     { type: 'separator' },
   ];
 
   if (w.isPrivate) {
-    items.push({ label: 'Nelle finestre private i permessi valgono fino alla chiusura', enabled: false });
+    items.push({ label: tr('Nelle finestre private i permessi valgono fino alla chiusura'), enabled: false });
   } else {
     const granted = settings.get().sitePermissions.filter((p) => p.host === hostname);
-    if (granted.length === 0) items.push({ label: 'Nessun permesso scelto per questo sito', enabled: false });
+    if (granted.length === 0) items.push({ label: tr('Nessun permesso scelto per questo sito'), enabled: false });
     for (const p of granted) {
       const set = (allowed: boolean | null) => {
         const others = settings.get().sitePermissions.filter((x) => !(x.host === hostname && x.permission === p.permission));
@@ -980,16 +988,16 @@ function showSiteMenu(w: BrowserWindowController, tabId: number): void {
       items.push({
         label: `${permissionLabel(p.permission)}: ${p.allowed ? 'consentito' : 'bloccato'}`,
         submenu: [
-          { label: 'Consenti', type: 'radio', checked: p.allowed, click: () => set(true) },
-          { label: 'Blocca', type: 'radio', checked: !p.allowed, click: () => set(false) },
-          { label: 'Chiedi di nuovo', click: () => set(null) },
+          { label: tr('Consenti'), type: 'radio', checked: p.allowed, click: () => set(true) },
+          { label: tr('Blocca'), type: 'radio', checked: !p.allowed, click: () => set(false) },
+          { label: tr('Chiedi di nuovo'), click: () => set(null) },
         ],
       });
     }
   }
   items.push(
     {
-      label: 'Cancella cookie e dati del sito',
+      label: tr('Cancella cookie e dati del sito'),
       click: async () => {
         const site = siteOf(url);
         const cookies = await wc.session.cookies.get({});
@@ -1001,8 +1009,8 @@ function showSiteMenu(w: BrowserWindowController, tabId: number): void {
       },
     },
     { type: 'separator' },
-    { label: 'Protezioni del sito…', click: () => showShieldMenu(w, tabId) },
-    { label: 'Impostazioni dei siti…', click: () => w.openSettings('permissions') },
+    { label: tr('Protezioni del sito…'), click: () => showShieldMenu(w, tabId) },
+    { label: tr('Impostazioni dei siti…'), click: () => w.openSettings('permissions') },
   );
   Menu.buildFromTemplate(items).popup({ window: w.win });
 }
@@ -1047,14 +1055,14 @@ function hoverInfo(w: BrowserWindowController, t: TabState): HoverInfo {
     /* keep the address */
   }
   const meta: string[] = [];
-  if (t.sleeping) meta.push('In pausa: si ricarica quando la apri');
+  if (t.sleeping) meta.push(tr('In pausa: si ricarica quando la apri'));
   else {
     const pid = w.tabs.contents(t.id)?.getOSProcessId();
     const metric = pid ? app.getAppMetrics().find((m) => m.pid === pid) : undefined;
     if (metric) meta.push(`Memoria: ${Math.max(1, Math.round(metric.memory.workingSetSize / 1024))} MB`);
   }
-  if (t.audible && !t.muted) meta.push('Sta riproducendo audio');
-  if (t.muted) meta.push('Audio disattivato');
+  if (t.audible && !t.muted) meta.push(tr('Sta riproducendo audio'));
+  if (t.muted) meta.push(tr('Audio disattivato'));
   return { title: t.title || t.url, host, meta: meta.join(' · ') };
 }
 
@@ -1069,7 +1077,7 @@ async function toggleReader(w: BrowserWindowController, tabId: number): Promise<
   }
   const article = await extractArticle(wc);
   if (!article) {
-    w.send(IPC.evToast, { kind: 'info', message: 'In questa pagina non c’è un articolo da mostrare in modalità lettura.' });
+    w.send(IPC.evToast, { kind: 'info', message: tr('In questa pagina non c’è un articolo da mostrare in modalità lettura.') });
     return;
   }
   readerCache.set(article);
@@ -1093,21 +1101,21 @@ function showToolbarMenu(w: BrowserWindowController, item: string | null): void 
     const inStart = s.toolbarStart.includes(item);
     const without = { toolbarStart: s.toolbarStart.filter((x) => x !== item), toolbarEnd: s.toolbarEnd.filter((x) => x !== item) };
     items.push(
-      { label: `Rimuovi «${TOOLBAR_ITEMS[item].label}» dalla barra`, click: () => settings.update(without) },
+      { label: tr('Rimuovi «{0}» dalla barra', TOOLBAR_ITEMS[item].label), click: () => settings.update(without) },
       inStart
-        ? { label: 'Sposta dopo la barra degli indirizzi', click: () => settings.update({ ...without, toolbarEnd: [item, ...without.toolbarEnd] }) }
-        : { label: 'Sposta prima della barra degli indirizzi', click: () => settings.update({ ...without, toolbarStart: [...without.toolbarStart, item] }) },
+        ? { label: tr('Sposta dopo la barra degli indirizzi'), click: () => settings.update({ ...without, toolbarEnd: [item, ...without.toolbarEnd] }) }
+        : { label: tr('Sposta prima della barra degli indirizzi'), click: () => settings.update({ ...without, toolbarStart: [...without.toolbarStart, item] }) },
       { type: 'separator' },
     );
   }
   const missing = TOOLBAR_ITEM_IDS.filter((id) => !s.toolbarStart.includes(id) && !s.toolbarEnd.includes(id));
   if (missing.length) {
     items.push({
-      label: 'Aggiungi un pulsante',
+      label: tr('Aggiungi un pulsante'),
       submenu: missing.map((id) => ({ label: TOOLBAR_ITEMS[id].label, click: () => settings.update({ toolbarEnd: [...settings.get().toolbarEnd, id] }) })),
     });
   }
-  items.push({ label: 'Personalizza l’aspetto…', click: () => w.openSettings('appearance') });
+  items.push({ label: tr('Personalizza l’aspetto…'), click: () => w.openSettings('appearance') });
   if (!w.win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: w.win });
 }
 
@@ -1119,25 +1127,25 @@ function showExtensionsMenu(w: BrowserWindowController, anchor: Rect | null): vo
   const icon = (b: { icon: string | null }) => (b.icon ? nativeImage.createFromDataURL(b.icon).resize({ width: 16, height: 16 }) : undefined);
   const items: Electron.MenuItemConstructorOptions[] = buttons.length
     ? buttons.map((b) => ({ label: b.name, icon: icon(b), enabled: b.enabled, click: () => host.clickAction(w, b.id, anchor, true) }))
-    : [{ label: 'Nessuna estensione installata', enabled: false }];
+    : [{ label: tr('Nessuna estensione installata'), enabled: false }];
   if (buttons.length) {
     items.push(
       { type: 'separator' },
-      { label: 'Fissa sulla barra', submenu: buttons.map((b) => ({ label: b.name, type: 'checkbox' as const, checked: b.pinned, click: () => host.registry.setPinned(b.id, !b.pinned) })) },
+      { label: tr('Fissa sulla barra'), submenu: buttons.map((b) => ({ label: b.name, type: 'checkbox' as const, checked: b.pinned, click: () => host.registry.setPinned(b.id, !b.pinned) })) },
     );
   }
   items.push(
     { type: 'separator' },
-    { label: 'Gestisci le estensioni', click: () => w.openInternal('velo://extensions/') },
-    { label: 'Apri il Chrome Web Store', click: () => w.tabs.activate(w.tabs.create('https://chromewebstore.google.com/category/extensions')) },
+    { label: tr('Gestisci le estensioni'), click: () => w.openInternal('velo://extensions/') },
+    { label: tr('Apri il Chrome Web Store'), click: () => w.tabs.activate(w.tabs.create('https://chromewebstore.google.com/category/extensions')) },
   );
   Menu.buildFromTemplate(items).popup({ window: w.win, ...(anchor ? { x: Math.round(anchor.x), y: Math.round(anchor.y + anchor.height + 4) } : {}) });
 }
 
 async function confirmRemoveExtension(w: BrowserWindowController | null, id: string): Promise<boolean> {
   if (!extensions) return false;
-  const name = extensions.summary().find((e) => e.id === id)?.name ?? 'l’estensione';
-  const options = { type: 'question' as const, buttons: ['Rimuovi', 'Annulla'], defaultId: 1, cancelId: 1, message: `Rimuovere «${name}»?`, detail: 'I suoi dati salvati in Velo vengono cancellati.' };
+  const name = extensions.summary().find((e) => e.id === id)?.name ?? tr('l’estensione');
+  const options = { type: 'question' as const, buttons: [tr('Rimuovi'), tr('Annulla')], defaultId: 1, cancelId: 1, message: `Rimuovere «${name}»?`, detail: tr('I suoi dati salvati in Velo vengono cancellati.') };
   const { response } = w ? await dialog.showMessageBox(w.win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
   extensions.registry.remove(id);
@@ -1154,13 +1162,13 @@ async function showMediaMenu(w: BrowserWindowController): Promise<void> {
     if (items.length) items.push({ type: 'separator' });
     items.push(
       { label: t.title.length > 60 ? `${t.title.slice(0, 57)}…` : t.title, enabled: false },
-      { label: info.playing ? 'Pausa' : 'Riprendi', click: () => void pageMediaAction(wc, info.playing ? 'pause' : 'play') },
-      { label: t.muted ? 'Riattiva audio' : 'Disattiva audio', click: () => w.tabs.setMuted(t.id, !t.muted) },
+      { label: info.playing ? tr('Pausa') : tr('Riprendi'), click: () => void pageMediaAction(wc, info.playing ? 'pause' : 'play') },
+      { label: t.muted ? tr('Riattiva audio') : tr('Disattiva audio'), click: () => w.tabs.setMuted(t.id, !t.muted) },
     );
     if (info.hasVideo) items.push({ label: 'Picture-in-picture', type: 'checkbox', checked: info.pip, click: () => void pageMediaAction(wc, 'toggle-pip') });
-    if (!t.active) items.push({ label: 'Vai alla scheda', click: () => w.tabs.activate(t.id) });
+    if (!t.active) items.push({ label: tr('Vai alla scheda'), click: () => w.tabs.activate(t.id) });
   }
-  if (!items.length) items.push({ label: 'Nessun contenuto audio o video', enabled: false });
+  if (!items.length) items.push({ label: tr('Nessun contenuto audio o video'), enabled: false });
   if (!w.win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: w.win });
 }
 
@@ -1369,7 +1377,7 @@ function registerChromeIpc(): void {
   );
   handle(IPC.apiDriveUpload, (w, dirId: number) =>
     wrap(async () => {
-      const picked = await dialog.showOpenDialog(w.win, { title: 'Carica su kDrive', properties: ['openFile', 'multiSelections'] });
+      const picked = await dialog.showOpenDialog(w.win, { title: tr('Carica su kDrive'), properties: ['openFile', 'multiSelections'] });
       if (picked.canceled) return [];
       const uploaded: DriveFile[] = [];
       for (const path of picked.filePaths) uploaded.push(await services.uploadLocalFile(path, dirId));
@@ -1384,7 +1392,7 @@ function registerChromeIpc(): void {
   handle(IPC.apiSavePageToDrive, (w) =>
     wrap(async () => {
       const wc = w.activeContents();
-      if (!wc) throw new Error('Nessuna scheda attiva.');
+      if (!wc) throw new Error(tr('Nessuna scheda attiva.'));
       await w.savePageToDrive(wc);
     }),
   );
@@ -1420,12 +1428,14 @@ function registerInternalIpc(): void {
   // Every internal page reads the settings (theme); only the settings page changes them.
   handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader', 'extensions'], () => settings.get());
   handleInternal(INTERNAL.settingsSet, S, (_e, patch: Partial<Settings>) => settings.update(patch));
+  handleInternal(INTERNAL.localeInfo, S, () => ({ current: locale(), system: resolveLocale('system', app.getPreferredSystemLanguages()) }));
+  handleInternal(INTERNAL.restart, S, () => restartVelo());
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
   handleInternal(INTERNAL.defaultBrowserStatus, S, () => isDefaultBrowser());
   handleInternal(INTERNAL.defaultBrowserSet, S, () => makeDefaultBrowser());
   handleInternal(INTERNAL.tokenSet, S, (_e, token: string) =>
     wrap(async () => {
-      if (!token.trim()) throw new Error('Il token è vuoto.');
+      if (!token.trim()) throw new Error(tr('Il token è vuoto.'));
       settings.setToken(token);
       services.resetCache();
       const profile = await services.profile();
@@ -1461,7 +1471,7 @@ function registerInternalIpc(): void {
   );
   handleInternal(INTERNAL.chooseDownloadDir, S, async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender) ?? current()?.win;
-    const options = { title: 'Cartella per i download', defaultPath: downloads.folder(), properties: ['openDirectory', 'createDirectory'] as Array<'openDirectory' | 'createDirectory'> };
+    const options = { title: tr('Cartella per i download'), defaultPath: downloads.folder(), properties: ['openDirectory', 'createDirectory'] as Array<'openDirectory' | 'createDirectory'> };
     const picked = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
     if (picked.canceled || !picked.filePaths[0]) return null;
     settings.update({ downloadDir: picked.filePaths[0] });
@@ -1509,8 +1519,8 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.pwNever, P, () => wrap(() => vault().never()));
   handleInternal(INTERNAL.pwAdd, P, (_e, entry: { url: string; username: string; password: string }) => wrap(() => {
     const origin = originOf(String(entry?.url ?? '')) ?? originOf(`https://${String(entry?.url ?? '')}`);
-    if (!origin) throw new Error('Indirizzo del sito non valido.');
-    if (!entry.password) throw new Error('La password è vuota.');
+    if (!origin) throw new Error(tr('Indirizzo del sito non valido.'));
+    if (!entry.password) throw new Error(tr('La password è vuota.'));
     return vault().save(origin, String(entry.username ?? ''), String(entry.password));
   }));
   handleInternal(INTERNAL.pwUpdate, P, (_e, id: string, patch: { username?: string; password?: string; origin?: string }) => wrap(() => vault().update(String(id), patch ?? {})));
@@ -1521,7 +1531,7 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.pwImport, P, (_e, csv: string) => wrap(() => vault().importCsv(String(csv ?? '').slice(0, 20_000_000))));
   handleInternal(INTERNAL.pwExport, P, (_e, primary?: string) => wrap(async () => {
     // Exporting writes every password in clear text: ask for the primary password again.
-    if (!(await vault().checkPrimary(String(primary ?? '')))) throw new Error('Password principale errata.');
+    if (!(await vault().checkPrimary(String(primary ?? '')))) throw new Error(tr('Password principale errata.'));
     return vault().exportCsv();
   }));
   handleInternal(INTERNAL.pwGenerate, P, () => generatePassword());
@@ -1554,7 +1564,7 @@ function registerInternalIpc(): void {
   registerSearchIpc();
   handleInternal(INTERNAL.threatContinue, ['blocked'], (event, url: string) => {
     const parsed = new URL(String(url));
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('URL non valido');
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error(tr('URL non valido'));
     threats.allow(parsed.href);
     void event.sender.loadURL(parsed.href);
   });
@@ -1562,7 +1572,7 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.drmStatus, ['settings'], () => widevineStatus());
   const E = ['extensions'];
   const host = () => {
-    if (!extensions) throw new Error('Estensioni non disponibili');
+    if (!extensions) throw new Error(tr('Estensioni non disponibili'));
     return extensions;
   };
   const installWrap = async (fn: () => Promise<{ id: string } | null>) => {
@@ -1581,7 +1591,7 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.extInstallStore, E, (_e, input: string) => host().installFromStore(current(), String(input ?? '')));
   handleInternal(INTERNAL.extInstallFile, E, async () => {
     const w = current();
-    const opts = { title: 'Installa estensione', properties: ['openFile' as const], filters: [{ name: 'Estensioni (.crx, .zip)', extensions: ['crx', 'zip'] }] };
+    const opts = { title: tr('Installa estensione'), properties: ['openFile' as const], filters: [{ name: tr('Estensioni (.crx, .zip)'), extensions: ['crx', 'zip'] }] };
     const res = w ? await dialog.showOpenDialog(w.win, opts) : await dialog.showOpenDialog(opts);
     if (res.canceled || !res.filePaths[0]) return { ok: false };
     const file = res.filePaths[0];
@@ -1591,7 +1601,7 @@ function registerInternalIpc(): void {
   });
   handleInternal(INTERNAL.extLoadUnpacked, E, async () => {
     const w = current();
-    const opts = { title: 'Carica la cartella di un’estensione', properties: ['openDirectory' as const] };
+    const opts = { title: tr('Carica la cartella di un’estensione'), properties: ['openDirectory' as const] };
     const res = w ? await dialog.showOpenDialog(w.win, opts) : await dialog.showOpenDialog(opts);
     if (res.canceled || !res.filePaths[0]) return { ok: false };
     return installWrap(() => host().registry.installUnpacked(res.filePaths[0], (p) => host().confirmInstall(w, p)));
@@ -1633,7 +1643,7 @@ function registerInternalIpc(): void {
   });
   handleInternal(INTERNAL.httpsContinue, ['https-only'], (event, url: string) => {
     const parsed = new URL(url);
-    if (parsed.protocol !== 'http:') throw new Error('URL non valido');
+    if (parsed.protocol !== 'http:') throw new Error(tr('URL non valido'));
     const host = parsed.hostname.toLowerCase();
     if (!settings.get().httpExceptions.includes(host)) settings.update({ httpExceptions: [...settings.get().httpExceptions, host] });
     void event.sender.loadURL(parsed.href);

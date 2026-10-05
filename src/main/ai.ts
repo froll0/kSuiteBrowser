@@ -6,6 +6,7 @@ import { SYSTEM_PROMPT, quoted } from '../shared/ai-prompts';
 import type { AiEvent, AiMessage, AiStatus } from '../shared/types';
 import { readerOriginal } from './reader';
 import type { SettingsStore } from './settings';
+import { tr } from '../shared/i18n';
 
 const PAGE_TEXT_LIMIT = 15_000;
 
@@ -35,7 +36,7 @@ export class AiService {
 
   private client(): InfomaniakClient {
     const token = this.settings.getToken();
-    if (!token) throw new InfomaniakApiError('Collega prima un account Infomaniak (Impostazioni › Account cloud).', 401);
+    if (!token) throw new InfomaniakApiError(tr('Collega prima un account Infomaniak (Impostazioni › Account cloud).'), 401);
     return new InfomaniakClient(token);
   }
 
@@ -58,11 +59,11 @@ export class AiService {
     let productId = s.aiProductId;
     if (!productId) {
       this.product ??= (await this.listProducts())[0] ?? null;
-      if (!this.product) throw new InfomaniakApiError('Nessun prodotto AI Services trovato: attivalo nel Manager Infomaniak, poi riprova.', 404);
+      if (!this.product) throw new InfomaniakApiError(tr('Nessun prodotto AI Services trovato: attivalo nel Manager Infomaniak, poi riprova.'), 404);
       productId = this.product.id;
     }
     const model = s.aiModel ?? pickDefaultModel(await this.listModels());
-    if (!model) throw new InfomaniakApiError('Nessun modello IA disponibile.', 404);
+    if (!model) throw new InfomaniakApiError(tr('Nessun modello IA disponibile.'), 404);
     return { productId, model };
   }
 
@@ -78,11 +79,11 @@ export class AiService {
       if (!target.isDestroyed()) target.send(channel, event);
     };
     const system: AiMessage[] = [{ role: 'system', content: SYSTEM_PROMPT }];
-    if (page) system.push({ role: 'system', content: `L'utente sta guardando la pagina «${page.title}» (${page.url}).\n${quoted('Contenuto della pagina', page.text, PAGE_TEXT_LIMIT)}` });
+    if (page) system.push({ role: 'system', content: tr('L\'utente sta guardando la pagina «{0}» ({1}).\n{2}', page.title, page.url, quoted(tr('Contenuto della pagina'), page.text, PAGE_TEXT_LIMIT)) });
 
     void (async () => {
       try {
-        if (!this.settings.get().aiEnabled) throw new InfomaniakApiError('L’assistente IA è disattivato: attivalo in Impostazioni › Intelligenza artificiale.', 400);
+        if (!this.settings.get().aiEnabled) throw new InfomaniakApiError(tr('L’assistente IA è disattivato: attivalo in Impostazioni › Intelligenza artificiale.'), 400);
         const { productId, model } = await this.target();
         await streamChat(this.client(), productId, model, [...system, ...messages.slice(-20)], (delta) => send({ id, delta }), controller.signal);
         send({ id, done: true });
@@ -104,13 +105,13 @@ export class AiService {
   async test(): Promise<string> {
     const { productId, model } = await this.target();
     let text = '';
-    await streamChat(this.client(), productId, model, [{ role: 'user', content: 'Rispondi solo con: OK' }], (d) => (text += d));
-    return `${model} · prodotto ${productId} · risposta: ${text.trim().slice(0, 40) || '(vuota)'}`;
+    await streamChat(this.client(), productId, model, [{ role: 'user', content: tr('Rispondi solo con: OK') }], (d) => (text += d));
+    return tr('{0} · prodotto {1} · risposta: {2}', model, productId, text.trim().slice(0, 40) || '(vuota)');
   }
 }
 
 function aiError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
-  if (err instanceof InfomaniakApiError && err.status === 403) return 'Il token API non può usare AI Services: crea un token che includa lo scope relativo all’IA (AI Services) e salvalo in Impostazioni › Account cloud.';
+  if (err instanceof InfomaniakApiError && err.status === 403) return tr('Il token API non può usare AI Services: crea un token che includa lo scope relativo all’IA (AI Services) e salvalo in Impostazioni › Account cloud.');
   return message;
 }

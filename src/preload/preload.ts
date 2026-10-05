@@ -7,6 +7,9 @@ import type {
   NewEvent, OutgoingMail, Profile, Rect, Settings, TabState, TokenStatus, ExtensionButton,
 } from '../shared/types';
 
+// Interface language, before the page's scripts run (see shared/i18n.ts).
+contextBridge.exposeInMainWorld('veloLocale', ipcRenderer.sendSync('i18n:locale') as string);
+
 const invoke = <T>(channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args) as Promise<T>;
 
 function on<T>(channel: string, listener: (payload: T) => void): () => void {

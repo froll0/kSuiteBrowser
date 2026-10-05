@@ -16,6 +16,7 @@ import type { Vault } from '../passwords/vault';
 import type { CloudServices } from '../services';
 import type { BookmarksStore } from '../stores/bookmarks';
 import type { HistoryStore } from '../stores/history';
+import { tr } from '../../shared/i18n';
 
 const FOLDER = 'Velo Sync';
 /** Folder used before the browser was renamed: kept if it already holds the data. */
@@ -101,7 +102,7 @@ export class SyncEngine {
     const defaults: LocalFile = {
       enabled: false,
       deviceId: randomUUID(),
-      deviceName: hostname() || 'Questo computer',
+      deviceName: hostname() || tr('Questo computer'),
       collections: { bookmarks: true, logins: true, history: true, tabs: true },
       keyCipher: null,
       snapshot: null,
@@ -177,7 +178,7 @@ export class SyncEngine {
   // ---------- kDrive ----------
 
   private async drive() {
-    if (!this.deps.tokenConfigured()) throw new SyncError('Collega un account Infomaniak (Impostazioni › Account cloud) per usare la sincronizzazione.');
+    if (!this.deps.tokenConfigured()) throw new SyncError(tr('Collega un account Infomaniak (Impostazioni › Account cloud) per usare la sincronizzazione.'));
     const { client, driveId } = await this.deps.services.driveContext();
     const root = await listAll(client, driveId, 1);
     const legacy = root.find((f) => f.type === 'dir' && f.name === LEGACY_FOLDER);
@@ -210,7 +211,7 @@ export class SyncEngine {
 
   /** Turns sync on: creates the encrypted space with this passphrase, or joins the existing one. */
   async enable(passphrase: string, deviceName?: string): Promise<void> {
-    if (passphrase.length < MIN_PASSPHRASE) throw new SyncError(`La passphrase deve avere almeno ${MIN_PASSPHRASE} caratteri.`);
+    if (passphrase.length < MIN_PASSPHRASE) throw new SyncError(tr('La passphrase deve avere almeno {0} caratteri.', MIN_PASSPHRASE));
     const { client, driveId, folderId } = await this.drive();
     const { meta } = await this.readRemote();
     let key: Buffer;
@@ -219,7 +220,7 @@ export class SyncEngine {
       try {
         if (open(key, meta.check, CHECK).toString('utf8') !== CHECK) throw new Error('mismatch');
       } catch {
-        throw new SyncError('Passphrase sbagliata: usa quella scelta sul primo dispositivo.');
+        throw new SyncError(tr('Passphrase sbagliata: usa quella scelta sul primo dispositivo.'));
       }
     } else {
       const kdf = newKdfParams();
@@ -241,12 +242,12 @@ export class SyncEngine {
   /** Passphrase entered again on a computer without a keychain. */
   async unlock(passphrase: string): Promise<void> {
     const { meta } = await this.readRemote();
-    if (!meta) throw new SyncError('La sincronizzazione è stata azzerata da un altro dispositivo: riattivala.');
+    if (!meta) throw new SyncError(tr('La sincronizzazione è stata azzerata da un altro dispositivo: riattivala.'));
     const key = await deriveKey(passphrase, meta.kdf);
     try {
       open(key, meta.check, CHECK);
     } catch {
-      throw new SyncError('Passphrase sbagliata.');
+      throw new SyncError(tr('Passphrase sbagliata.'));
     }
     this.storeKey(key);
     this.state = 'idle';
@@ -351,7 +352,7 @@ export class SyncEngine {
       const { meta, devices } = await this.readRemote();
       if (!meta) {
         await this.disable();
-        throw new SyncError('La sincronizzazione è stata azzerata da un altro dispositivo: riattivala con una nuova passphrase.');
+        throw new SyncError(tr('La sincronizzazione è stata azzerata da un altro dispositivo: riattivala con una nuova passphrase.'));
       }
       try {
         open(key, meta.check, CHECK);
@@ -361,7 +362,7 @@ export class SyncEngine {
         this.local.keyCipher = null;
         this.writeLocal();
         this.state = 'needs-passphrase';
-        throw new SyncError('La passphrase è cambiata su un altro dispositivo: inseriscila di nuovo.');
+        throw new SyncError(tr('La passphrase è cambiata su un altro dispositivo: inseriscila di nuovo.'));
       }
 
       // Everyone's files (including ours, possibly written by an earlier run).

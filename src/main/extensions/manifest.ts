@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, normalize, sep } from 'node:path';
 import { allSites, hostPatterns } from '../../shared/match-pattern';
+import { locale as uiLocale, tr } from '../../shared/i18n';
 
 /** The parts of manifest.json the browser uses. */
 export interface Manifest {
@@ -41,16 +42,16 @@ export function readManifest(dir: string): Manifest {
   try {
     raw = readFileSync(join(dir, 'manifest.json'), 'utf8').replace(/^﻿/, '');
   } catch {
-    throw new ManifestError('Manca il file manifest.json');
+    throw new ManifestError(tr('Manca il file manifest.json'));
   }
   let m: Manifest;
   try {
     m = JSON.parse(raw) as Manifest;
   } catch {
-    throw new ManifestError('Il file manifest.json non è valido');
+    throw new ManifestError(tr('Il file manifest.json non è valido'));
   }
-  if (m.manifest_version !== 2 && m.manifest_version !== 3) throw new ManifestError('Versione del manifest non supportata');
-  if (typeof m.name !== 'string' || typeof m.version !== 'string') throw new ManifestError('Il manifest non indica nome e versione');
+  if (m.manifest_version !== 2 && m.manifest_version !== 3) throw new ManifestError(tr('Versione del manifest non supportata'));
+  if (typeof m.name !== 'string' || typeof m.version !== 'string') throw new ManifestError(tr('Il manifest non indica nome e versione'));
   return m;
 }
 
@@ -68,7 +69,7 @@ export function localize(dir: string, manifest: Manifest, text: string | undefin
   const m = /^__MSG_(\w+)__$/.exec(text);
   if (!m) return text;
   const key = m[1].toLowerCase();
-  for (const locale of ['it', 'it_IT', manifest.default_locale, 'en', 'en_US']) {
+  for (const locale of [...(uiLocale() === 'it' ? ['it', 'it_IT'] : []), manifest.default_locale, 'en', 'en_US', 'it', 'it_IT']) {
     if (!locale) continue;
     try {
       const messages = JSON.parse(readFileSync(join(dir, '_locales', locale, 'messages.json'), 'utf8').replace(/^﻿/, '')) as Record<string, { message?: string }>;
@@ -111,29 +112,29 @@ export function iconDataUrl(dir: string, relative: string | null): string | null
 // ---------- Permissions, explained ----------
 
 const PERMISSION_TEXT: Record<string, string> = {
-  tabs: 'Leggere la cronologia di navigazione',
-  webNavigation: 'Leggere la cronologia di navigazione',
-  history: 'Leggere e modificare la cronologia di navigazione',
-  bookmarks: 'Leggere e modificare i preferiti',
-  notifications: 'Mostrare notifiche',
-  clipboardRead: 'Leggere i dati copiati negli appunti',
-  clipboardWrite: 'Modificare i dati copiati negli appunti',
-  downloads: 'Gestire i download',
-  nativeMessaging: 'Comunicare con applicazioni installate sul computer',
-  privacy: 'Modificare le impostazioni sulla privacy',
-  management: 'Gestire le altre estensioni',
-  proxy: 'Leggere e modificare le impostazioni del proxy',
-  declarativeNetRequest: 'Bloccare contenuti su qualsiasi pagina',
-  declarativeNetRequestWithHostAccess: 'Bloccare contenuti sulle pagine a cui ha accesso',
-  geolocation: 'Rilevare la tua posizione',
-  identity: 'Conoscere il tuo account',
-  topSites: 'Leggere l’elenco dei siti più visitati',
-  sessions: 'Leggere le schede aperte sugli altri dispositivi',
-  debugger: 'Accedere agli strumenti di sviluppo delle pagine',
-  pageCapture: 'Salvare il contenuto delle pagine',
-  desktopCapture: 'Registrare lo schermo',
-  tabCapture: 'Registrare il contenuto delle schede',
-  cookies: 'Leggere e modificare i cookie',
+  tabs: tr('Leggere la cronologia di navigazione'),
+  webNavigation: tr('Leggere la cronologia di navigazione'),
+  history: tr('Leggere e modificare la cronologia di navigazione'),
+  bookmarks: tr('Leggere e modificare i preferiti'),
+  notifications: tr('Mostrare notifiche'),
+  clipboardRead: tr('Leggere i dati copiati negli appunti'),
+  clipboardWrite: tr('Modificare i dati copiati negli appunti'),
+  downloads: tr('Gestire i download'),
+  nativeMessaging: tr('Comunicare con applicazioni installate sul computer'),
+  privacy: tr('Modificare le impostazioni sulla privacy'),
+  management: tr('Gestire le altre estensioni'),
+  proxy: tr('Leggere e modificare le impostazioni del proxy'),
+  declarativeNetRequest: tr('Bloccare contenuti su qualsiasi pagina'),
+  declarativeNetRequestWithHostAccess: tr('Bloccare contenuti sulle pagine a cui ha accesso'),
+  geolocation: tr('Rilevare la tua posizione'),
+  identity: tr('Conoscere il tuo account'),
+  topSites: tr('Leggere l’elenco dei siti più visitati'),
+  sessions: tr('Leggere le schede aperte sugli altri dispositivi'),
+  debugger: tr('Accedere agli strumenti di sviluppo delle pagine'),
+  pageCapture: tr('Salvare il contenuto delle pagine'),
+  desktopCapture: tr('Registrare lo schermo'),
+  tabCapture: tr('Registrare il contenuto delle schede'),
+  cookies: tr('Leggere e modificare i cookie'),
 };
 
 /** API that Velo doesn't offer (the extension may partly not work). */
@@ -158,10 +159,10 @@ export function describePermissions(manifest: Manifest): PermissionSummary {
   const everywhere = allSites(hosts);
   const warnings: string[] = [];
   if (everywhere) {
-    warnings.push('Leggere e modificare tutti i dati sui siti web che visiti');
+    warnings.push(tr('Leggere e modificare tutti i dati sui siti web che visiti'));
   } else if (hosts.length) {
     const names = [...new Set(hosts.map((p) => p.replace(/^[^:]+:\/\//, '').replace(/\/.*$/, '').replace(/^\*\./, '')))];
-    warnings.push(`Leggere e modificare i dati su ${names.slice(0, 5).join(', ')}${names.length > 5 ? ` e altri ${names.length - 5} siti` : ''}`);
+    warnings.push(tr('Leggere e modificare i dati su {0}{1}', names.slice(0, 5).join(', '), names.length > 5 ? ` e altri ${names.length - 5} siti` : ''));
   }
   const perms = (manifest.permissions ?? []).filter((p): p is string => typeof p === 'string');
   for (const p of perms) {

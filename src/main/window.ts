@@ -21,6 +21,7 @@ import { SuggestionsPopup } from './suggestions-popup';
 import { TabManager, type SessionRouter } from './tabs';
 import type { ExtensionHost } from './extensions/host';
 import { storeIdFrom } from './extensions/registry';
+import { tr } from '../shared/i18n';
 
 export interface WindowContext {
   settings: SettingsStore;
@@ -92,7 +93,7 @@ export class BrowserWindowController {
       ...bounds,
       minWidth: 720,
       minHeight: 480,
-      title: torRouter ? 'Velo — Finestra Tor' : isPrivate ? 'Velo — Finestra privata' : 'Velo',
+      title: torRouter ? tr('Velo — Finestra Tor') : isPrivate ? tr('Velo — Finestra privata') : 'Velo',
       backgroundColor: frameColors(ctx.settings.get(), isPrivate).backdrop,
       autoHideMenuBar: true,
       icon: ctx.paths.appIcon,
@@ -280,7 +281,7 @@ export class BrowserWindowController {
     this.send(IPC.evToast, { kind: 'info', message: `${label}…` });
     try {
       const file = await action();
-      this.send(IPC.evToast, { kind: 'success', message: `"${file.name}" salvato in ${this.ctx.settings.get().driveUploadFolderName}` });
+      this.send(IPC.evToast, { kind: 'success', message: tr('"{0}" salvato in {1}', file.name, this.ctx.settings.get().driveUploadFolderName) });
     } catch (err) {
       this.send(IPC.evToast, { kind: 'error', message: err instanceof Error ? err.message : String(err) });
     }
@@ -320,7 +321,7 @@ export class BrowserWindowController {
 
   print(contents: WebContents): void {
     contents.print({}, (success, reason) => {
-      if (!success && reason && reason !== 'Print job canceled' && reason !== 'cancelled') this.send(IPC.evToast, { kind: 'error', message: `Stampa non riuscita: ${reason}` });
+      if (!success && reason && reason !== 'Print job canceled' && reason !== 'cancelled') this.send(IPC.evToast, { kind: 'error', message: tr('Stampa non riuscita: {0}', reason) });
     });
   }
 
@@ -330,19 +331,19 @@ export class BrowserWindowController {
     if (!/^(https?|file):/i.test(url)) return;
     const name = (contents.getTitle() || 'pagina').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 120) || 'pagina';
     const { canceled, filePath } = await dialog.showSaveDialog(this.win, {
-      title: 'Salva pagina con nome',
+      title: tr('Salva pagina con nome'),
       defaultPath: join(this.ctx.settings.get().downloadDir ?? app.getPath('downloads'), `${name}.html`),
       filters: [
-        { name: 'Pagina web completa', extensions: ['html', 'htm'] },
-        { name: 'Pagina web, file singolo (MHTML)', extensions: ['mhtml'] },
+        { name: tr('Pagina web completa'), extensions: ['html', 'htm'] },
+        { name: tr('Pagina web, file singolo (MHTML)'), extensions: ['mhtml'] },
       ],
     });
     if (canceled || !filePath) return;
     try {
       await contents.savePage(filePath, filePath.toLowerCase().endsWith('.mhtml') ? 'MHTML' : 'HTMLComplete');
-      this.send(IPC.evToast, { kind: 'success', message: 'Pagina salvata' });
+      this.send(IPC.evToast, { kind: 'success', message: tr('Pagina salvata') });
     } catch (err) {
-      this.send(IPC.evToast, { kind: 'error', message: `Salvataggio non riuscito: ${err instanceof Error ? err.message : String(err)}` });
+      this.send(IPC.evToast, { kind: 'error', message: tr('Salvataggio non riuscito: {0}', err instanceof Error ? err.message : String(err)) });
     }
   }
 
@@ -352,7 +353,7 @@ export class BrowserWindowController {
   }
 
   savePageToDrive(contents: WebContents): Promise<void> {
-    return this.runDriveAction('Salvataggio pagina in PDF', () => this.ctx.services.savePageAsPdf(contents));
+    return this.runDriveAction(tr('Salvataggio pagina in PDF'), () => this.ctx.services.savePageAsPdf(contents));
   }
 
   /**
@@ -474,7 +475,7 @@ export class BrowserWindowController {
 
     attachContextMenu(contents, {
       openInNewTab: (url) => owner().tabs.create(url, { background: true, index: owner().indexAfter(contents) }),
-      saveUrlToDrive: (url) => void owner().runDriveAction('Salvataggio su kDrive', () => this.ctx.services.saveUrlToDrive(contents.session, url)),
+      saveUrlToDrive: (url) => void owner().runDriveAction(tr('Salvataggio su kDrive'), () => this.ctx.services.saveUrlToDrive(contents.session, url)),
       savePageToDrive: (wc) => void owner().savePageToDrive(wc),
       mailLink: (url, title) => owner().composeMail(url, title),
       print: (wc) => owner().print(wc),

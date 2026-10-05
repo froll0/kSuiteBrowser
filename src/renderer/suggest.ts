@@ -1,6 +1,9 @@
 import { applyTokens } from '../shared/appearance';
 import type { PopupLook, Suggestion } from '../shared/types';
 import { icon } from './icons';
+import { tr, translateDom } from '../shared/i18n';
+
+translateDom(document.documentElement);
 
 interface SuggestBridge {
   onItems(fn: (data: { items: Suggestion[]; selected: number; look: PopupLook }) => void): void;
@@ -43,7 +46,7 @@ bridge.onItems(({ items, selected, look }) => {
       if (item.kind === 'tab') {
         const chip = document.createElement('span');
         chip.className = 'switch';
-        chip.append(icon('arrowRight', 12), 'Passa alla scheda');
+        chip.append(icon('arrowRight', 12), tr('Passa alla scheda'));
         li.append(chip);
       }
       if (item.kind === 'history' || item.kind === 'bookmark' || item.kind === 'tab') {

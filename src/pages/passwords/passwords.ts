@@ -6,6 +6,7 @@ import { hydrateIcons } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 import { emptyState, iconButton, withIcon } from '../shared/ui';
 import { followTheme } from '../shared/theme';
+import { localeTag, tr } from '../../shared/i18n';
 
 followTheme();
 
@@ -49,8 +50,8 @@ function card(title: string, ...body: Array<Node | null>): HTMLElement {
 // ---------- Locked / setup ----------
 
 function unlockView(): HTMLElement {
-  const input = passwordInput('Password principale', 'current-password');
-  const form = h('form', {}, input, h('button', { class: 'primary', type: 'submit' }, 'Sblocca'));
+  const input = passwordInput(tr('Password principale'), 'current-password');
+  const form = h('form', {}, input, h('button', { class: 'primary', type: 'submit' }, tr('Sblocca')));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const res = await pw.unlock(input.value);
@@ -63,20 +64,20 @@ function unlockView(): HTMLElement {
     }
   });
   queueMicrotask(() => input.focus());
-  return card('Password bloccate', h('p', { class: 'hint' }, 'Inserisci la password principale per vedere e usare le password salvate.'), form);
+  return card(tr('Password bloccate'), h('p', { class: 'hint' }, tr('Inserisci la password principale per vedere e usare le password salvate.')), form);
 }
 
 function primaryForm(mode: 'set' | 'change'): HTMLElement {
-  const current = mode === 'change' ? passwordInput('Password principale attuale', 'current-password') : null;
-  const next = passwordInput('Nuova password principale', 'new-password');
-  const confirmInput = passwordInput('Ripeti la nuova password', 'new-password');
-  const form = h('form', {}, current, next, confirmInput, h('button', { class: 'primary', type: 'submit' }, mode === 'set' ? 'Imposta' : 'Cambia'));
+  const current = mode === 'change' ? passwordInput(tr('Password principale attuale'), 'current-password') : null;
+  const next = passwordInput(tr('Nuova password principale'), 'new-password');
+  const confirmInput = passwordInput(tr('Ripeti la nuova password'), 'new-password');
+  const form = h('form', {}, current, next, confirmInput, h('button', { class: 'primary', type: 'submit' }, mode === 'set' ? tr('Imposta') : tr('Cambia')));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (next.value !== confirmInput.value) return say('Le due password non coincidono.', true);
+    if (next.value !== confirmInput.value) return say(tr('Le due password non coincidono.'), true);
     const res = await pw.setPrimary(next.value, current?.value);
     if (res.ok) {
-      say(mode === 'set' ? 'Password principale impostata.' : 'Password principale cambiata.');
+      say(mode === 'set' ? tr('Password principale impostata.') : tr('Password principale cambiata.'));
       void load();
     } else {
       say(res.error, true);
@@ -87,8 +88,8 @@ function primaryForm(mode: 'set' | 'change'): HTMLElement {
 
 function setupView(): HTMLElement {
   return card(
-    'Imposta una password principale',
-    h('p', { class: 'hint' }, 'Il portachiavi del sistema operativo non è disponibile, quindi le password verrebbero salvate senza protezione. Scegli una password principale (almeno 8 caratteri): servirà per sbloccarle. Se la dimentichi, le password salvate non si possono recuperare.'),
+    tr('Imposta una password principale'),
+    h('p', { class: 'hint' }, tr('Il portachiavi del sistema operativo non è disponibile, quindi le password verrebbero salvate senza protezione. Scegli una password principale (almeno 8 caratteri): servirà per sbloccarle. Se la dimentichi, le password salvate non si possono recuperare.')),
     primaryForm('set'),
   );
 }
@@ -104,20 +105,20 @@ function reusedPasswords(): Set<string> {
 async function copy(text: string, what: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
-    say(`${what} copiato negli appunti.`);
+    say(tr('{0} copiato negli appunti.', what));
   } catch {
-    say('Impossibile copiare negli appunti.', true);
+    say(tr('Impossibile copiare negli appunti.'), true);
   }
 }
 
 function editRow(login: SavedLogin | null): HTMLElement {
-  const url = login ? null : h('input', { type: 'url', placeholder: 'https://sito.com', 'aria-label': 'Sito', required: true });
-  const user = h('input', { type: 'text', value: login?.username ?? '', placeholder: 'Nome utente', 'aria-label': 'Nome utente' });
+  const url = login ? null : h('input', { type: 'url', placeholder: 'https://sito.com', 'aria-label': tr('Sito'), required: true });
+  const user = h('input', { type: 'text', value: login?.username ?? '', placeholder: tr('Nome utente'), 'aria-label': tr('Nome utente') });
   const pass = h('input', { type: 'text', value: login?.password ?? '', placeholder: 'Password', 'aria-label': 'Password', required: true, spellcheck: 'false' });
   const form = h('form', { class: 'edit-login' }, url, user, pass,
-    h('button', { type: 'button', onclick: async () => (pass.value = await pw.generate()) }, 'Genera'),
-    h('button', { class: 'primary', type: 'submit' }, 'Salva'),
-    h('button', { type: 'button', onclick: () => { editing = null; adding = false; render(); } }, 'Annulla'),
+    h('button', { type: 'button', onclick: async () => (pass.value = await pw.generate()) }, tr('Genera')),
+    h('button', { class: 'primary', type: 'submit' }, tr('Salva')),
+    h('button', { type: 'button', onclick: () => { editing = null; adding = false; render(); } }, tr('Annulla')),
   );
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -125,7 +126,7 @@ function editRow(login: SavedLogin | null): HTMLElement {
       ? await pw.update(login.id, { username: user.value, password: pass.value })
       : await pw.add({ url: url!.value, username: user.value, password: pass.value });
     if (!res.ok) return say(res.error, true);
-    say(login ? 'Accesso aggiornato.' : 'Accesso aggiunto.');
+    say(login ? tr('Accesso aggiornato.') : tr('Accesso aggiunto.'));
     editing = null;
     adding = false;
     void load();
@@ -144,23 +145,23 @@ function loginRow(login: SavedLogin, reused: Set<string>): HTMLElement {
     h('img', { class: 'site-icon', src: faviconUrl(login.origin), alt: '' }),
     h('div', { class: 'main' },
       h('a', { href: login.origin, title: login.origin }, host),
-      h('span', { class: 'user' }, login.username || '(senza nome utente)'),
+      h('span', { class: 'user' }, login.username || tr('(senza nome utente)')),
     ),
     (breaches.results[login.id] ?? 0) > 0
-      ? h('span', { class: 'badge danger', title: `Compare ${breaches.results[login.id].toLocaleString('it-IT')} volte in violazioni di dati note: cambiala` }, 'compromessa')
+      ? h('span', { class: 'badge danger', title: tr('Compare {0} volte in violazioni di dati note: cambiala', breaches.results[login.id].toLocaleString(localeTag())) }, 'compromessa')
       : null,
-    reused.has(login.password) ? h('span', { class: 'badge warn', title: 'La stessa password è usata su più siti' }, 'riutilizzata') : null,
-    isWeakPassword(login.password) ? h('span', { class: 'badge warn', title: 'Password corta o facile da indovinare' }, 'debole') : null,
-    h('span', { class: 'secret', 'aria-label': shown ? 'Password' : 'Password nascosta' }, shown ? login.password : '••••••••••'),
+    reused.has(login.password) ? h('span', { class: 'badge warn', title: tr('La stessa password è usata su più siti') }, 'riutilizzata') : null,
+    isWeakPassword(login.password) ? h('span', { class: 'badge warn', title: tr('Password corta o facile da indovinare') }, 'debole') : null,
+    h('span', { class: 'secret', 'aria-label': shown ? 'Password' : tr('Password nascosta') }, shown ? login.password : '••••••••••'),
     h('div', { class: 'actions' },
-      iconButton(shown ? 'eyeOff' : 'eye', `${shown ? 'Nascondi' : 'Mostra'} la password di ${host}`, () => { shown ? revealed.delete(login.id) : revealed.add(login.id); render(); }),
-      iconButton('user', `Copia il nome utente di ${host}`, () => void copy(login.username, 'Nome utente')),
-      iconButton('copy', `Copia la password di ${host}`, () => void copy(login.password, 'Password')),
-      iconButton('pencil', `Modifica l’accesso a ${host}`, () => { editing = login.id; render(); }),
-      iconButton('trash', `Elimina l’accesso a ${host}`, async () => {
-          if (!confirm(`Eliminare l’accesso di ${login.username || 'questo account'} a ${host}?`)) return;
+      iconButton(shown ? 'eyeOff' : 'eye', tr('{0} la password di {1}', shown ? 'Nascondi' : 'Mostra', host), () => { shown ? revealed.delete(login.id) : revealed.add(login.id); render(); }),
+      iconButton('user', tr('Copia il nome utente di {0}', host), () => void copy(login.username, tr('Nome utente'))),
+      iconButton('copy', tr('Copia la password di {0}', host), () => void copy(login.password, 'Password')),
+      iconButton('pencil', tr('Modifica l’accesso a {0}', host), () => { editing = login.id; render(); }),
+      iconButton('trash', tr('Elimina l’accesso a {0}', host), async () => {
+          if (!confirm(tr('Eliminare l’accesso di {0} a {1}?', login.username || 'questo account', host))) return;
         await pw.remove(login.id);
-        say('Accesso eliminato.');
+        say(tr('Accesso eliminato.'));
         void load();
       }),
     ),
@@ -168,28 +169,28 @@ function loginRow(login: SavedLogin, reused: Set<string>): HTMLElement {
 }
 
 function exportForm(): HTMLElement {
-  const input = status.hasPrimary ? passwordInput('Password principale', 'current-password') : null;
+  const input = status.hasPrimary ? passwordInput(tr('Password principale'), 'current-password') : null;
   const form = h('form', {},
-    h('p', { class: 'hint danger-text' }, 'Il file conterrà tutte le password in chiaro: chiunque lo apra potrà leggerle. Cancellalo dopo averlo importato altrove.'),
+    h('p', { class: 'hint danger-text' }, tr('Il file conterrà tutte le password in chiaro: chiunque lo apra potrà leggerle. Cancellalo dopo averlo importato altrove.')),
     input,
-    h('button', { class: 'primary', type: 'submit' }, 'Esporta file CSV'),
-    h('button', { type: 'button', onclick: () => { exporting = false; render(); } }, 'Annulla'),
+    h('button', { class: 'primary', type: 'submit' }, tr('Esporta file CSV')),
+    h('button', { type: 'button', onclick: () => { exporting = false; render(); } }, tr('Annulla')),
   );
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const res = await pw.exportCsv(input?.value);
     if (!res.ok) return say(res.error, true);
     const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
-    const a = h('a', { href: url, download: `password-velo-${new Date().toISOString().slice(0, 10)}.csv` });
+    const a = h('a', { href: url, download: tr('password-velo-{0}.csv', new Date().toISOString().slice(0, 10)) });
     document.body.append(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     exporting = false;
-    say('File esportato nella cartella dei download.');
+    say(tr('File esportato nella cartella dei download.'));
     render();
   });
-  return card('Esporta password', form);
+  return card(tr('Esporta password'), form);
 }
 
 /** Check against known data breaches (Have I Been Pwned), run on request. */
@@ -205,28 +206,28 @@ function breachCard(breachedCount: number): HTMLElement {
       if (res.ok) {
         breaches = res.data;
         const n = logins.filter((l) => (breaches.results[l.id] ?? 0) > 0).length;
-        say(n ? `${n} password compaiono in violazioni note.` : 'Nessuna password compare in violazioni note.');
+        say(n ? tr('{0} password compaiono in violazioni note.', n) : tr('Nessuna password compare in violazioni note.'));
       } else {
-        say(`Controllo non riuscito: ${res.error}`, true);
+        say(tr('Controllo non riuscito: {0}', res.error), true);
       }
       render();
     },
-  }, checking ? 'Controllo in corso…' : breaches.checkedAt ? 'Controlla di nuovo' : 'Controlla ora'), 'shieldCheck');
-  const how = h('p', { class: 'hint' }, 'Il controllo usa Have I Been Pwned: dal computer esce solo l’inizio (5 caratteri) dell’impronta SHA-1 di ogni password, mai la password. Il confronto avviene qui.');
+  }, checking ? tr('Controllo in corso…') : breaches.checkedAt ? tr('Controlla di nuovo') : tr('Controlla ora')), 'shieldCheck');
+  const how = h('p', { class: 'hint' }, tr('Il controllo usa Have I Been Pwned: dal computer esce solo l’inizio (5 caratteri) dell’impronta SHA-1 di ogni password, mai la password. Il confronto avviene qui.'));
   let title: string;
   let text: string;
   let tone: string;
   if (!breaches.checkedAt) {
-    title = 'Password compromesse';
-    text = 'Controlla se qualcuna delle tue password compare nei dati rubati durante attacchi informatici noti.';
+    title = tr('Password compromesse');
+    text = tr('Controlla se qualcuna delle tue password compare nei dati rubati durante attacchi informatici noti.');
     tone = '';
   } else if (breachedCount > 0) {
-    title = `${breachedCount} ${breachedCount === 1 ? 'password compromessa' : 'password compromesse'}`;
-    text = 'Queste password circolano tra i dati rubati: chi attacca le prova per prime. Cambiale sui siti segnati con “compromessa”, scegliendo una password nuova e diversa per ogni sito.';
+    title = `${breachedCount} ${breachedCount === 1 ? tr('password compromessa') : tr('password compromesse')}`;
+    text = tr('Queste password circolano tra i dati rubati: chi attacca le prova per prime. Cambiale sui siti segnati con “compromessa”, scegliendo una password nuova e diversa per ogni sito.');
     tone = ' danger';
   } else {
-    title = 'Nessuna password compromessa';
-    text = `Nessuna delle tue password compare in violazioni note (controllo delle ${new Date(breaches.checkedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}).`;
+    title = tr('Nessuna password compromessa');
+    text = tr('Nessuna delle tue password compare in violazioni note (controllo delle {0}).', new Date(breaches.checkedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' }));
     tone = ' ok';
   }
   return h('section', { class: `breach-card${tone}` },
@@ -244,13 +245,13 @@ function unlockedView(): Node[] {
 
   const nodes: Node[] = [
     h('div', { class: 'toolbar' },
-      withIcon(h('button', { class: 'primary', onclick: () => { adding = true; editing = null; render(); } }, 'Aggiungi'), 'plus'),
-      withIcon(h('button', { onclick: () => fileInput.click() }, 'Importa CSV…'), 'upload'),
-      withIcon(h('button', { disabled: logins.length === 0, onclick: () => { exporting = true; render(); } }, 'Esporta CSV'), 'download'),
-      status.hasPrimary ? withIcon(h('button', { onclick: async () => { await pw.lock(); revealed.clear(); void load(); } }, 'Blocca ora'), 'lock') : null,
+      withIcon(h('button', { class: 'primary', onclick: () => { adding = true; editing = null; render(); } }, tr('Aggiungi')), 'plus'),
+      withIcon(h('button', { onclick: () => fileInput.click() }, tr('Importa CSV…')), 'upload'),
+      withIcon(h('button', { disabled: logins.length === 0, onclick: () => { exporting = true; render(); } }, tr('Esporta CSV')), 'download'),
+      status.hasPrimary ? withIcon(h('button', { onclick: async () => { await pw.lock(); revealed.clear(); void load(); } }, tr('Blocca ora')), 'lock') : null,
     ),
     h('p', { class: 'summary' },
-      h('span', {}, h('strong', {}, String(logins.length)), ' password salvate'),
+      h('span', {}, h('strong', {}, String(logins.length)), tr(' password salvate')),
       h('span', {}, h('strong', {}, String(reusedCount)), ' riutilizzate'),
       h('span', {}, h('strong', {}, String(weak)), ' deboli'),
       breaches.checkedAt ? h('span', {}, h('strong', {}, String(breachedCount)), ' compromesse') : null,
@@ -258,19 +259,19 @@ function unlockedView(): Node[] {
   ];
   if (logins.length) nodes.push(breachCard(breachedCount));
   if (exporting) nodes.push(exportForm());
-  if (adding) nodes.push(h('section', { class: 'group' }, h('h2', {}, 'Nuovo accesso'), editRow(null)));
+  if (adding) nodes.push(h('section', { class: 'group' }, h('h2', {}, tr('Nuovo accesso')), editRow(null)));
   nodes.push(
     h('section', { class: 'group' },
-      h('h2', {}, q ? `Risultati (${visible.length})` : 'Password salvate'),
-      ...(visible.length ? visible.map((l) => loginRow(l, reused)) : [emptyState(q ? 'search' : 'key', q ? 'Nessun risultato.' : 'Nessuna password salvata. Accedi a un sito e scegli “Salva” nella barra che compare.')]),
+      h('h2', {}, q ? `Risultati (${visible.length})` : tr('Password salvate')),
+      ...(visible.length ? visible.map((l) => loginRow(l, reused)) : [emptyState(q ? 'search' : 'key', q ? tr('Nessun risultato.') : tr('Nessuna password salvata. Accedi a un sito e scegli “Salva” nella barra che compare.'))]),
     ),
   );
   if (never.length) {
     nodes.push(h('section', { class: 'group' },
-      h('h2', {}, 'Siti in cui non salvare mai'),
+      h('h2', {}, tr('Siti in cui non salvare mai')),
       ...never.map((origin) => h('div', { class: 'entry' },
         h('div', { class: 'main' }, h('span', {}, hostOf(origin))),
-        h('div', { class: 'actions' }, h('button', { class: 'link', onclick: async () => { await pw.removeNever(origin); void load(); } }, 'Rimuovi')),
+        h('div', { class: 'actions' }, h('button', { class: 'link', onclick: async () => { await pw.removeNever(origin); void load(); } }, tr('Rimuovi'))),
       )),
     ));
   }
@@ -280,25 +281,25 @@ function unlockedView(): Node[] {
 
 function primarySection(): HTMLElement {
   if (!status.hasPrimary) {
-    return card('Password principale',
-      h('p', { class: 'hint' }, 'Aggiunge una protezione: le password restano bloccate finché non inserisci la password principale, e si bloccano da sole dopo 30 minuti di inattività. Se la dimentichi non potrai recuperarle.'),
+    return card(tr('Password principale'),
+      h('p', { class: 'hint' }, tr('Aggiunge una protezione: le password restano bloccate finché non inserisci la password principale, e si bloccano da sole dopo 30 minuti di inattività. Se la dimentichi non potrai recuperarle.')),
       primaryForm('set'),
     );
   }
-  const current = passwordInput('Password principale attuale', 'current-password');
-  const remove = h('form', {}, current, h('button', { class: 'danger', type: 'submit' }, 'Rimuovi la password principale'));
+  const current = passwordInput(tr('Password principale attuale'), 'current-password');
+  const remove = h('form', {}, current, h('button', { class: 'danger', type: 'submit' }, tr('Rimuovi la password principale')));
   remove.addEventListener('submit', async (e) => {
     e.preventDefault();
     const res = await pw.removePrimary(current.value);
     if (res.ok) {
-      say('Password principale rimossa: le password sono protette dal portachiavi di sistema.');
+      say(tr('Password principale rimossa: le password sono protette dal portachiavi di sistema.'));
       void load();
     } else {
       say(res.error, true);
     }
   });
-  return card('Password principale',
-    h('p', { class: 'hint' }, 'Attiva. Le password si bloccano dopo 30 minuti di inattività.'),
+  return card(tr('Password principale'),
+    h('p', { class: 'hint' }, tr('Attiva. Le password si bloccano dopo 30 minuti di inattività.')),
     primaryForm('change'),
     status.keychainAvailable ? remove : null,
   );
@@ -338,7 +339,7 @@ fileInput.addEventListener('change', async () => {
   if (!file) return;
   const res = await pw.importCsv(await file.text());
   if (!res.ok) return say(res.error, true);
-  say(res.data ? `Importati ${res.data} accessi.` : 'Nessun accesso trovato nel file (servono le colonne url, username e password).', !res.data);
+  say(res.data ? `Importati ${res.data} accessi.` : tr('Nessun accesso trovato nel file (servono le colonne url, username e password).'), !res.data);
   void load();
 });
 

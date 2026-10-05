@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { delimiter, dirname, join } from 'node:path';
+import { tr } from '../../shared/i18n';
 
 export type TorStatus =
   | { state: 'off' }
@@ -80,10 +81,10 @@ export class TorProcess {
     if (this.child || this.current.state === 'starting' || this.current.state === 'ready') return;
     const found = this.locate();
     if (!found) {
-      this.set({ state: 'error', message: 'Tor non è incluso in questa installazione.' });
+      this.set({ state: 'error', message: tr('Tor non è incluso in questa installazione.') });
       return;
     }
-    this.set({ state: 'starting', progress: 0, summary: 'Avvio di Tor' });
+    this.set({ state: 'starting', progress: 0, summary: tr('Avvio di Tor') });
     try {
       this.socksPort = await freePort();
     } catch (e) {
@@ -133,7 +134,7 @@ export class TorProcess {
     child.once('exit', (code) => {
       if (this.child !== child) return;
       this.child = null;
-      this.set(code === 0 || code === null ? { state: 'off' } : { state: 'error', message: lastError || `Tor si è chiuso (codice ${code}).` });
+      this.set(code === 0 || code === null ? { state: 'off' } : { state: 'error', message: lastError || tr('Tor si è chiuso (codice {0}).', code) });
     });
   }
 
@@ -153,7 +154,7 @@ export class TorProcess {
     const child = this.child;
     this.child = null;
     if (child && child.exitCode === null) child.kill();
-    for (const w of this.readyWaiters.splice(0)) w.reject(new Error('Tor fermato'));
+    for (const w of this.readyWaiters.splice(0)) w.reject(new Error(tr('Tor fermato')));
     this.set({ state: 'off' });
   }
 }

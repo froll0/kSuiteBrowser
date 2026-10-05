@@ -4,6 +4,7 @@ import { Assistant, type AiAsk } from './assistant';
 import { ks } from './bridge';
 import { formatBytes, formatDateTime, h } from './dom';
 import { fileIcon, icon, type IconName } from './icons';
+import { localeTag, tr } from '../shared/i18n';
 
 export type PanelView = 'home' | 'assistant' | 'drive' | 'mail' | 'calendar' | 'downloads';
 
@@ -12,7 +13,7 @@ const VIEWS: Array<{ id: PanelView; label: string; icon: IconName }> = [
   { id: 'assistant', label: 'IA', icon: 'sparkles' },
   { id: 'drive', label: 'kDrive', icon: 'cloud' },
   { id: 'mail', label: 'Mail', icon: 'mail' },
-  { id: 'calendar', label: 'Agenda', icon: 'calendar' },
+  { id: 'calendar', label: tr('Agenda'), icon: 'calendar' },
   { id: 'downloads', label: 'Download', icon: 'download' },
 ];
 
@@ -84,7 +85,7 @@ export class Panel {
       return;
     }
 
-    const container = h('div', { class: 'panel-view' }, h('div', { class: 'row muted' }, h('span', { class: 'spinner' }), 'Caricamento…'));
+    const container = h('div', { class: 'panel-view' }, h('div', { class: 'row muted' }, h('span', { class: 'spinner' }), tr('Caricamento…')));
     this.mount(seq, container);
     const content = await this.build(this.view);
     if (seq === this.renderSeq) container.replaceChildren(...content);
@@ -117,9 +118,9 @@ export class Panel {
       { class: 'panel-view' },
       h('div', { class: 'empty-state' },
         withIcon(h('span', { class: 'big-icon' }), 'key', 26),
-        h('h2', {}, 'Collega un account Infomaniak'),
-        h('p', {}, 'Le app della suite funzionano già dalla barra laterale. Per kDrive, Mail e Agenda qui nel pannello serve un token API personale.'),
-        h('button', { class: 'primary', onclick: () => void ks.openSettingsPage('account') }, 'Configura il token'),
+        h('h2', {}, tr('Collega un account Infomaniak')),
+        h('p', {}, tr('Le app della suite funzionano già dalla barra laterale. Per kDrive, Mail e Agenda qui nel pannello serve un token API personale.')),
+        h('button', { class: 'primary', onclick: () => void ks.openSettingsPage('account') }, tr('Configura il token')),
       ),
     );
   }
@@ -148,20 +149,20 @@ export class Panel {
       h(
         'div',
         { class: 'cards' },
-        h('button', { class: 'card', onclick: () => this.show('mail') }, withIcon(h('span', { class: 'card-icon' }), 'inbox', 18), h('span', { class: 'big' }, mail.ok ? String(mail.data.inboxUnread) : '–'), 'email non lette'),
-        h('button', { class: 'card', onclick: () => this.show('calendar') }, withIcon(h('span', { class: 'card-icon' }), 'calendarClock', 18), h('span', { class: 'big' }, events.ok ? String(countToday(events.data)) : '–'), 'eventi oggi'),
+        h('button', { class: 'card', onclick: () => this.show('mail') }, withIcon(h('span', { class: 'card-icon' }), 'inbox', 18), h('span', { class: 'big' }, mail.ok ? String(mail.data.inboxUnread) : '–'), tr('email non lette')),
+        h('button', { class: 'card', onclick: () => this.show('calendar') }, withIcon(h('span', { class: 'card-icon' }), 'calendarClock', 18), h('span', { class: 'big' }, events.ok ? String(countToday(events.data)) : '–'), tr('eventi oggi')),
       ),
     );
 
-    nodes.push(h('h3', {}, 'Prossimi eventi'));
+    nodes.push(h('h3', {}, tr('Prossimi eventi')));
     if (events.ok) {
       const next = events.data.filter((e) => Date.parse(e.end) >= Date.now()).slice(0, 4);
-      nodes.push(next.length ? h('ul', { class: 'list' }, ...next.map(eventItem)) : h('p', { class: 'muted' }, 'Nessun evento nei prossimi 7 giorni.'));
+      nodes.push(next.length ? h('ul', { class: 'list' }, ...next.map(eventItem)) : h('p', { class: 'muted' }, tr('Nessun evento nei prossimi 7 giorni.')));
     } else {
       nodes.push(errorBox(events.error));
     }
 
-    nodes.push(h('h3', {}, 'Ultime email'));
+    nodes.push(h('h3', {}, tr('Ultime email')));
     if (mail.ok) {
       nodes.push(h('ul', { class: 'list' }, ...mail.data.threads.slice(0, 5).map((t) => mailItem(t))));
     } else {
@@ -169,12 +170,12 @@ export class Panel {
     }
 
     nodes.push(
-      h('h3', {}, 'Azioni rapide'),
+      h('h3', {}, tr('Azioni rapide')),
       h(
         'div',
         { class: 'actions' },
-        withIcon(h('button', { onclick: () => void this.savePage() }, 'PDF su kDrive'), 'upload', 15),
-        withIcon(h('button', { onclick: () => this.compose({ to: '', subject: '', body: '' }) }, 'Nuova email'), 'pencil', 15),
+        withIcon(h('button', { onclick: () => void this.savePage() }, tr('PDF su kDrive')), 'upload', 15),
+        withIcon(h('button', { onclick: () => this.compose({ to: '', subject: '', body: '' }) }, tr('Nuova email')), 'pencil', 15),
         withIcon(h('button', { onclick: () => void ks.openApp('kmeet') }, 'kMeet'), 'video', 15),
       ),
     );
@@ -192,7 +193,7 @@ export class Panel {
     const folder = this.driveStack[this.driveStack.length - 1];
     const settings = await ks.settings.get();
 
-    const search = h('input', { type: 'search', placeholder: 'Cerca in kDrive…', value: searchQuery, 'aria-label': 'Cerca in kDrive' });
+    const search = h('input', { type: 'search', placeholder: tr('Cerca in kDrive…'), value: searchQuery, 'aria-label': tr('Cerca in kDrive') });
     const searchForm = h('form', { class: 'search-field' }, icon('search', 15), search);
     searchForm.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -211,19 +212,19 @@ export class Panel {
     const toolbar = h(
       'div',
       { class: 'actions' },
-      h('button', { onclick: () => void this.upload(folder.id) }, 'Carica file…'),
+      h('button', { onclick: () => void this.upload(folder.id) }, tr('Carica file…')),
       h(
         'button',
         {
           disabled: settings.driveUploadFolderId === folder.id,
-          title: 'Usa questa cartella per "Salva su kDrive", PDF e download',
+          title: tr('Usa questa cartella per "Salva su kDrive", PDF e download'),
           onclick: async () => {
             await ks.settings.set({ driveUploadFolderId: folder.id, driveUploadFolderName: folder.name });
-            this.notify('success', `Destinazione impostata: ${folder.name}`);
+            this.notify('success', tr('Destinazione impostata: {0}', folder.name));
             void this.render();
           },
         },
-        settings.driveUploadFolderId === folder.id ? 'Cartella di destinazione ✓' : 'Usa come destinazione',
+        settings.driveUploadFolderId === folder.id ? tr('Cartella di destinazione ✓') : tr('Usa come destinazione'),
       ),
     );
 
@@ -237,15 +238,15 @@ export class Panel {
 
     const nodes: Node[] = [searchForm];
     if (!searchQuery) nodes.push(crumbs, toolbar);
-    else nodes.push(h('p', {}, h('button', { class: 'link', onclick: () => void this.render() }, '← Torna alla cartella'), ` Risultati per "${searchQuery}"`));
+    else nodes.push(h('p', {}, h('button', { class: 'link', onclick: () => void this.render() }, tr('← Torna alla cartella')), tr(' Risultati per "{0}"', searchQuery)));
 
     if (!listing.ok) {
       nodes.push(errorBox(listing.error));
       return nodes;
     }
-    if (listing.data.files.length === 0) nodes.push(h('p', { class: 'muted' }, searchQuery ? 'Nessun risultato.' : 'Cartella vuota.'));
+    if (listing.data.files.length === 0) nodes.push(h('p', { class: 'muted' }, searchQuery ? tr('Nessun risultato.') : tr('Cartella vuota.')));
     nodes.push(h('ul', { class: 'list files' }, ...listing.data.files.map((f) => this.fileItem(f))));
-    if (listing.data.hasMore) nodes.push(h('p', { class: 'muted' }, 'Altri elementi disponibili: apri la cartella nell’app web per vederli tutti.'));
+    if (listing.data.hasMore) nodes.push(h('p', { class: 'muted' }, tr('Altri elementi disponibili: apri la cartella nell’app web per vederli tutti.')));
     return nodes;
   }
 
@@ -262,21 +263,21 @@ export class Panel {
     return h(
       'li',
       { class: 'file' },
-      h('button', { class: 'file-main', onclick: open, title: isDir ? 'Apri cartella' : 'Apri in kDrive' },
+      h('button', { class: 'file-main', onclick: open, title: isDir ? tr('Apri cartella') : tr('Apri in kDrive') },
         withIcon(h('span', { class: `file-icon ${isDir ? 'dir' : 'doc'}` }), fileIcon(file), 18),
         h('span', { class: 'file-name' }, file.name),
         h('span', { class: 'muted small' }, isDir ? '' : formatBytes(file.size)),
       ),
       isDir
-        ? withIcon(h('button', { class: 'icon-btn small', title: 'Apri nell’app web', 'aria-label': `Apri ${file.name} nell’app web`, onclick: () => void ks.api.driveOpenWeb(file) }), 'external', 15)
+        ? withIcon(h('button', { class: 'icon-btn small', title: tr('Apri nell’app web'), 'aria-label': tr('Apri {0} nell’app web', file.name), onclick: () => void ks.api.driveOpenWeb(file) }), 'external', 15)
         : withIcon(h('button', {
             class: 'icon-btn small',
-            title: 'Scarica',
-            'aria-label': `Scarica ${file.name}`,
+            title: tr('Scarica'),
+            'aria-label': tr('Scarica {0}', file.name),
             onclick: async () => {
-              this.notify('info', `Download di ${file.name}…`);
+              this.notify('info', tr('Download di {0}…', file.name));
               const r = await ks.api.driveDownload(file.id, file.name);
-              this.notify(r.ok ? 'success' : 'error', r.ok ? `Scaricato in ${r.data}` : r.error);
+              this.notify(r.ok ? 'success' : 'error', r.ok ? tr('Scaricato in {0}', r.data) : r.error);
             },
           }), 'download', 15),
     );
@@ -291,7 +292,7 @@ export class Panel {
     const res = await ks.api.driveUpload(folderId);
     if (!res.ok) return this.notify('error', res.error);
     if (res.data.length) {
-      this.notify('success', `${res.data.length} file caricati`);
+      this.notify('success', tr('{0} file caricati', res.data.length));
       void this.render();
     }
   }
@@ -305,16 +306,16 @@ export class Panel {
   // ---------- Mail ----------
 
   private async mailView(): Promise<Node[]> {
-    const to = h('input', { type: 'text', placeholder: 'A (separa più indirizzi con virgola)', value: this.draft.to });
-    const subject = h('input', { type: 'text', placeholder: 'Oggetto', value: this.draft.subject });
-    const body = h('textarea', { rows: 6, placeholder: 'Messaggio' });
+    const to = h('input', { type: 'text', placeholder: tr('A (separa più indirizzi con virgola)'), value: this.draft.to });
+    const subject = h('input', { type: 'text', placeholder: tr('Oggetto'), value: this.draft.subject });
+    const body = h('textarea', { rows: 6, placeholder: tr('Messaggio') });
     body.value = this.draft.body;
-    const sendBtn = h('button', { class: 'primary', type: 'submit' }, 'Invia');
+    const sendBtn = h('button', { class: 'primary', type: 'submit' }, tr('Invia'));
     const aiOn = (await ks.ai.status()).enabled;
     const aiBtn = aiOn
       ? withIcon(h('button', {
           type: 'button',
-          title: 'Scrivi il testo con l’IA partendo dall’oggetto e dai tuoi appunti nel messaggio',
+          title: tr('Scrivi il testo con l’IA partendo dall’oggetto e dai tuoi appunti nel messaggio'),
           onclick: async () => {
             aiBtn!.disabled = true;
             const notes = body.value;
@@ -323,9 +324,9 @@ export class Panel {
             aiBtn!.disabled = false;
             syncDraft();
           },
-        }, 'Scrivi con l’IA'), 'sparkles', 15)
+        }, tr('Scrivi con l’IA')), 'sparkles', 15)
       : null;
-    const form = h('form', { class: 'compose' }, to, subject, body, h('div', { class: 'actions' }, sendBtn, aiBtn, h('button', { type: 'button', onclick: () => { this.draft = { to: '', subject: '', body: '' }; void this.render(); } }, 'Svuota')));
+    const form = h('form', { class: 'compose' }, to, subject, body, h('div', { class: 'actions' }, sendBtn, aiBtn, h('button', { type: 'button', onclick: () => { this.draft = { to: '', subject: '', body: '' }; void this.render(); } }, tr('Svuota'))));
     const syncDraft = () => (this.draft = { to: to.value, subject: subject.value, body: body.value });
     form.addEventListener('input', syncDraft);
     form.addEventListener('submit', async (e) => {
@@ -335,7 +336,7 @@ export class Panel {
       const res = await ks.api.mailSend(this.draft);
       sendBtn.disabled = false;
       if (res.ok) {
-        this.notify('success', 'Email inviata');
+        this.notify('success', tr('Email inviata'));
         this.draft = { to: '', subject: '', body: '' };
         void this.render();
       } else {
@@ -345,14 +346,14 @@ export class Panel {
 
     const overview = await ks.api.mailOverview();
     this.onUnreadChange(overview.ok ? overview.data.inboxUnread : null);
-    const nodes: Node[] = [h('h3', {}, 'Scrivi'), form, h('h3', {}, 'Posta in arrivo')];
+    const nodes: Node[] = [h('h3', {}, tr('Scrivi')), form, h('h3', {}, tr('Posta in arrivo'))];
     if (!overview.ok) {
       nodes.push(errorBox(overview.error));
     } else {
       nodes.push(
-        h('p', { class: 'muted' }, `${overview.data.mailbox.email} · ${overview.data.inboxUnread} non lette`),
+        h('p', { class: 'muted' }, tr('{0} · {1} non lette', overview.data.mailbox.email, overview.data.inboxUnread)),
         h('ul', { class: 'list' }, ...overview.data.threads.map((t) => mailItem(t))),
-        h('button', { onclick: () => void ks.openApp('mail') }, 'Apri Mail'),
+        h('button', { onclick: () => void ks.openApp('mail') }, tr('Apri Mail')),
       );
     }
     return nodes;
@@ -366,11 +367,11 @@ export class Panel {
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     const nextHour = pad((now.getHours() + 1) % 24);
 
-    const title = h('input', { type: 'text', placeholder: 'Titolo evento', required: true });
+    const title = h('input', { type: 'text', placeholder: tr('Titolo evento'), required: true });
     const date = h('input', { type: 'date', value: today, required: true });
     const start = h('input', { type: 'time', value: `${nextHour}:00`, required: true });
     const end = h('input', { type: 'time', value: `${pad((now.getHours() + 2) % 24)}:00`, required: true });
-    const form = h('form', { class: 'compose' }, title, h('div', { class: 'row' }, date, start, end), h('button', { class: 'primary', type: 'submit' }, 'Crea evento'));
+    const form = h('form', { class: 'compose' }, title, h('div', { class: 'row' }, date, start, end), h('button', { class: 'primary', type: 'submit' }, tr('Crea evento')));
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const startAt = new Date(`${date.value}T${start.value}`);
@@ -378,7 +379,7 @@ export class Panel {
       if (endAt <= startAt) endAt.setDate(endAt.getDate() + 1);
       const res = await ks.api.calendarCreate({ title: title.value.trim(), start: startAt.toISOString(), end: endAt.toISOString() });
       if (res.ok) {
-        this.notify('success', 'Evento creato');
+        this.notify('success', tr('Evento creato'));
         void this.render();
       } else {
         this.notify('error', res.error);
@@ -386,11 +387,11 @@ export class Panel {
     });
 
     const events = await ks.api.calendarUpcoming();
-    const nodes: Node[] = [h('h3', {}, 'Nuovo evento'), form, h('h3', {}, 'Prossimi 7 giorni')];
+    const nodes: Node[] = [h('h3', {}, tr('Nuovo evento')), form, h('h3', {}, tr('Prossimi 7 giorni'))];
     if (!events.ok) {
       nodes.push(errorBox(events.error));
     } else if (events.data.length === 0) {
-      nodes.push(h('p', { class: 'muted' }, 'Nessun evento.'));
+      nodes.push(h('p', { class: 'muted' }, tr('Nessun evento.')));
     } else {
       const byDay = new Map<string, typeof events.data>();
       for (const e of events.data) {
@@ -399,7 +400,7 @@ export class Panel {
       }
       for (const [day, list] of byDay) nodes.push(h('h4', {}, day), h('ul', { class: 'list' }, ...list.map(eventItem)));
     }
-    nodes.push(h('button', { onclick: () => void ks.openApp('calendar') }, 'Apri Calendar'));
+    nodes.push(h('button', { onclick: () => void ks.openApp('calendar') }, tr('Apri Calendar')));
     return nodes;
   }
 
@@ -411,11 +412,11 @@ export class Panel {
     toggle.addEventListener('change', () => void ks.settings.set({ uploadDownloadsToDrive: toggle.checked }));
 
     const nodes: Node[] = [
-      h('label', { class: 'check' }, toggle, ` Carica automaticamente i download su kDrive (${settings.driveUploadFolderName})`),
-      h('button', { class: 'link', onclick: () => void ks.openSettingsPage('general') }, 'Cartella dei download…'),
+      h('label', { class: 'check' }, toggle, tr(' Carica automaticamente i download su kDrive ({0})', settings.driveUploadFolderName)),
+      h('button', { class: 'link', onclick: () => void ks.openSettingsPage('general') }, tr('Cartella dei download…')),
     ];
     if (this.downloads.length === 0) {
-      nodes.push(h('div', { class: 'empty-state' }, withIcon(h('span', { class: 'big-icon' }), 'download', 26), h('p', {}, 'Nessun download in questa sessione.')));
+      nodes.push(h('div', { class: 'empty-state' }, withIcon(h('span', { class: 'big-icon' }), 'download', 26), h('p', {}, tr('Nessun download in questa sessione.'))));
     }
     nodes.push(
       h('div', { class: 'compose' }, ...this.downloads.map((d) =>
@@ -430,8 +431,8 @@ export class Panel {
             d.drive !== 'idle' ? h('div', { class: `small drive-${d.drive}` }, driveLabel(d)) : null,
             d.state === 'completed'
               ? h('div', { class: 'actions' },
-                  h('button', { onclick: () => void ks.downloads.open(d.id, false) }, 'Apri'),
-                  h('button', { onclick: () => void ks.downloads.open(d.id, true) }, 'Mostra nella cartella'))
+                  h('button', { onclick: () => void ks.downloads.open(d.id, false) }, tr('Apri')),
+                  h('button', { onclick: () => void ks.downloads.open(d.id, true) }, tr('Mostra nella cartella')))
               : null,
           ),
         ),
@@ -463,15 +464,15 @@ function countToday(events: Array<{ start: string }>): number {
 
 function eventItem(e: { title: string; start: string; end: string; fullday: boolean; location: string | null }): HTMLElement {
   const start = new Date(e.start);
-  const time = (d: Date) => d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-  const when = e.fullday ? 'Tutto il giorno' : `${time(start)} – ${time(new Date(e.end))}`;
+  const time = (d: Date) => d.toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' });
+  const when = e.fullday ? tr('Tutto il giorno') : `${time(start)} – ${time(new Date(e.end))}`;
   return h(
     'li',
     {},
     h('div', { class: 'item' },
       h('span', { class: 'date-chip', 'aria-hidden': 'true' },
         h('span', { class: 'd' }, String(start.getDate())),
-        h('span', { class: 'm' }, start.toLocaleDateString('it-IT', { month: 'short' }).replace('.', '')),
+        h('span', { class: 'm' }, start.toLocaleDateString(localeTag(), { month: 'short' }).replace('.', '')),
       ),
       h('div', { class: 'item-main' },
         h('strong', { class: 'ellipsis' }, e.title),
@@ -504,20 +505,20 @@ function downloadLabel(d: DownloadItemState): string {
     case 'completed':
       return formatBytes(d.received);
     case 'cancelled':
-      return 'Annullato';
+      return tr('Annullato');
     case 'interrupted':
-      return 'Interrotto';
+      return tr('Interrotto');
   }
 }
 
 function driveLabel(d: DownloadItemState): string {
   switch (d.drive) {
     case 'uploading':
-      return 'Caricamento su kDrive…';
+      return tr('Caricamento su kDrive…');
     case 'uploaded':
-      return 'Salvato su kDrive';
+      return tr('Salvato su kDrive');
     case 'error':
-      return `Errore kDrive: ${d.driveError ?? ''}`;
+      return tr('Errore kDrive: {0}', d.driveError ?? '');
     default:
       return '';
   }

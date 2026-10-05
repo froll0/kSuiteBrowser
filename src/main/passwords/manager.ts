@@ -10,6 +10,7 @@ import type { SettingsStore } from '../settings';
 import type { BrowserWindowController } from '../window';
 import { BreachChecker, sha1 } from './breach';
 import { originOf, Vault } from './vault';
+import { localeTag, tr } from '../../shared/i18n';
 
 const AUTO_LOCK_MS = 30 * 60 * 1000;
 const PENDING_TTL_MS = 10 * 60 * 1000;
@@ -113,13 +114,13 @@ export class PasswordManager {
     const unlocked = this.vault.tryAutoUnlock();
 
     if (!unlocked && status.state === 'locked') {
-      items.push({ label: 'Sblocca le password salvate…', click: () => tab.window.send(IPC.evPasswordUnlock, { reason: 'fill' }) });
+      items.push({ label: tr('Sblocca le password salvate…'), click: () => tab.window.send(IPC.evPasswordUnlock, { reason: 'fill' }) });
     } else if (unlocked) {
       const logins = this.vault.forOrigin(origin);
-      const insecure = secureOrigin(origin) ? '' : ' (connessione non sicura)';
+      const insecure = secureOrigin(origin) ? '' : tr(' (connessione non sicura)');
       for (const login of logins) {
         items.push({
-          label: `${login.username || '(senza nome utente)'}${insecure}`,
+          label: `${login.username || tr('(senza nome utente)')}${insecure}`,
           click: () => {
             this.touch();
             this.vault.markUsed(login.id);
@@ -131,9 +132,9 @@ export class PasswordManager {
       const related = this.vault.list().filter((l) => l.origin !== origin && site && siteOf(l.origin) === site);
       if (related.length) {
         items.push({
-          label: `Altri accessi per ${site}`,
+          label: tr('Altri accessi per {0}', site),
           submenu: related.map((l) => ({
-            label: `${l.username || '(senza nome utente)'} — ${new URL(l.origin).host}`,
+            label: `${l.username || tr('(senza nome utente)')} — ${new URL(l.origin).host}`,
             click: () => {
               this.touch();
               this.vault.markUsed(l.id);
@@ -145,10 +146,10 @@ export class PasswordManager {
     }
     if (newPassword) {
       if (items.length) items.push({ type: 'separator' });
-      items.push({ label: 'Suggerisci una password sicura', click: () => fill({ password: generatePassword(), generated: true }) });
+      items.push({ label: tr('Suggerisci una password sicura'), click: () => fill({ password: generatePassword(), generated: true }) });
     }
     if (items.length === 0) return;
-    items.push({ type: 'separator' }, { label: 'Gestisci password…', click: () => tab.window.openInternal('velo://passwords/') });
+    items.push({ type: 'separator' }, { label: tr('Gestisci password…'), click: () => tab.window.openInternal('velo://passwords/') });
     Menu.buildFromTemplate(items).popup({ window: tab.window.win });
   }
 
@@ -157,7 +158,7 @@ export class PasswordManager {
     if (status.state === 'needs-setup') {
       if (!this.setupHintShown) {
         this.setupHintShown = true;
-        tab.window.send(IPC.evToast, { kind: 'info', message: 'Per salvare le password imposta una password principale (Impostazioni › Password).' });
+        tab.window.send(IPC.evToast, { kind: 'info', message: tr('Per salvare le password imposta una password principale (Impostazioni › Password).') });
       }
       return;
     }
@@ -200,7 +201,7 @@ export class PasswordManager {
       this.vault.setNever(p.prompt.origin, true);
     } else {
       this.vault.save(p.prompt.origin, typeof username === 'string' ? username.trim() : p.prompt.username, p.password);
-      window.send(IPC.evToast, { kind: 'success', message: p.prompt.kind === 'update' ? 'Password aggiornata' : 'Password salvata' });
+      window.send(IPC.evToast, { kind: 'success', message: p.prompt.kind === 'update' ? tr('Password aggiornata') : tr('Password salvata') });
       if (this.settings.get().breachCheckOnSave) void this.warnIfBreached(window, p.prompt.origin, p.password);
     }
   }
@@ -212,7 +213,7 @@ export class PasswordManager {
         this.remember(password, count);
         window.send(IPC.evToast, {
           kind: 'error',
-          message: `Attenzione: questa password compare ${count.toLocaleString('it-IT')} volte in violazioni di dati note. Cambiala su ${new URL(origin).host}.`,
+          message: tr('Attenzione: questa password compare {0} volte in violazioni di dati note. Cambiala su {1}.', count.toLocaleString(localeTag()), new URL(origin).host),
         });
       }
     } catch {
@@ -252,6 +253,6 @@ export class PasswordManager {
     this.saveAfterUnlock = null;
     const p = id ? (this.pending.get(id) as (Pending & { action?: 'save' | 'never' }) | undefined) : undefined;
     if (id && p) this.answer(window, id, p.action ?? 'save', p.prompt.username);
-    else window.send(IPC.evToast, { kind: 'success', message: 'Password sbloccate: clicca di nuovo nel campo di accesso.' });
+    else window.send(IPC.evToast, { kind: 'success', message: tr('Password sbloccate: clicca di nuovo nel campo di accesso.') });
   }
 }

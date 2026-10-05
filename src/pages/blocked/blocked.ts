@@ -1,5 +1,6 @@
 import { hydrateIcons } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
+import { tr } from '../../shared/i18n';
 
 hydrateIcons();
 
@@ -15,12 +16,12 @@ try {
 
 const TEXT = {
   phishing: {
-    title: 'Sito ingannevole',
-    lead: `${host} potrebbe cercare di rubarti password, dati della carta o altre informazioni personali fingendosi un sito di cui ti fidi.`,
+    title: tr('Sito ingannevole'),
+    lead: tr('{0} potrebbe cercare di rubarti password, dati della carta o altre informazioni personali fingendosi un sito di cui ti fidi.', host),
   },
   malware: {
-    title: 'Sito che diffonde malware',
-    lead: `${host} è segnalato per distribuire software dannoso che potrebbe infettare il computer o rubare i tuoi dati.`,
+    title: tr('Sito che diffonde malware'),
+    lead: tr('{0} è segnalato per distribuire software dannoso che potrebbe infettare il computer o rubare i tuoi dati.', host),
   },
 }[kind];
 

@@ -1,5 +1,6 @@
 import type { Drive, DriveFile, DriveListing } from '../shared/types';
 import { API_BASE, InfomaniakApiError, type InfomaniakClient } from './client';
+import { tr } from '../shared/i18n';
 
 /** Direct (single request) uploads are meant for reasonably small files. */
 export const MAX_DIRECT_UPLOAD_BYTES = 1024 * 1024 * 1024;
@@ -77,7 +78,7 @@ export async function uploadFile(
   conflict: 'rename' | 'version' = 'rename',
 ): Promise<DriveFile> {
   if (content.byteLength > MAX_DIRECT_UPLOAD_BYTES) {
-    throw new InfomaniakApiError('File troppo grande per il caricamento diretto (max 1 GB).', 413);
+    throw new InfomaniakApiError(tr('File troppo grande per il caricamento diretto (max 1 GB).'), 413);
   }
   const params = new URLSearchParams({
     directory_id: String(directoryId),

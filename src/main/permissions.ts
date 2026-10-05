@@ -4,13 +4,14 @@ import { externalAppName, externalScheme, externalVerdict } from '../shared/exte
 import { ASKABLE_PERMISSIONS } from '../shared/settings-schema';
 import type { AskablePermission } from '../shared/types';
 import type { SettingsStore } from './settings';
+import { tr } from '../shared/i18n';
 
 const ALWAYS_ALLOWED = new Set(['fullscreen', 'clipboard-sanitized-write', 'pointerLock']);
 const DESCRIPTIONS: Record<string, string> = {
-  media: 'usare fotocamera e microfono',
-  notifications: 'mostrare notifiche',
-  geolocation: 'conoscere la tua posizione',
-  'clipboard-read': 'leggere gli appunti',
+  media: tr('usare fotocamera e microfono'),
+  notifications: tr('mostrare notifiche'),
+  geolocation: tr('conoscere la tua posizione'),
+  'clipboard-read': tr('leggere gli appunti'),
 };
 
 /** Where site decisions are remembered: the settings file, or memory only for private windows. */
@@ -90,11 +91,11 @@ export function configurePermissions(
     const win = getWindow();
     const options = {
       type: 'question' as const,
-      buttons: ['Consenti', 'Blocca'],
+      buttons: [tr('Consenti'), tr('Blocca')],
       defaultId: 1,
       cancelId: 1,
-      message: `${host || 'Questo sito'} vuole ${DESCRIPTIONS[permission]}.`,
-      checkboxLabel: 'Ricorda la scelta per questo sito',
+      message: `${host || tr('Questo sito')} vuole ${DESCRIPTIONS[permission]}.`,
+      checkboxLabel: tr('Ricorda la scelta per questo sito'),
       checkboxChecked: true,
     };
     const prompt = win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options);
@@ -118,12 +119,12 @@ export function configurePermissions(
     const win = getWindow();
     const options = {
       type: 'question' as const,
-      buttons: ['Apri', 'Annulla'],
+      buttons: [tr('Apri'), tr('Annulla')],
       defaultId: 1,
       cancelId: 1,
-      message: `${host || 'Questa pagina'} vuole aprire ${externalAppName(scheme)}.`,
+      message: tr('{0} vuole aprire {1}.', host || tr('Questa pagina'), externalAppName(scheme)),
       detail: url.length > 300 ? `${url.slice(0, 300)}…` : url,
-      checkboxLabel: 'Ricorda la scelta per questo sito',
+      checkboxLabel: tr('Ricorda la scelta per questo sito'),
       checkboxChecked: false,
     };
     const { response, checkboxChecked } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
@@ -148,9 +149,9 @@ export function configurePermissions(
       const win = getWindow();
       const options = {
         type: 'question' as const,
-        buttons: [...choices.map((s) => s.name), 'Annulla'],
+        buttons: [...choices.map((s) => s.name), tr('Annulla')],
         cancelId: choices.length,
-        message: `${hostOf(request.securityOrigin) || 'La pagina'} vuole condividere lo schermo. Cosa vuoi condividere?`,
+        message: tr('{0} vuole condividere lo schermo. Cosa vuoi condividere?', hostOf(request.securityOrigin) || tr('La pagina')),
       };
       const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
       const source = choices[response];

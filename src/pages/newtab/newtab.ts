@@ -91,8 +91,14 @@ async function render(): Promise<void> {
     document.body.classList.toggle('private', data.isPrivate);
     refreshTheme();
   }
-  document.getElementById('private-note')!.hidden = !data.isPrivate;
-  if (data.isPrivate) document.getElementById('greeting')!.textContent = 'Finestra privata';
+  const note = document.getElementById('private-note')!;
+  note.hidden = !data.isPrivate;
+  if (data.isPrivate) document.getElementById('greeting')!.textContent = data.isTor ? 'Finestra Tor' : 'Finestra privata';
+  if (data.isTor) {
+    document.body.classList.add('tor');
+    note.textContent =
+      'Le pagine passano dalla rete Tor: i siti non vedono il tuo indirizzo IP e ognuno vede un indirizzo diverso. Ogni sito ha cookie e dati separati, l’impronta del browser è uguale per tutti e nulla resta quando chiudi la finestra. Dal pulsante Tor in alto puoi chiedere un nuovo circuito o una nuova identità.';
+  }
   search.placeholder = 'Cerca sul web o scrivi un indirizzo';
   if (document.activeElement === document.body) search.focus();
   const grid = document.getElementById('top-sites')!;

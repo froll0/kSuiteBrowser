@@ -4,6 +4,8 @@ export interface AppMenuActions {
   newTab(): void;
   newWindow(): void;
   newPrivateWindow(): void;
+  newTorWindow(): void;
+  newTorIdentity(): void;
   reopenClosed(): void;
   selectTab(index: number): void;
   closeTab(): void;
@@ -65,6 +67,8 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { label: 'Nuova scheda', accelerator: 'CmdOrCtrl+T', click: a.newTab },
         { label: 'Nuova finestra', accelerator: 'CmdOrCtrl+N', click: a.newWindow },
         { label: 'Nuova finestra privata', accelerator: 'CmdOrCtrl+Shift+N', click: a.newPrivateWindow },
+        { label: 'Nuova finestra Tor', accelerator: 'Alt+Shift+N', click: a.newTorWindow },
+        { label: 'Nuova identità Tor', click: a.newTorIdentity },
         { label: 'Chiudi scheda', accelerator: 'CmdOrCtrl+W', click: a.closeTab },
         { label: 'Riapri scheda chiusa', accelerator: 'CmdOrCtrl+Shift+T', click: a.reopenClosed },
         { type: 'separator' },

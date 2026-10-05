@@ -390,7 +390,7 @@ function renderToolbar(): void {
   const defaultZoom = currentSettings?.defaultZoom ?? 100;
   zoomBtn.hidden = !tab || tab.zoom === defaultZoom;
   zoomBtn.textContent = tab ? `${tab.zoom}%` : '';
-  const suffix = document.body.classList.contains('private') ? 'Velo (privata)' : 'Velo';
+  const suffix = document.body.classList.contains('tor') ? 'Velo (Tor)' : document.body.classList.contains('private') ? 'Velo (privata)' : 'Velo';
   document.title = tab ? `${tab.title} — ${suffix}` : suffix;
 }
 
@@ -896,6 +896,23 @@ ks.events.onAiAsk((ask) => void setPanelOpen(true).then(() => panel.askAi(ask)))
 ks.events.onToast((t) => toast(t.kind, t.message));
 
 // A site wants protected content (Netflix…) while Widevine is off.
+// Tor windows: connection state on the badge.
+const torBadge = document.getElementById('tor-badge') as HTMLButtonElement;
+torBadge.addEventListener('click', () => void ks.torMenu());
+ks.events.onTorStatus((status) => {
+  torBadge.className = status.state;
+  const label = torBadge.querySelector('.tor-label')!;
+  label.textContent = status.state === 'starting' ? `Tor ${status.progress ?? 0}%` : status.state === 'error' ? 'Tor non connesso' : 'Tor';
+  torBadge.title =
+    status.state === 'ready'
+      ? 'Connesso alla rete Tor: ogni sito vede un indirizzo diverso, nulla resta alla chiusura'
+      : status.state === 'starting'
+        ? `Connessione alla rete Tor… ${status.summary ?? ''}`
+        : status.state === 'error'
+          ? `Tor non riesce a connettersi: ${status.message ?? ''}`
+          : 'Tor non è avviato';
+});
+
 ks.events.onDrmOffer((offer) => {
   if (!infobar.hidden) return;
   infobar.replaceChildren(
@@ -991,6 +1008,7 @@ async function boot(): Promise<void> {
   renderBookmarksBar();
   tokenConfigured = status.configured;
   document.body.classList.toggle('private', info.isPrivate);
+  document.body.classList.toggle('tor', info.isTor);
   applyAppearance(settings);
   renderTabs();
   renderToolbar();

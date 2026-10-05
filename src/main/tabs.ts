@@ -17,7 +17,24 @@ export interface Tab {
   pinned: boolean;
   /** URL that failed to load while the error page is shown. */
   failedUrl: string | null;
+  /** Tor windows: the site whose session the page uses (see SessionRouter). */
+  sessionKey: string | null;
+  /** Tor windows: waiting for the session of the next page to be ready. */
+  preparing: boolean;
   owner: TabManager;
+}
+
+/**
+ * Tor windows give every site its own session (cookies, cache, Tor circuit), as Tor Browser's
+ * first-party isolation does. A tab moves its page to another session when it goes to another site.
+ */
+export interface SessionRouter {
+  /** Session key for an address; null keeps the current one (internal pages, data:, about:blank). */
+  keyFor(url: string): string | null;
+  /** The session of a key, if already set up. */
+  ready(key: string): Session | null;
+  /** Sets up the session of a key (proxy and protections are in place before any request). */
+  prepare(key: string): Promise<Session>;
 }
 
 /** What a sleeping tab keeps to come back as it was. */
@@ -50,6 +67,10 @@ export interface TabManagerOptions {
   session: Session;
   /** Preload for tabs; it only exposes an API to internal velo:// pages. */
   preload: string;
+  /** Tor windows: one session per site. */
+  router?: SessionRouter;
+  /** Tor windows: the page area is rounded down to steps of 200×100 pixels, so its size says little. */
+  letterbox?: boolean;
 }
 
 export interface CreateOptions {
@@ -117,13 +138,19 @@ export class TabManager {
       appId: options.appId ?? null,
       pinned: Boolean(options.pinned),
       failedUrl: null,
+      sessionKey: null,
+      preparing: false,
       owner: this,
     };
     this.insert(tab, options.index);
-    if (options.asleep) {
+    if (this.options.router && !options.asleep) {
+      // The page is created once the session of its site is ready (see wake).
+      tab.sleep = { url, title: options.title || url, entries: options.history?.entries ?? [], index: options.history?.index ?? 0, muted: false };
+      this.wake(tab);
+    } else if (options.asleep) {
       tab.sleep = { url, title: options.title || url, entries: options.history?.entries ?? [], index: options.history?.index ?? 0, muted: false };
     } else {
-      const wc = this.attachView(tab).webContents;
+      const wc = this.attachView(tab, this.options.session).webContents;
       if (options.history?.entries.length) {
         wc.navigationHistory.restore({ entries: options.history.entries, index: options.history.index }).catch(() => void wc.loadURL(url));
       } else {
@@ -136,10 +163,10 @@ export class TabManager {
   }
 
   /** Creates the page of a tab (new, or waking up) with all its listeners. */
-  private attachView(tab: Tab): WebContentsView {
+  private attachView(tab: Tab, session: Session): WebContentsView {
     const view = new WebContentsView({
       webPreferences: {
-        session: this.options.session,
+        session,
         preload: this.options.preload,
         sandbox: true,
         contextIsolation: true,
@@ -170,8 +197,23 @@ export class TabManager {
     });
     wc.on('did-navigate-in-page', emit);
     wc.on('page-favicon-updated', (_e, favicons) => {
-      tab.favicon = favicons[0] ?? null;
-      emit();
+      const url = favicons[0] ?? null;
+      if (!this.options.router || !url || url.startsWith('data:')) {
+        tab.favicon = url;
+        emit();
+        return;
+      }
+      // Tor windows: the browser UI must not fetch it itself (outside Tor): through the page's session.
+      void wc.session
+        .fetch(url)
+        .then(async (r) => {
+          const type = r.headers.get('content-type') ?? '';
+          const body = Buffer.from(await r.arrayBuffer());
+          if (!r.ok || !type.startsWith('image/') || body.length > 200_000 || wc.isDestroyed()) return;
+          tab.favicon = `data:${type.split(';')[0]};base64,${body.toString('base64')}`;
+          emit();
+        })
+        .catch(() => undefined);
     });
     wc.on('did-fail-load', (_e, code, description, validatedUrl, isMainFrame) => {
       if (!isMainFrame || code === -3) return; // -3 = aborted (e.g. new navigation)
@@ -211,19 +253,113 @@ export class TabManager {
         tab.owner.exitPageFullscreen();
       }
     });
+    const router = this.options.router;
+    if (router) {
+      const otherSite = (url: string) => {
+        const key = router.keyFor(url);
+        return key !== null && key !== tab.sessionKey;
+      };
+      // Links, scripts and redirects to another site: stopped before any request, then loaded in that site's session.
+      wc.on('will-navigate', (e) => {
+        if (e.isMainFrame && otherSite(e.url)) {
+          e.preventDefault();
+          tab.owner.rehost(tab, e.url, false);
+        }
+      });
+      wc.on('will-redirect', (e) => {
+        if (e.isMainFrame && otherSite(e.url)) {
+          e.preventDefault();
+          tab.owner.rehost(tab, e.url, false);
+        }
+      });
+      // Back/forward and anything else: the session refuses the request (see PrivacyGuard), the page
+      // moves on the next turn (stopping a navigation from inside this event is not allowed).
+      const later = (url: string) =>
+        setImmediate(() => {
+          if (wc.isDestroyed() || tab.view?.webContents !== wc) return;
+          wc.stop();
+          tab.owner.rehost(tab, url, true);
+        });
+      wc.on('did-start-navigation', (e) => {
+        if (e.isMainFrame && !e.isSameDocument && otherSite(e.url)) later(e.url);
+      });
+      wc.on('did-redirect-navigation', (e) => {
+        if (e.isMainFrame && otherSite(e.url)) later(e.url);
+      });
+    }
     tab.owner.hooks.onWebContentsCreated(wc, tab.owner);
     return view;
+  }
+
+  /** Tor windows: moves a tab's page to the session of another site, keeping its back/forward history. */
+  private rehost(tab: Tab, url: string, fromHistory: boolean): void {
+    const view = tab.view;
+    if (!view) return;
+    const wc = view.webContents;
+    const all = wc.navigationHistory.getAllEntries();
+    const active = wc.navigationHistory.getActiveIndex();
+    let entries = [...all.slice(0, active + 1), { url, title: '' } as NavigationEntry];
+    let index = entries.length - 1;
+    if (fromHistory) {
+      // The entry nearest to the current one with that address.
+      const near = all
+        .map((e, i) => ({ url: e.url, i }))
+        .filter((x) => x.url === url && x.i !== active)
+        .sort((a, b) => Math.abs(a.i - active) - Math.abs(b.i - active))[0];
+      if (near) {
+        entries = all;
+        index = near.i;
+      }
+    }
+    tab.sleep = { url, title: url, entries, index, muted: wc.isAudioMuted() };
+    tab.failedUrl = null;
+    tab.favicon = null;
+    if (!this.window.isDestroyed()) this.window.contentView.removeChildView(view);
+    tab.view = null;
+    setImmediate(() => {
+      if (!wc.isDestroyed()) wc.close();
+    });
+    this.wake(tab);
+    this.emit();
   }
 
   /** Brings a sleeping tab back: same history, same position in it. */
   private wake(tab: Tab): void {
     const state = tab.sleep;
     if (!state) return;
+    let session = this.options.session;
+    const router = this.options.router;
+    if (router) {
+      const target = state.entries[state.index]?.url || state.url;
+      const key = router.keyFor(target) ?? tab.sessionKey ?? '';
+      const ready = router.ready(key);
+      if (!ready) {
+        if (!tab.preparing) {
+          tab.preparing = true;
+          const done = () => {
+            tab.preparing = false;
+            if (tab.sleep && tab.owner.find(tab.id)) tab.owner.wake(tab);
+          };
+          router.prepare(key).then(done, done);
+        }
+        return;
+      }
+      session = ready;
+      tab.sessionKey = key;
+    }
     tab.sleep = null;
-    const wc = this.attachView(tab).webContents;
+    const view = this.attachView(tab, session);
+    const wc = view.webContents;
     wc.setAudioMuted(state.muted);
     if (state.entries.length) wc.navigationHistory.restore({ entries: state.entries, index: state.index }).catch(() => void wc.loadURL(state.url));
     else void wc.loadURL(state.url);
+    // Created later than its activation (Tor windows): shown now.
+    if (tab.id === this.activeId && !this.window.isDestroyed()) {
+      this.window.contentView.addChildView(view);
+      this.layout();
+      wc.focus();
+      this.emit();
+    }
   }
 
   /** Puts a background tab to sleep. Returns false when it can't (active, already asleep). */
@@ -368,7 +504,12 @@ export class TabManager {
     if (tab.sleep) this.wake(tab);
     if (this.fullscreenId !== null && this.fullscreenId !== id) this.exitPageFullscreen();
     this.activeId = id;
-    this.window.contentView.addChildView(tab.view!);
+    if (!tab.view) {
+      // Tor windows: the page appears once its session is ready (see wake).
+      this.emit();
+      return;
+    }
+    this.window.contentView.addChildView(tab.view);
     this.layout();
     tab.view!.webContents.focus();
     this.emit();
@@ -438,7 +579,7 @@ export class TabManager {
     } else {
       // The page is a rounded "canvas" inside the window (radius chosen in the settings).
       tab.view.setBorderRadius(this.radius);
-      tab.view.setBounds(this.bounds);
+      tab.view.setBounds(this.options.letterbox ? letterbox(this.bounds) : this.bounds);
     }
   }
 
@@ -456,6 +597,8 @@ export class TabManager {
     if (tab.sleep) {
       tab.sleep = { ...tab.sleep, entries: [], url };
       this.wake(tab);
+    } else if (tab.view && this.options.router && (this.options.router.keyFor(url) ?? tab.sessionKey) !== tab.sessionKey) {
+      this.rehost(tab, url, false);
     } else {
       void tab.view?.webContents.loadURL(url);
     }
@@ -532,7 +675,7 @@ export class TabManager {
           title: sleep.title || sleep.url || 'Nuova scheda',
           url: sleep.url,
           favicon: t.favicon,
-          loading: false,
+          loading: t.preparing,
           canGoBack: sleep.index > 0,
           canGoForward: sleep.index < sleep.entries.length - 1,
           active: false,
@@ -540,7 +683,7 @@ export class TabManager {
           pinned: t.pinned,
           audible: false,
           muted: sleep.muted,
-          sleeping: true,
+          sleeping: !t.preparing,
           reader: false,
           media: false,
           lastActiveAt: t.lastActiveAt,
@@ -588,6 +731,13 @@ export class TabManager {
   emit(): void {
     if (!this.window.isDestroyed()) this.hooks.onChange(this.states());
   }
+}
+
+/** Page area rounded down to 200×100 steps (as Tor Browser's letterboxing), centred horizontally. */
+export function letterbox(rect: Rect): Rect {
+  const width = rect.width >= 400 ? Math.floor(rect.width / 200) * 200 : rect.width;
+  const height = rect.height >= 200 ? Math.floor(rect.height / 100) * 100 : rect.height;
+  return { x: rect.x + Math.floor((rect.width - width) / 2), y: rect.y, width, height };
 }
 
 interface ErrorText {

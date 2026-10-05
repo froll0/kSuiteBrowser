@@ -59,6 +59,14 @@ jobs:
       - name: Dictionaries (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: node scripts/fetch-dictionaries.mjs
+      # Tor for the Tor windows: the official Expert Bundle, checked against the signed checksums.
+      - name: Tor
+        shell: bash
+        run: |
+          command -v gpg >/dev/null || brew install gnupg
+          node scripts/fetch-tor.mjs
+        env:
+          VELO_REQUIRE_TOR_SIGNATURE: '1'
       - run: npm run dist -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -128,6 +136,14 @@ jobs:
       - name: Dictionaries (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: node scripts/fetch-dictionaries.mjs
+      # Tor for the Tor windows: the official Expert Bundle, checked against the signed checksums.
+      - name: Tor
+        shell: bash
+        run: |
+          command -v gpg >/dev/null || brew install gnupg
+          node scripts/fetch-tor.mjs
+        env:
+          VELO_REQUIRE_TOR_SIGNATURE: '1'
       # Uploads installers plus latest*.yml (read by the in-app updater) to the draft release.
       - run: npm run dist -- --publish always
         env:

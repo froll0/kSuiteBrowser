@@ -180,6 +180,23 @@ body:not(.layout-top) #toolbar-row { display: none; }
 }
 body.private #private-badge { display: inline-flex; }
 
+/* Tor windows: violet accent and a badge with the connection state. */
+body.tor { --accent: #a46ee8; --accent-soft: rgba(164, 110, 232, 0.2); }
+body.tor #private-badge { display: none; }
+#tor-badge {
+  display: none; align-items: center; gap: 6px; flex: none;
+  height: 24px; padding: 0 10px 0 8px; border: 0; border-radius: var(--r-pill);
+  background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 12px; font-weight: 600;
+  cursor: pointer; -webkit-app-region: no-drag;
+}
+body.tor #tor-badge { display: inline-flex; }
+#tor-badge:hover { filter: brightness(1.15); }
+.tor-dot { width: 8px; height: 8px; border-radius: 50%; background: #e0a030; }
+#tor-badge.ready .tor-dot { background: #3fb67b; }
+#tor-badge.error .tor-dot { background: #e5484d; }
+#tor-badge.starting .tor-dot { animation: tor-pulse 1.2s ease-in-out infinite; }
+@keyframes tor-pulse { 50% { opacity: 0.35; } }
+
 /* ---------- Tabs (horizontal) ---------- */
 
 #tabstrip {

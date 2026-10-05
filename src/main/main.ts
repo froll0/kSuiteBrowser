@@ -52,6 +52,9 @@ import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } fr
 import { ExtensionHost } from './extensions/host';
 import { InstallError } from './extensions/registry';
 import { adoptLegacyProfile } from './legacy';
+import { TorProcess, findTor, type TorStatus } from './tor/process';
+import { SocksRelay } from './tor/relay';
+import { TorIdentity } from './tor/identity';
 
 adoptLegacyProfile();
 // Widevine comes from Google's component updater: unless the user turned protected content on, it
@@ -97,6 +100,8 @@ const blocker = new TrackerBlocker();
 const threats = new ThreatProtection();
 const readerCache = new ReaderCache();
 const guards = new Map<Session, PrivacyGuard>();
+/** Tor windows: started on first use. */
+const tor: { process: TorProcess | null; relay: SocksRelay | null; identity: TorIdentity | null } = { process: null, relay: null, identity: null };
 /** Random key per session for fingerprinting protection: values change at every restart. */
 const fingerprintKeys = new WeakMap<Session, Buffer>();
 const windows = new Set<BrowserWindowController>();
@@ -129,6 +134,8 @@ if (!app.requestSingleInstanceLock()) {
 
 app.on('window-all-closed', () => app.quit());
 app.on('will-quit', () => {
+  tor.relay?.closeAll();
+  tor.process?.stop();
   history?.flush();
   bookmarks?.flush();
   favicons?.flush();
@@ -322,16 +329,25 @@ async function start(): Promise<void> {
   }, 60_000).unref();
 }
 
-function setupSession(ses: Session, isPrivate: boolean): void {
+/** tor: the site of a Tor session ('' for its internal pages). */
+function setupSession(ses: Session, isPrivate: boolean, torSite: string | null = null): void {
+  const isTor = torSite !== null;
+  // A Tor tab loads only its own site's pages in this session (other sites have their own).
+  const torPageAllowed = (url: string, wcId: number | undefined) => {
+    const wc = wcId === undefined ? undefined : allWebContents.fromId(wcId);
+    if (!wc || ![...windows].some((w) => w.isTor && w.tabs.idOf(wc) !== null)) return true;
+    const key = tor.identity?.keyFor(url) ?? null;
+    return key === null || key === torSite;
+  };
   const guard = new PrivacyGuard(ses, settings, blocker, (wcId) => {
     const wc = allWebContents.fromId(wcId);
     if (!wc) return;
     for (const w of windows) if (w.tabs.idOf(wc) !== null) w.scheduleRefresh();
-  }, (url) => threats.match(url));
+  }, (url) => threats.match(url), isTor ? torPageAllowed : null);
   guard.install();
   guards.set(ses, guard);
   downloads.attach(ses, { isPrivate });
-  configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings), () => lastFocused?.win ?? null, (contents) => offerDrm(contents));
+  configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings), () => lastFocused?.win ?? null, (contents) => offerDrm(contents), isTor);
   serveInternalPages(ses, PATHS.pages, faviconFor);
   ses.registerPreloadScript({ type: 'frame', id: 'velo-adblock', filePath: PATHS.adblockPreload });
   ses.registerPreloadScript({ type: 'frame', id: 'velo-passwords', filePath: PATHS.passwordsPreload });
@@ -371,7 +387,7 @@ const windowContext: WindowContext = {
   },
   applyZoom: (wc) => applyZoom(wc),
   stepZoom: (w, wc, direction) => changeZoom(w, wc, direction),
-  guardFor: (ses) => guards.get(ses)!,
+  guardFor: (ses) => guards.get(ses),
   ownerOf: (contents) => [...windows].find((w) => w.tabs.idOf(contents) !== null) ?? null,
   switchToTab: (from, tabId) => switchToTab(from, tabId),
   recordFavicon: (contents, source) => {
@@ -389,26 +405,37 @@ const windowContext: WindowContext = {
   onClosed: (w) => {
     extensions?.windowClosed(w);
     windows.delete(w);
+    // Last Tor window closed: nothing of it remains (cookies, cache, circuits), as with private windows.
+    if (w.isTor && ![...windows].some((x) => x.isTor)) {
+      void tor.identity?.reset();
+      tor.process?.stop();
+    }
     if (lastFocused === w) lastFocused = null;
     // Keep the last window's tabs for the next start (closing it quits the app).
     if (!w.isPrivate && !quitting && normalWindow()) scheduleSessionSave();
   },
 };
 
-function openWindow(isPrivate: boolean, tabs: SavedTab[] | null, options: { session?: Session; bounds?: Partial<Electron.Rectangle> } = {}): BrowserWindowController {
+function openWindow(
+  isPrivate: boolean,
+  tabs: SavedTab[] | null,
+  options: { session?: Session; bounds?: Partial<Electron.Rectangle>; tor?: TorIdentity } = {},
+): BrowserWindowController {
   let ses = options.session ?? electronSession.defaultSession;
   if (isPrivate && !options.session) {
     // No "persist:" prefix: cookies, cache and storage live in memory and vanish with the window.
     ses = electronSession.fromPartition(`private-${++privateCounter}`);
     setupSession(ses, true);
   }
-  const controller = new BrowserWindowController(windowContext, ses, isPrivate, tabs, options.bounds);
+  const controller = new BrowserWindowController(windowContext, ses, isPrivate, tabs, options.bounds, options.tor ?? null);
   extensions?.windowCreated(controller);
   windows.add(controller);
   lastFocused = controller;
   controller.win.on('focus', () => (lastFocused = controller));
   // A private session lives as long as one of its windows (a tab may have been moved to a new one).
-  if (isPrivate) controller.win.on('closed', () => {
+  if (controller.isTor) {
+    controller.win.webContents.once('did-finish-load', () => controller.send(IPC.evTorStatus, tor.process?.status ?? { state: 'off' }));
+  } else if (isPrivate) controller.win.on('closed', () => {
     if (![...windows].some((w) => w.session === ses)) guards.delete(ses);
   });
   return controller;
@@ -427,6 +454,78 @@ function faviconFor(pageUrl: string): { mime: string; body: Buffer | string } {
   return { mime: 'image/svg+xml', body: letterIconSvg(host || '?') };
 }
 
+// ---------- Tor windows ----------
+
+function torIdentity(): TorIdentity {
+  if (!tor.identity) {
+    const proc = new TorProcess(() => findTor(process.resourcesPath, app.getAppPath()), join(app.getPath('userData'), 'tor'));
+    proc.onStatus((status: TorStatus) => {
+      for (const w of windows) if (w.isTor) w.send(IPC.evTorStatus, status);
+    });
+    tor.process = proc;
+    tor.relay = new SocksRelay(() => proc.ready());
+    tor.identity = new TorIdentity(tor.relay, (ses, key) => setupSession(ses, true, key), (ses) => guards.delete(ses));
+  }
+  return tor.identity;
+}
+
+/** Opens a Tor window (starting Tor if needed). */
+async function openTorWindow(url?: string): Promise<BrowserWindowController | null> {
+  const identity = torIdentity();
+  if (!tor.process!.available()) {
+    void dialog.showMessageBox({
+      type: 'warning',
+      message: 'Tor non è disponibile',
+      detail: 'Questa installazione di Velo non include Tor. Scarica Velo dalla pagina delle versioni ufficiali, oppure installa Tor sul sistema.',
+    });
+    return null;
+  }
+  void tor.process!.start();
+  const base = await identity.prepare('');
+  const tabUrl = url ?? NEWTAB_URL;
+  return openWindow(true, [{ url: tabUrl }], { session: base, tor: identity });
+}
+
+/** New identity: the Tor windows close, every Tor session is wiped, a new Tor window opens. */
+async function newTorIdentity(): Promise<void> {
+  const old = [...windows].filter((w) => w.isTor);
+  await tor.identity?.reset();
+  await openTorWindow();
+  for (const w of old) if (!w.win.isDestroyed()) w.win.close();
+}
+
+/** New circuit for the site of a Tor tab, then reload. */
+async function newTorCircuit(w: BrowserWindowController, tabId: number): Promise<void> {
+  const wc = w.tabs.contents(tabId);
+  const key = wc && tor.identity ? tor.identity.keyFor(wc.getURL()) : null;
+  if (!wc || key === null || !tor.identity) return;
+  await tor.identity.newCircuit(key);
+  if (!wc.isDestroyed()) wc.reload();
+}
+
+function torStatusLabel(status: TorStatus | undefined): string {
+  if (!status || status.state === 'off') return 'Tor non è avviato';
+  if (status.state === 'starting') return `Connessione alla rete Tor… ${status.progress}%`;
+  if (status.state === 'error') return `Tor non riesce a connettersi: ${status.message}`;
+  return 'Connesso alla rete Tor';
+}
+
+/** Menu of the Tor badge of a Tor window. */
+function showTorMenu(w: BrowserWindowController): void {
+  const id = w.activeTabId();
+  const url = id !== null ? (w.tabs.contents(id)?.getURL() ?? '') : '';
+  const site = tor.identity?.keyFor(url) ?? null;
+  const status = tor.process?.status;
+  Menu.buildFromTemplate([
+    { label: torStatusLabel(status), enabled: false },
+    ...(site ? [{ label: `Questo sito vede un indirizzo diverso dagli altri (${site})`, enabled: false }] : []),
+    { type: 'separator' },
+    { label: 'Nuovo circuito Tor per questo sito', enabled: Boolean(site && id !== null), click: () => void newTorCircuit(w, id!) },
+    { label: 'Nuova identità', click: () => void newTorIdentity() },
+    ...(status?.state === 'error' ? [{ label: 'Riprova a connettersi', click: () => void tor.process?.start() }] : []),
+  ]).popup({ window: w.win });
+}
+
 // ---------- Moving tabs ----------
 
 /** Moves a tab (with its live page) to another window of the same session, or to a new window. */
@@ -440,7 +539,7 @@ function moveTab(from: BrowserWindowController, tabId: number, to: BrowserWindow
   if (target === 'new') {
     const [width, height] = from.win.getSize();
     const bounds = point && Number.isFinite(point.x) && Number.isFinite(point.y) ? { x: Math.round(point.x - 120), y: Math.round(point.y - 20), width, height } : undefined;
-    target = openWindow(from.isPrivate, null, { session: from.session, bounds });
+    target = openWindow(from.isPrivate, null, { session: from.session, bounds, tor: from.isTor ? torIdentity() : undefined });
   }
   target.tabs.adopt(tab, index);
   target.focus();
@@ -662,9 +761,10 @@ function changeZoom(w: BrowserWindowController, wc: Electron.WebContents, direct
 
 // ---------- Bookmarks ----------
 
-function openUrl(w: BrowserWindowController, url: string, how: 'current' | 'tab' | 'background' | 'window' | 'private'): void {
+function openUrl(w: BrowserWindowController, url: string, how: 'current' | 'tab' | 'background' | 'window' | 'private' | 'tor'): void {
   if (how === 'window') openWindow(false, [{ url }]);
   else if (how === 'private') openWindow(true, [{ url }]);
+  else if (how === 'tor') void openTorWindow(url);
   else if (how === 'current' && w.activeTabId() !== null) w.tabs.navigate(w.activeTabId()!, url);
   else w.tabs.create(url, { background: how === 'background' });
 }
@@ -699,6 +799,7 @@ function bookmarkContextMenu(w: BrowserWindowController, id: string): void {
     { label: 'Apri in una nuova scheda', click: () => openUrl(w, b.url, 'background') },
     { label: 'Apri in una nuova finestra', click: () => openUrl(w, b.url, 'window') },
     { label: 'Apri in una finestra privata', click: () => openUrl(w, b.url, 'private') },
+    { label: 'Apri in una finestra Tor', click: () => openUrl(w, b.url, 'tor') },
     { type: 'separator' },
     { label: other === 'other' ? 'Sposta in Altri preferiti' : 'Sposta nella barra dei preferiti', click: () => bookmarks.update(b.id, { folder: other }) },
     { label: 'Modifica…', click: () => w.openInternal('velo://bookmarks/') },
@@ -734,6 +835,8 @@ function buildMenu(): Menu {
     newTab: () => current()?.newTab(),
     newWindow: () => openWindow(false, [{ url: newTabUrl() }]),
     newPrivateWindow: () => openWindow(true, [{ url: newTabUrl() }]),
+    newTorWindow: () => void openTorWindow(),
+    newTorIdentity: () => void newTorIdentity(),
     reopenClosed: () => current()?.tabs.reopenClosed(),
     selectTab: (index) => current()?.tabs.activateIndex(index),
     closeTab: () => current()?.closeActiveTab(),
@@ -816,7 +919,7 @@ function showShieldMenu(w: BrowserWindowController, tabId: number): void {
   const wc = w.tabs.contents(tabId);
   const url = wc?.getURL() ?? '';
   const site = /^https?:/i.test(url) ? siteOf(url) : null;
-  const guard = guards.get(w.session);
+  const guard = wc ? guards.get(wc.session) : undefined;
   const s = settings.get();
   const items: Electron.MenuItemConstructorOptions[] = [];
 
@@ -1128,7 +1231,7 @@ function registerChromeIpc(): void {
     const w = [...windows].find((c) => c.suggestions.contents === event.sender);
     if (w && Number.isInteger(index)) w.suggestions.choose(index);
   });
-  handle(IPC.windowInfo, (w) => ({ isPrivate: w.isPrivate, windowId: w.win.id, platform: process.platform }));
+  handle(IPC.windowInfo, (w) => ({ isPrivate: w.isPrivate, isTor: w.isTor, windowId: w.win.id, platform: process.platform }));
   handle(IPC.tabsMove, (w, id: number, index: number) => w.tabs.move(id, Number(index)));
   handle(IPC.tabsMenu, (w, id: number) => tabContextMenu(w, id));
   handle(IPC.tabsMute, (w, id: number) => {
@@ -1171,6 +1274,7 @@ function registerChromeIpc(): void {
   handle(IPC.tabsSwitch, (w, tabId: number) => switchToTab(w, Number(tabId)));
   handle(IPC.mediaMenu, (w) => showMediaMenu(w));
   handle(IPC.drmEnable, () => enableDrmAndRestart());
+  handle(IPC.torMenu, (w) => showTorMenu(w));
   // Synchronous: the shield preload needs it before the page's scripts run.
   ipcMain.on('shield:config', (event) => {
     const ses = event.sender.session;
@@ -1188,6 +1292,7 @@ function registerChromeIpc(): void {
       site: /^https?:/i.test(top) ? siteOf(top) : null,
       exceptions: s.protectionExceptions,
       sessionKey: key,
+      forceStrict: tor.identity?.isTorSession(ses) ?? false,
       cpus: cpus().length || 4,
     });
   });
@@ -1423,13 +1528,16 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.newtabData, ['newtab'], (event) => {
     const s = settings.get();
     const isPrivate = !event.sender.session.isPersistent();
+    const isTor = tor.identity?.isTorSession(event.sender.session) ?? false;
     return {
       isPrivate,
+      isTor,
       topSites: !isPrivate && s.saveHistory && s.showTopSites ? topSites(history.summaries(), s.hiddenTopSites) : [],
       searchEngine: s.searchEngine,
       showTopSites: s.showTopSites,
       hiddenCount: s.hiddenTopSites.length,
-      cloud: settings.tokenStatus().configured,
+      // The cloud apps would open outside Tor.
+      cloud: settings.tokenStatus().configured && !isTor,
     };
   });
   handleInternal(INTERNAL.newtabHide, ['newtab'], (_e, url: string) => {

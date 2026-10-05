@@ -85,6 +85,8 @@ export interface NewTabData {
   hiddenCount: number;
   /** Shown in a private window: nothing is suggested from history. */
   isPrivate: boolean;
+  /** Shown in a Tor window. */
+  isTor: boolean;
   /** An Infomaniak account is connected: its apps are shown. */
   cloud: boolean;
 }

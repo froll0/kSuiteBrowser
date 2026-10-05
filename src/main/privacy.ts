@@ -28,7 +28,17 @@ export class PrivacyGuard {
     private readonly blocker: TrackerBlocker,
     private readonly onBlockedChange: (webContentsId: number) => void,
     private readonly threatCheck: (url: string) => ThreatKind | null = () => null,
+    /**
+     * Tor windows: whether a page may load in this session (each site has its own). Pages of other
+     * sites are stopped here, before any request, and the tab reopens them in their own session.
+     * Also turns on strict fingerprinting protection whatever the setting.
+     */
+    private readonly torPageAllowed: ((url: string, webContentsId: number | undefined) => boolean) | null = null,
   ) {}
+
+  private get forceStrict(): boolean {
+    return this.torPageAllowed !== null;
+  }
 
   install(): void {
     const filter = { urls: ['<all_urls>'] };
@@ -48,6 +58,7 @@ export class PrivacyGuard {
       }
 
       if (details.resourceType === 'mainFrame') {
+        if (this.torPageAllowed && !this.torPageAllowed(details.url, wcId)) return callback({ cancel: true });
         if (wcId !== undefined) this.resetCount(wcId);
         let target = details.url;
         // Tracking parameters go before the page is requested (GET only: a form's data must not change).
@@ -87,9 +98,9 @@ export class PrivacyGuard {
         if (!this.isExempt(pageUrl) && isThirdParty(details.url, pageUrl)) deleteHeader(headers, 'Cookie');
       }
       // Detailed device description (exact version, OS build, CPU, model): sites asking for it get nothing.
-      if (s.fingerprintProtection !== 'off') for (const name of HIGH_ENTROPY_HINTS) deleteHeader(headers, name);
+      if (s.fingerprintProtection !== 'off' || this.forceStrict) for (const name of HIGH_ENTROPY_HINTS) deleteHeader(headers, name);
       // Strict: the language matches what the page sees (navigator.languages), the same for everyone.
-      if (s.fingerprintProtection === 'strict' && !this.isExempt(details.resourceType === 'mainFrame' ? details.url : this.pageUrl(details.webContentsId, details.referrer))) {
+      if (this.forceStrict || (s.fingerprintProtection === 'strict' && !this.isExempt(details.resourceType === 'mainFrame' ? details.url : this.pageUrl(details.webContentsId, details.referrer)))) {
         deleteHeader(headers, 'Accept-Language');
         headers['Accept-Language'] = 'en-US,en;q=0.9';
       }
@@ -112,6 +123,13 @@ export class PrivacyGuard {
         const existing = Object.entries(headers).filter(([k]) => k.toLowerCase() === 'content-security-policy').flatMap(([, v]) => v);
         deleteHeader(headers, 'Content-Security-Policy');
         headers['Content-Security-Policy'] = [[...csp.split(';').map((d) => d.trim()), ...existing].join(';')];
+        changed = true;
+      }
+      // Tor windows: Chromium would resolve the names of the links in a page ahead of time with the
+      // local DNS, outside Tor. Turned off for every document (a page cannot turn it back on).
+      if (this.forceStrict && (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame')) {
+        deleteHeader(headers, 'X-DNS-Prefetch-Control');
+        headers['X-DNS-Prefetch-Control'] = ['off'];
         changed = true;
       }
       callback(changed ? { responseHeaders: headers } : {});

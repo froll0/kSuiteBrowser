@@ -11,6 +11,8 @@ export const IPC = {
   toolbarMenu: 'ui:toolbar-menu',
   drmEnable: 'ui:drm-enable',
   evDrmOffer: 'ui:drm-offer',
+  torMenu: 'tor:menu',
+  evTorStatus: 'tor:status',
   extButtons: 'ext:list-buttons',
   extClick: 'ext:click',
   extMenu: 'ext:menu',

@@ -34,6 +34,8 @@ export function httpsUpgrade(url: string, exceptions: readonly string[]): string
   const host = parsed.hostname.toLowerCase();
   if (LOCAL_HOST_RE.test(host) || PRIVATE_IP_RE.test(host) || !host.includes('.')) return null;
   if (exceptions.includes(host)) return null;
+  // Onion services are encrypted end to end by Tor itself, and most have no certificate.
+  if (host.endsWith('.onion')) return null;
   parsed.protocol = 'https:';
   if (parsed.port === '80') parsed.port = '';
   return parsed.href;

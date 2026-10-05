@@ -52,7 +52,9 @@ const api = {
   tabSearch: (anchor?: Rect) => invoke<void>(IPC.tabSearch, anchor),
   mediaMenu: () => invoke<void>(IPC.mediaMenu),
   openSettingsPage: (section?: string) => invoke<void>(IPC.openSettingsPage, section),
-  windowInfo: () => invoke<{ isPrivate: boolean; windowId: number; platform: string }>(IPC.windowInfo),
+  windowInfo: () => invoke<{ isPrivate: boolean; isTor: boolean; windowId: number; platform: string }>(IPC.windowInfo),
+  /** Tor windows: status and identity menu. */
+  torMenu: () => invoke<void>(IPC.torMenu),
   suggest: {
     query: (input: string) => invoke<Suggestion[]>(IPC.suggest, input),
     show: (items: Suggestion[], rect: Rect, selected: number) => invoke<void>(IPC.suggestShow, items, rect, selected),
@@ -143,6 +145,8 @@ const api = {
     onExtensionButtons: (fn: (buttons: ExtensionButton[]) => void) => on(IPC.evExtButtons, fn),
     /** A site wants protected content while Widevine is off. */
     onDrmOffer: (fn: (offer: { host: string }) => void) => on(IPC.evDrmOffer, fn),
+    /** Tor windows: connection progress. */
+    onTorStatus: (fn: (status: { state: 'off' | 'starting' | 'ready' | 'error'; progress?: number; summary?: string; message?: string }) => void) => on(IPC.evTorStatus, fn),
     /** An extension's page in the Chrome Web Store is open. */
     onExtensionOffer: (fn: (offer: { id: string; installed: boolean }) => void) => on(IPC.evExtOffer, fn),
   },

@@ -92,7 +92,8 @@ quindi funzionano senza sorprese.
 - **Stampa** (`Ctrl+P`), **salva pagina con nome** in HTML completo o MHTML (`Ctrl+S`), **sorgente pagina** (`Ctrl+U`)
 - **Visualizzatore PDF** integrato
 - **Netflix, Disney+, Prime Video, Spotify** e gli altri servizi con contenuti protetti: il browser usa
-  [Castlabs Electron](https://github.com/castlabs/electron-releases) con Widevine (disattivabile in Impostazioni › Privacy)
+  [Castlabs Electron](https://github.com/castlabs/electron-releases) con Widevine, **spento finché non lo attivi** (il modulo arriva dai server di Google):
+  quando un sito lo chiede compare «Attiva e riavvia», oppure Impostazioni › Privacy
 - **Video e audio**: menu contestuale con riproduci/pausa, audio, ripeti, controlli, velocità, **picture-in-picture**
   (anche sui siti che lo disattivano), apri/salva/copia indirizzo; `Ctrl+Shift+P` mette in picture-in-picture il video
   principale della scheda (anche dentro i riquadri incorporati); pulsante nella barra con i controlli di tutte le schede
@@ -100,7 +101,7 @@ quindi funzionano senza sorprese.
 - **Video a schermo intero** (YouTube e simili): la pagina occupa tutta la finestra, `Esc` per uscire
 - **Pagine d'errore chiare** (nessuna connessione, sito inesistente, certificato non valido…) con "Riprova";
   pagina dedicata se una scheda si blocca e avviso "La pagina non risponde"
-- **Correttore ortografico** in italiano e inglese con suggerimenti e "Aggiungi al dizionario" nel menu contestuale
+- **Correttore ortografico** in italiano e inglese (su Windows e macOS quello del sistema, su Linux dizionari inclusi nel pacchetto) con suggerimenti e "Aggiungi al dizionario" nel menu contestuale
 - **Siti con accesso HTTP** (nome utente e password richiesti dal server o dal proxy) tramite la barra informazioni
 - **Browser predefinito** (Impostazioni › Generale): i link delle altre app e i file HTML/PDF si aprono qui, aggiunti alla sessione ripristinata
 
@@ -147,7 +148,7 @@ quindi funzionano senza sorprese.
 - **Blocco dei cookie di terze parti** sulle richieste di rete
 - **Do Not Track e Global Privacy Control** (`DNT: 1`, `Sec-GPC: 1`)
 - **Modalità solo HTTPS**: le pagine `http://` vengono caricate in `https://`; se il sito non lo supporta compare un avviso con "Continua con HTTP" (le reti locali sono escluse)
-- **DNS cifrato** (DNS over HTTPS): automatico, oppure Quad9 (Svizzera), Mullvad, Cloudflare o un indirizzo a scelta,
+- **DNS cifrato** (DNS over HTTPS): automatico (Quad9 con riserva sul DNS della rete), oppure solo Quad9 (Svizzera), Mullvad, Cloudflare o un indirizzo a scelta,
   così la rete (Wi-Fi pubblico, provider) non vede quali siti apri
 - **Protezione dell'IP con WebRTC**: standard, protetta (predefinita: solo la connessione principale, l'IP reale resta
   nascosto dietro una VPN) o massima (nessun collegamento diretto); le chiamate di kMeet funzionano sempre
@@ -228,6 +229,20 @@ attraverso il tuo kDrive (Impostazioni → *Sincronizzazione*), senza server di 
 - Le **schede aperte** degli altri computer compaiono nella ricerca tra le schede (`Ctrl+Shift+A`). Le finestre private
   non vengono mai sincronizzate.
 - La chiave viene ricordata con il portachiavi del sistema; dove non c'è (alcuni Linux) la passphrase viene chiesta a ogni avvio.
+
+## Nessun contatto con Google
+
+Chromium, il motore delle pagine, non invia statistiche; i contatti con Google venivano da tre funzioni, ora risolte:
+
+| Funzione | Prima | Ora |
+| --- | --- | --- |
+| Widevine (Netflix…) | scaricato e aggiornato da Google a ogni avvio | spento finché non lo attivi |
+| Correttore ortografico (Linux) | dizionari scaricati da Google | inclusi nel pacchetto |
+| DNS cifrato «automatico» | sceglieva il DNS del sistema, spesso `dns.google` | Quad9, con riserva sul DNS della rete |
+
+All'avvio, senza aprire siti, Velo contatta solo: le liste di blocco dei tracker e degli indirizzi pericolosi (GitHub,
+GitLab), Quad9 per il DNS cifrato e, se lo colleghi, Infomaniak. Il Chrome Web Store viene contattato solo per
+installare o aggiornare le estensioni che hai preso da lì.
 
 ## Come funzionano le estensioni
 
@@ -330,8 +345,9 @@ Sono gli stessi endpoint usati dai connettori MCP ufficiali di Infomaniak.
 
 ## Contenuti protetti (Widevine)
 
-Il browser è costruito su Castlabs Electron (ECS), che include Widevine: il modulo di Google viene scaricato al primo
-avvio e aggiornato automaticamente. Su Windows e macOS i servizi di streaming accettano solo app con **firma VMP di
+Il browser è costruito su Castlabs Electron (ECS), che include Widevine. Il modulo è di Google e viene scaricato e
+aggiornato dai suoi server: per questo resta spento (e l'aggiornamento dei componenti disattivato) finché l'utente non
+attiva i contenuti protetti. Su Windows e macOS i servizi di streaming accettano solo app con **firma VMP di
 produzione**, fatta con il servizio gratuito [Castlabs EVS](https://github.com/castlabs/electron-releases/wiki/EVS):
 
 1. Crea l'account (una volta sola, sul tuo computer):

@@ -284,7 +284,8 @@ export interface Settings {
   /** Warn when a password being saved appears in known data breaches. */
   breachCheckOnSave: boolean;
   /** Let streaming services play DRM-protected content (Widevine). */
-  drmEnabled: boolean;
+  /** Protected content (Widevine): the module comes from Google, so only on the user's request. */
+  drmOptIn: boolean;
   /** What WebRTC may reveal about the network (see shared/webrtc.ts). */
   webRtcProtection: WebRtcProtection;
   /** Remove utm_*, fbclid, gclid… from the addresses of the pages opened. */

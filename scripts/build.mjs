@@ -20,6 +20,7 @@ const targets = [
   { ...node, entryPoints: ['src/preload/tabsearch.ts'], outfile: 'dist/preload/tabsearch.js' },
   { ...node, entryPoints: ['src/preload/passwords.ts'], outfile: 'dist/preload/passwords.js' },
   { ...node, entryPoints: ['src/preload/extensions.ts'], outfile: 'dist/preload/extensions.js' },
+  { ...node, entryPoints: ['src/preload/shield.ts'], outfile: 'dist/preload/shield.js' },
   { ...web, entryPoints: ['src/renderer/suggest.ts'], outfile: 'dist/renderer/suggest.js' },
   { ...web, entryPoints: ['src/renderer/tabsearch.ts'], outfile: 'dist/renderer/tabsearch.js' },
   // Injected into web pages (isolated world) for reader mode.

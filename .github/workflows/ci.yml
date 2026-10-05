@@ -55,6 +55,10 @@ jobs:
         run: |
           python -m pip install --upgrade castlabs-evs
           python -m castlabs_evs.account reauth -A "$EVS_ACCOUNT_NAME" -P "$EVS_PASSWD"
+      # Spell-check dictionaries ship with the Linux build (users never fetch them from Google).
+      - name: Dictionaries (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: node scripts/fetch-dictionaries.mjs
       - run: npm run dist -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -120,6 +124,10 @@ jobs:
         run: |
           python -m pip install --upgrade castlabs-evs
           python -m castlabs_evs.account reauth -A "$EVS_ACCOUNT_NAME" -P "$EVS_PASSWD"
+      # Spell-check dictionaries ship with the Linux build (users never fetch them from Google).
+      - name: Dictionaries (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: node scripts/fetch-dictionaries.mjs
       # Uploads installers plus latest*.yml (read by the in-app updater) to the draft release.
       - run: npm run dist -- --publish always
         env:

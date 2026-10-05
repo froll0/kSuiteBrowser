@@ -895,6 +895,19 @@ ks.events.onComposeMail((mail) => void setPanelOpen(true).then(() => panel.compo
 ks.events.onAiAsk((ask) => void setPanelOpen(true).then(() => panel.askAi(ask)));
 ks.events.onToast((t) => toast(t.kind, t.message));
 
+// A site wants protected content (Netflix…) while Widevine is off.
+ks.events.onDrmOffer((offer) => {
+  if (!infobar.hidden) return;
+  infobar.replaceChildren(
+    barIcon('shield'),
+    h('span', { class: 'msg' }, `${offer.host || 'Questo sito'} vuole riprodurre contenuti protetti. Serve il modulo Widevine, che viene scaricato dai server di Google.`),
+    h('span', { class: 'spacer' }),
+    h('button', { class: 'primary', onclick: () => void ks.enableDrm() }, 'Attiva e riavvia'),
+    h('button', { onclick: hideInfobar }, 'Non ora'),
+  );
+  infobar.hidden = false;
+});
+
 // On an extension's page in the Chrome Web Store: offer to add it to this browser.
 ks.events.onExtensionOffer((offer) => {
   if (!infobar.hidden) return;

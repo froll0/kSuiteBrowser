@@ -65,7 +65,7 @@ export const DEFAULT_SETTINGS: Settings = {
   doNotTrack: true,
   threatProtection: true,
   breachCheckOnSave: true,
-  drmEnabled: true,
+  drmOptIn: false,
   webRtcProtection: 'public',
   stripTrackingParams: true,
   secureDns: 'automatic',
@@ -208,7 +208,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     doNotTrack: bool(s.doNotTrack, d.doNotTrack),
     threatProtection: bool(s.threatProtection, d.threatProtection),
     breachCheckOnSave: bool(s.breachCheckOnSave, d.breachCheckOnSave),
-    drmEnabled: bool(s.drmEnabled, d.drmEnabled),
+    // Replaces drmEnabled, which was on by default: Widevine is now only downloaded when asked for.
+    drmOptIn: bool(s.drmOptIn, d.drmOptIn),
     webRtcProtection: s.webRtcProtection === 'standard' || s.webRtcProtection === 'proxy' || s.webRtcProtection === 'public' ? s.webRtcProtection : d.webRtcProtection,
     stripTrackingParams: bool(s.stripTrackingParams, d.stripTrackingParams),
     secureDns: (['off', 'automatic', 'quad9', 'mullvad', 'cloudflare', 'custom'] as const).includes(s.secureDns as SecureDnsChoice) ? (s.secureDns as SecureDnsChoice) : d.secureDns,

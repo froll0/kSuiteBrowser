@@ -21,8 +21,10 @@ export function validDohTemplate(value: string): boolean {
 /** What to pass to Electron's host resolver for a choice. */
 export function secureDnsConfig(choice: SecureDnsChoice, custom: string): { secureDnsMode: 'off' | 'automatic' | 'secure'; secureDnsServers: string[] } {
   if (choice === 'off') return { secureDnsMode: 'off', secureDnsServers: [] };
-  if (choice === 'automatic') return { secureDnsMode: 'automatic', secureDnsServers: [] };
+  // Automatic: encrypted through Quad9 when it answers, plain DNS otherwise. Without a server Chromium
+  // would pick the DoH of the system resolver, which is often Google's (dns.google).
+  if (choice === 'automatic') return { secureDnsMode: 'automatic', secureDnsServers: [SECURE_DNS_PROVIDERS.quad9.template] };
   const template = choice === 'custom' ? (validDohTemplate(custom) ? custom : null) : SECURE_DNS_PROVIDERS[choice].template;
   // An invalid custom address falls back to automatic rather than breaking every connection.
-  return template ? { secureDnsMode: 'secure', secureDnsServers: [template] } : { secureDnsMode: 'automatic', secureDnsServers: [] };
+  return template ? { secureDnsMode: 'secure', secureDnsServers: [template] } : { secureDnsMode: 'automatic', secureDnsServers: [SECURE_DNS_PROVIDERS.quad9.template] };
 }

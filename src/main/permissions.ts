@@ -1,4 +1,4 @@
-import { desktopCapturer, dialog, type BrowserWindow, type Session } from 'electron';
+import { type WebContents, desktopCapturer, dialog, type BrowserWindow, type Session } from 'electron';
 import { isTrustedSuiteHost } from '../shared/infomaniak-apps';
 import { externalAppName, externalScheme, externalVerdict } from '../shared/external-protocols';
 import { ASKABLE_PERMISSIONS } from '../shared/settings-schema';
@@ -51,13 +51,13 @@ const isAskable = (p: string): p is AskablePermission => (ASKABLE_PERMISSIONS as
  * Infomaniak apps (kMeet, kChat, Mail…) get camera, microphone and notifications directly.
  * Other sites follow the remembered decision, then the default chosen in the settings (ask or block).
  */
-export function configurePermissions(session: Session, settings: SettingsStore, memory: PermissionMemory, getWindow: () => BrowserWindow | null): void {
+export function configurePermissions(session: Session, settings: SettingsStore, memory: PermissionMemory, getWindow: () => BrowserWindow | null, onDrmWanted?: (contents: WebContents) => void): void {
   const decide = (host: string, permission: string): boolean | 'ask' => {
     if (ALWAYS_ALLOWED.has(permission)) return true;
     // Protected content (Widevine): on/off from the privacy settings, no question per site.
-    if (permission === 'mediaKeySystem') return settings.get().drmEnabled;
+    if (permission === 'mediaKeySystem') return settings.get().drmOptIn;
     if (!DESCRIPTIONS[permission]) return false;
-    if (isTrustedSuiteHost(host)) return true;
+    if (isTrustedSuiteHost(host) && settings.tokenStatus().configured) return true;
     const remembered = memory.get(host, permission);
     if (remembered !== undefined) return remembered;
     if (isAskable(permission) && settings.get().permissionDefaults[permission] === 'block') return false;
@@ -66,6 +66,8 @@ export function configurePermissions(session: Session, settings: SettingsStore, 
 
   session.setPermissionRequestHandler((contents, permission, callback, details) => {
     const host = hostOf(details.requestingUrl || contents.getURL());
+    // A site wants protected content while Widevine is off: offer to turn it on.
+    if (permission === 'mediaKeySystem' && !settings.get().drmOptIn) onDrmWanted?.(contents);
     if (permission === 'openExternal') {
       void confirmExternal(host, 'externalURL' in details ? String(details.externalURL ?? '') : '').then(callback);
       return;
@@ -120,7 +122,7 @@ export function configurePermissions(session: Session, settings: SettingsStore, 
 
   // Synchronous checks (e.g. Notification.permission): only a remembered or trusted "allow" counts.
   session.setPermissionCheckHandler((_contents, permission, requestingOrigin) => {
-    if (permission === 'mediaKeySystem') return settings.get().drmEnabled;
+    if (permission === 'mediaKeySystem') return settings.get().drmOptIn;
     if (!isAskable(permission)) return true;
     return decide(hostOf(requestingOrigin), permission) === true;
   });

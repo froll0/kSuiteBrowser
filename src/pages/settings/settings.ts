@@ -514,7 +514,7 @@ async function passwordsSection(): Promise<HTMLElement> {
 }
 
 function drmRow(): HTMLElement {
-  const desc = h('span', {}, 'Permette ai servizi di streaming (Netflix, Disney+, Prime Video, Spotify…) di riprodurre film e musica protetti con Widevine di Google. Il modulo viene scaricato e aggiornato da Google. ');
+  const desc = h('span', {}, 'Permette ai servizi di streaming (Netflix, Disney+, Prime Video, Spotify…) di riprodurre film e musica protetti con Widevine. Il modulo è di Google e viene scaricato e aggiornato dai suoi server: per questo è spento finché non lo attivi. Vale dal prossimo avvio. ');
   void internal.drmStatus().then((st) => {
     desc.append(h('span', { class: 'muted' }, !st.supported
       ? 'Non disponibile in questa versione del browser.'
@@ -522,7 +522,7 @@ function drmRow(): HTMLElement {
         ? `Widevine ${st.version ?? ''} pronto.`
         : 'Widevine non ancora scaricato: serve una connessione a Internet (poi riavvia il browser).'));
   });
-  return row('Contenuti protetti (DRM)', desc, toggle('drmEnabled', 'Consenti contenuti protetti'));
+  return row('Contenuti protetti (DRM)', desc, toggle('drmOptIn', 'Consenti contenuti protetti'));
 }
 
 function dnsRow(): HTMLElement {
@@ -541,7 +541,7 @@ function dnsRow(): HTMLElement {
     custom.hidden = choice !== 'custom';
     const provider = SECURE_DNS_PROVIDERS[choice as keyof typeof SECURE_DNS_PROVIDERS];
     note.textContent = choice === 'automatic'
-      ? ' Usa la versione cifrata del DNS del tuo provider quando c’è, altrimenti quello normale.'
+      ? ' Cifrato con Quad9 (fondazione svizzera) quando è raggiungibile, altrimenti il DNS normale della rete: i siti si aprono sempre.'
       : choice === 'off'
         ? ' Le richieste DNS viaggiano in chiaro: il provider di rete vede i siti che apri.'
         : ` ${provider?.note ?? ''} Se il servizio non è raggiungibile (alcune reti aziendali lo bloccano) i siti non si aprono: in quel caso scegli Automatico.`;

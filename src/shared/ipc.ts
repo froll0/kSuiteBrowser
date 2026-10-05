@@ -9,6 +9,8 @@ export const IPC = {
   readerToggle: 'tabs:reader-toggle',
   mediaMenu: 'tabs:media-menu',
   toolbarMenu: 'ui:toolbar-menu',
+  drmEnable: 'ui:drm-enable',
+  evDrmOffer: 'ui:drm-offer',
   extButtons: 'ext:list-buttons',
   extClick: 'ext:click',
   extMenu: 'ext:menu',

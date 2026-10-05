@@ -74,6 +74,15 @@
         "deb"
       ],
       "category": "Network",
+      "extraResources": [
+        {
+          "from": "build/dictionaries",
+          "to": "dictionaries",
+          "filter": [
+            "*.bdic"
+          ]
+        }
+      ],
       "maintainer": "Velo",
       "icon": "build/icon.png",
       "desktop": {

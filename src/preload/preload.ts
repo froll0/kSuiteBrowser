@@ -43,6 +43,8 @@ const api = {
   /** Where the page goes, and the radius of its corners. */
   setContentBounds: (rect: Rect & { radius: number }) => invoke<void>(IPC.setContentBounds, rect),
   toolbarMenu: (item: string | null) => invoke<void>(IPC.toolbarMenu, item),
+  /** Turns protected content (Widevine) on and restarts the browser. */
+  enableDrm: () => invoke<void>(IPC.drmEnable),
   showAppMenu: () => invoke<void>(IPC.showAppMenu),
   showShieldMenu: (tabId: number) => invoke<void>(IPC.showShieldMenu, tabId),
   showSiteMenu: (tabId: number) => invoke<void>(IPC.showSiteMenu, tabId),
@@ -139,6 +141,8 @@ const api = {
     onComposeMail: (fn: (mail: OutgoingMail) => void) => on(IPC.evComposeMail, fn),
     onToast: (fn: (toast: { kind: 'info' | 'success' | 'error'; message: string }) => void) => on(IPC.evToast, fn),
     onExtensionButtons: (fn: (buttons: ExtensionButton[]) => void) => on(IPC.evExtButtons, fn),
+    /** A site wants protected content while Widevine is off. */
+    onDrmOffer: (fn: (offer: { host: string }) => void) => on(IPC.evDrmOffer, fn),
     /** An extension's page in the Chrome Web Store is open. */
     onExtensionOffer: (fn: (offer: { id: string; installed: boolean }) => void) => on(IPC.evExtOffer, fn),
   },

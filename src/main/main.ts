@@ -2,7 +2,7 @@ import {
   BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, nativeTheme, session as electronSession, shell,
   webContents as allWebContents, type IpcMainInvokeEvent, type Session,
 } from 'electron';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { INTERNAL, IPC } from '../shared/ipc';
@@ -51,6 +51,9 @@ import { InstallError } from './extensions/registry';
 import { adoptLegacyProfile } from './legacy';
 
 adoptLegacyProfile();
+// Widevine comes from Google's component updater: unless the user turned protected content on, it
+// stays off and the browser makes no request to Google's update servers.
+if (!drmOptedIn()) app.commandLine.appendSwitch('disable-component-update');
 registerInternalScheme();
 // Windows shows notifications only for apps with an explicit identity.
 if (process.platform === 'win32') app.setAppUserModelId('io.github.froll0.velo');
@@ -61,6 +64,7 @@ const PATHS = {
   adblockPreload: join(__dirname, '../preload/adblock.js'),
   passwordsPreload: join(__dirname, '../preload/passwords.js'),
   extensionsPreload: join(__dirname, '../preload/extensions.js'),
+  shieldPreload: join(__dirname, '../preload/shield.js'),
   chromeHtml: join(__dirname, '../renderer/index.html'),
   suggestHtml: join(__dirname, '../renderer/suggest.html'),
   suggestPreload: join(__dirname, '../preload/suggest.js'),
@@ -294,7 +298,7 @@ async function start(): Promise<void> {
   await extensions.start().catch((err) => console.error('[extensions] avvio non riuscito:', err));
 
   // Protected content (Netflix…): pages opened before the Widevine module is ready can't play it.
-  await widevineReady(8000);
+  if (settings.get().drmOptIn) await widevineReady(8000);
 
   // Links opened from other apps are added to the restored session, like other browsers do.
   const restored = settings.get().startup === 'restore' ? readSavedSession() : [];
@@ -322,14 +326,21 @@ function setupSession(ses: Session, isPrivate: boolean): void {
   guard.install();
   guards.set(ses, guard);
   downloads.attach(ses, { isPrivate });
-  configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings), () => lastFocused?.win ?? null);
+  configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings), () => lastFocused?.win ?? null, (contents) => offerDrm(contents));
   serveInternalPages(ses, PATHS.pages, faviconFor);
   ses.registerPreloadScript({ type: 'frame', id: 'velo-adblock', filePath: PATHS.adblockPreload });
   ses.registerPreloadScript({ type: 'frame', id: 'velo-passwords', filePath: PATHS.passwordsPreload });
+  ses.registerPreloadScript({ type: 'frame', id: 'velo-shield', filePath: PATHS.shieldPreload });
   // Extensions only run in the persistent session (like Chrome, not in private windows).
   if (!isPrivate) {
     ses.registerPreloadScript({ type: 'frame', id: 'velo-extensions', filePath: PATHS.extensionsPreload });
     ses.registerPreloadScript({ type: 'service-worker', id: 'velo-extensions-sw', filePath: PATHS.extensionsPreload });
+  }
+  // On Linux Chromium downloads the Hunspell dictionaries from Google: Velo ships them instead, and
+  // the download address leads nowhere (a closed local port) so nothing ever goes to Google.
+  if (process.platform === 'linux') {
+    ses.setSpellCheckerDictionaryDownloadURL('http://127.0.0.1:9/');
+    installBundledDictionaries();
   }
   // macOS uses the system spell checker; elsewhere pick Italian and English.
   if (process.platform !== 'darwin') {
@@ -467,6 +478,54 @@ function tabContextMenu(w: BrowserWindowController, tabId: number): void {
   ]).popup({ window: w.win });
 }
 
+/** Copies the dictionaries shipped with the Linux build where Chromium looks for them. */
+function installBundledDictionaries(): void {
+  const source = app.isPackaged ? join(process.resourcesPath, 'dictionaries') : join(__dirname, '../../build/dictionaries');
+  const target = join(app.getPath('userData'), 'Dictionaries');
+  try {
+    if (!existsSync(source)) return;
+    mkdirSync(target, { recursive: true });
+    for (const file of readdirSync(source)) {
+      if (file.endsWith('.bdic') && !existsSync(join(target, file))) copyFileSync(join(source, file), join(target, file));
+    }
+  } catch (err) {
+    console.error('[spellcheck] dizionari non installati:', err);
+  }
+}
+
+/** Protected content setting, read before the app is ready (the component updater is set up then). */
+function drmOptedIn(): boolean {
+  try {
+    const raw = JSON.parse(readFileSync(join(app.getPath('userData'), 'settings.json'), 'utf8')) as { settings?: { drmOptIn?: unknown } };
+    return raw.settings?.drmOptIn === true;
+  } catch {
+    return false;
+  }
+}
+
+const drmOffered = new WeakSet<BrowserWindowController>();
+/** A page asked for protected content while Widevine is off: the window offers to turn it on (once). */
+function offerDrm(contents: Electron.WebContents): void {
+  const w = [...windows].find((x) => x.tabs.idOf(contents) !== null);
+  if (!w || w.isPrivate || drmOffered.has(w)) return;
+  drmOffered.add(w);
+  let host = '';
+  try {
+    host = new URL(contents.getURL()).hostname.replace(/^www\./, '');
+  } catch {
+    /* no host */
+  }
+  w.send(IPC.evDrmOffer, { host });
+}
+
+/** Turns protected content on: the module is downloaded at the next start, so restart now (tabs come back). */
+function enableDrmAndRestart(): void {
+  settings.update({ drmOptIn: true });
+  saveSessionNow();
+  app.relaunch();
+  app.quit();
+}
+
 function newTabUrl(): string {
   return settings.get().newTabPage === 'newtab' ? NEWTAB_URL : settings.get().homePage;
 }
@@ -486,8 +545,13 @@ function current(): BrowserWindowController | null {
 let saveTimer: NodeJS.Timeout | null = null;
 function scheduleSessionSave(): void {
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    saveTimer = null;
+  saveTimer = setTimeout(saveSessionNow, 1000);
+}
+
+function saveSessionNow(): void {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  {
     const data = [...windows].filter((w) => !w.isPrivate).map((w) => w.tabs.saved()).filter((tabs) => tabs.length > 0);
     if (data.length === 0) return;
     try {
@@ -495,7 +559,7 @@ function scheduleSessionSave(): void {
     } catch (err) {
       console.error('[session] salvataggio non riuscito:', err);
     }
-  }, 1000);
+  }
 }
 
 function readSavedSession(): SavedTab[][] {
@@ -1101,6 +1165,10 @@ function registerChromeIpc(): void {
   });
   handle(IPC.tabsSwitch, (w, tabId: number) => switchToTab(w, Number(tabId)));
   handle(IPC.mediaMenu, (w) => showMediaMenu(w));
+  handle(IPC.drmEnable, () => enableDrmAndRestart());
+  ipcMain.on('shield:drm-wanted', (event) => {
+    if (!settings.get().drmOptIn) offerDrm(event.sender);
+  });
   handle(IPC.extButtons, (w) => extensions?.buttons(w) ?? []);
   handle(IPC.extClick, (w, id: string, rect?: Rect) => extensions?.clickAction(w, String(id), rect && typeof rect.x === 'number' ? rect : null));
   handle(IPC.extMenu, (w, id: string) => extensions?.actionMenu(w, String(id), (x) => w.openInternal(`velo://extensions/#${x}`), (x) => void confirmRemoveExtension(w, x)));

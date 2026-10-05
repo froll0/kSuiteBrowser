@@ -1,6 +1,6 @@
 import { h } from '../../renderer/dom';
 import { INTERNAL } from '../../shared/ipc';
-import { KSUITE_APPS } from '../../shared/ksuite-apps';
+import { INFOMANIAK_APPS } from '../../shared/infomaniak-apps';
 import { faviconUrl } from '../../shared/top-sites';
 import type { NewTabData, Settings, Suggestion } from '../../shared/types';
 import { hydrateIcons, icon, logoMark } from '../../renderer/icons';
@@ -11,7 +11,7 @@ followTheme();
 hydrateIcons();
 document.getElementById('logo')!.append(logoMark(44));
 
-const call = <T>(channel: string, ...args: unknown[]) => window.ksuiteInternal!.invoke(channel, ...args) as Promise<T>;
+const call = <T>(channel: string, ...args: unknown[]) => window.veloInternal!.invoke(channel, ...args) as Promise<T>;
 
 const hour = new Date().getHours();
 document.getElementById('greeting')!.textContent = hour < 5 ? 'Buonanotte' : hour < 13 ? 'Buongiorno' : hour < 18 ? 'Buon pomeriggio' : 'Buonasera';
@@ -106,6 +106,8 @@ async function render(): Promise<void> {
       ),
     ),
   );
+  // The apps belong to the optional Infomaniak account.
+  document.querySelector<HTMLElement>('section[aria-labelledby="apps-title"]')!.classList.toggle('no-account', !data.cloud);
   const restore = document.getElementById('restore')!;
   restore.hidden = data.hiddenCount === 0 || !data.showTopSites;
 }
@@ -132,7 +134,7 @@ function removeButton(site: { url: string; title: string }): HTMLButtonElement {
 }
 
 document.getElementById('apps')!.replaceChildren(
-  ...KSUITE_APPS.map((app) => {
+  ...INFOMANIAK_APPS.map((app) => {
     const tile = h('span', { class: `glyph app-${app.id}` });
     tile.append(icon(app.icon, 20));
     return h('a', { class: 'app', href: app.url }, tile, app.name);

@@ -14,7 +14,7 @@ followTheme();
 hydrateIcons();
 document.getElementById('logo')!.append(logoMark(34));
 
-const call = <T>(channel: string, ...args: unknown[]) => window.ksuiteInternal!.invoke(channel, ...args) as Promise<T>;
+const call = <T>(channel: string, ...args: unknown[]) => window.veloInternal!.invoke(channel, ...args) as Promise<T>;
 const results = document.getElementById('results')!;
 const side = document.getElementById('side')!;
 const input = document.getElementById('q') as HTMLInputElement;
@@ -104,7 +104,7 @@ function checkEmpty(): void {
   if (pending > 0 || results.querySelector('.section')) return;
   const badge = h('span', { class: 'big-icon' });
   badge.append(icon('search', 24));
-  results.append(h('div', { class: 'nothing' }, badge, h('div', {}, `Nessun risultato in kSuite per «${query}».`), h('div', {}, 'Prova con il web: trovi i collegamenti qui a fianco.')));
+  results.append(h('div', { class: 'nothing' }, badge, h('div', {}, `Nessun risultato nei tuoi dati per «${query}».`), h('div', {}, 'Prova con il web: trovi i collegamenti qui a fianco.')));
 }
 
 function track<T>(promise: Promise<T>, done: (value: T) => void): void {
@@ -128,7 +128,7 @@ function initials(name: string): string {
 
 // ---------- AI answer ----------
 
-/** Card with an answer from the kSuite AI: on request, or right away with aiAutoAnswer. */
+/** Card with an answer from the AI (Infomaniak AI Services): on request, or right away with aiAutoAnswer. */
 function aiCard(auto: boolean): HTMLElement {
   const body = h('div', { class: 'ai-body' });
   const status = h('span', { class: 'ai-status', role: 'status' });
@@ -162,7 +162,7 @@ function aiCard(auto: boolean): HTMLElement {
     stop.hidden = false;
     const buffered: AiEvent[] = [];
     // Listen before starting: the first delta can arrive before invoke resolves.
-    off = window.ksuiteInternal!.onAi((e) => {
+    off = window.veloInternal!.onAi((e) => {
       if (!streamId) return void buffered.push(e);
       handle(e);
     });
@@ -198,13 +198,13 @@ function renderSide(meta: Meta): void {
   if (!meta.tokenConfigured) {
     side.append(h('div', { class: 'side-card' },
       h('h3', {}, icon('key', 16), 'Cerca anche nei tuoi dati'),
-      h('p', {}, 'Collega l’account kSuite per trovare qui anche file di kDrive, email, contatti ed eventi.'),
-      h('a', { class: 'button', href: 'ksuite://settings/#ksuite' }, 'Collega l’account')));
+      h('p', {}, 'Collega un account Infomaniak per trovare qui anche file di kDrive, email, contatti ed eventi.'),
+      h('a', { class: 'button', href: 'velo://settings/#account' }, 'Collega l’account')));
   }
   if (!meta.isDefault) {
     side.append(h('div', { class: 'side-card' },
       h('h3', {}, icon('search', 16), 'Usala dalla barra degli indirizzi'),
-      h('p', {}, 'Fai della ricerca kSuite il motore predefinito: cerchi in kSuite e sul web in un colpo solo.'),
+      h('p', {}, 'Fai della ricerca unificata il motore predefinito: cerchi nei tuoi dati e sul web in un colpo solo.'),
       h('button', {
         type: 'button',
         onclick: async (e: Event) => {
@@ -220,11 +220,11 @@ function renderSide(meta: Meta): void {
 async function run(): Promise<void> {
   input.value = query;
   if (!query) {
-    results.replaceChildren(h('div', { class: 'welcome' }, h('h1', {}, 'Ricerca kSuite'), h('p', {}, 'Cerca in una volta sola tra preferiti, cronologia, file di kDrive, email, contatti ed eventi, con i collegamenti per continuare sul web.')));
+    results.replaceChildren(h('div', { class: 'welcome' }, h('h1', {}, 'Ricerca unificata'), h('p', {}, 'Cerca in una volta sola tra preferiti, cronologia, file di kDrive, email, contatti ed eventi, con i collegamenti per continuare sul web.')));
     input.focus();
     return;
   }
-  document.title = `${query} — Ricerca kSuite`;
+  document.title = `${query} — Ricerca unificata`;
   const meta = await call<Meta>(INTERNAL.searchMeta);
   renderSide(meta);
 

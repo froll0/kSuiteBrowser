@@ -12,7 +12,7 @@ export interface TabState {
   canGoBack: boolean;
   canGoForward: boolean;
   active: boolean;
-  /** Set when the tab was opened from the kSuite sidebar. */
+  /** Set when the tab was opened from the app bar. */
   appId: string | null;
   /** Requests blocked by tracking protection on the current page. */
   blocked: number;
@@ -84,6 +84,8 @@ export interface NewTabData {
   hiddenCount: number;
   /** Shown in a private window: nothing is suggested from history. */
   isPrivate: boolean;
+  /** An Infomaniak account is connected: its apps are shown. */
+  cloud: boolean;
 }
 
 export interface HistoryVisit {
@@ -198,7 +200,7 @@ export interface Settings {
   // Generale
   startup: StartupMode;
   searchEngine: SearchEngineId;
-  /** Engine for the web part of the kSuite search (and when kSuite search is off). */
+  /** Engine for the web part of the unified search (and when it is off). */
   webSearchEngine: WebSearchEngineId;
   homePage: string;
   /** null = the system Downloads folder. */
@@ -306,7 +308,7 @@ export interface Settings {
   permissionDefaults: Record<AskablePermission, PermissionDefault>;
   sitePermissions: SitePermission[];
 
-  // kSuite
+  // Account cloud (Infomaniak, optional)
   /** kDrive used by the integration; null = first drive returned by the API. */
   driveId: number | null;
   /** Destination folder for "save to kDrive" actions (1 = drive root). */
@@ -465,7 +467,7 @@ export type SyncCollectionOption = 'bookmarks' | 'logins' | 'history' | 'tabs';
 
 /** State of the encrypted kDrive sync, for the settings page. */
 export interface SyncStatus {
-  /** kSuite account connected (sync needs kDrive). */
+  /** Cloud account connected (sync needs kDrive). */
   available: boolean;
   enabled: boolean;
   /** off · needs-passphrase (key not stored on this computer) · idle · syncing · error */

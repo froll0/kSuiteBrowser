@@ -29,7 +29,7 @@ export const TOOLBAR_ITEMS = {
   history: { label: 'Cronologia', icon: 'history' },
   ai: { label: 'Assistente IA', icon: 'sparkles' },
   extensions: { label: 'Estensioni', icon: 'puzzle' },
-  panel: { label: 'Pannello kSuite', icon: 'panel' },
+  panel: { label: 'Pannello cloud', icon: 'panel' },
 } as const;
 
 export type ToolbarItem = keyof typeof TOOLBAR_ITEMS;

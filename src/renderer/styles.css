@@ -472,7 +472,7 @@ body.side-collapsed #sidetabs-list .pinned-grid { grid-template-columns: 1fr; }
 body.side-collapsed #sidetabs-resize { display: none; }
 body.resizing { cursor: col-resize; }
 
-/* kSuite panel: a second card next to the page. */
+/* Cloud panel: a second card next to the page. */
 #panel {
   display: none; flex-direction: column; order: 3;
   width: var(--panel-w); flex: none;

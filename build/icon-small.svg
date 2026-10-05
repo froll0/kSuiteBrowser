@@ -1,16 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <linearGradient id="bg" x1="0.1" y1="0" x2="0.9" y2="1">
-      <stop offset="0" stop-color="#3fb4ff"/>
-      <stop offset="0.55" stop-color="#2a7cf5"/>
-      <stop offset="1" stop-color="#3a44de"/>
+    <linearGradient id="bg" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#4d8dff"/>
+      <stop offset="0.55" stop-color="#3264f0"/>
+      <stop offset="1" stop-color="#22307f"/>
     </linearGradient>
   </defs>
-  <!-- Variant for 16–48 px: full bleed, bolder strokes, no orbit or shadow. -->
+  <!-- Variant for 16–48 px: full bleed, bolder shapes, no shadow. -->
   <rect x="1" y="1" width="62" height="62" rx="14" fill="url(#bg)"/>
-  <g fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M23 14V50"/>
-    <path d="M42 24 26 37"/>
-    <path d="M32 32 43 50"/>
-  </g>
+  <path d="M12 15 Q 17 15.5 20 16 Q 27 26 32 52 Q 22 33 12 15 Z" fill="#ffffff"/>
+  <path d="M52 15 Q 47 15.5 44 16 Q 37 26 32 52 Q 42 33 52 15 Z" fill="#ffffff" fill-opacity="0.6"/>
 </svg>

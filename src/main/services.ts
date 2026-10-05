@@ -16,8 +16,8 @@ import { matchesAll } from '../shared/search-match';
 import { fileNameFromContentDisposition, fileNameFromUrl, safeFileName, uniquePath } from './files';
 import type { SettingsStore } from './settings';
 
-/** Everything the browser does with the kSuite APIs, bound to the configured token and drive. */
-export class KSuiteServices {
+/** Everything the browser does with the Infomaniak APIs (optional account), bound to the configured token and drive. */
+export class CloudServices {
   private cachedDriveId: number | null = null;
   private cachedProfile: Profile | null = null;
 
@@ -122,7 +122,7 @@ export class KSuiteServices {
   }
 
   async searchContacts(query: string): Promise<Contact[]> {
-    if (!this.contactsCache || Date.now() - this.contactsCache.at > KSuiteServices.CACHE_MS) {
+    if (!this.contactsCache || Date.now() - this.contactsCache.at > CloudServices.CACHE_MS) {
       this.contactsCache = { at: Date.now(), list: await listContacts(this.client()) };
     }
     return this.contactsCache.list.filter((c) => matchesAll(query, c.name, ...c.emails)).slice(0, 8);
@@ -130,7 +130,7 @@ export class KSuiteServices {
 
   /** Events from a month ago to six months ahead whose title or place match; upcoming ones first. */
   async searchEvents(query: string): Promise<CalendarEvent[]> {
-    if (!this.eventsCache || Date.now() - this.eventsCache.at > KSuiteServices.CACHE_MS) {
+    if (!this.eventsCache || Date.now() - this.eventsCache.at > CloudServices.CACHE_MS) {
       const from = new Date(Date.now() - 30 * 86_400_000);
       const to = new Date(Date.now() + 182 * 86_400_000);
       this.eventsCache = { at: Date.now(), list: await calendar.upcomingEvents(this.client(), from, to) };

@@ -180,7 +180,7 @@ function exportForm(): HTMLElement {
     const res = await pw.exportCsv(input?.value);
     if (!res.ok) return say(res.error, true);
     const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
-    const a = h('a', { href: url, download: `password-ksuite-${new Date().toISOString().slice(0, 10)}.csv` });
+    const a = h('a', { href: url, download: `password-velo-${new Date().toISOString().slice(0, 10)}.csv` });
     document.body.append(a);
     a.click();
     a.remove();

@@ -227,8 +227,8 @@ export class ExtensionHost {
 
   private wireWorker(worker: ServiceWorkerMain): void {
     const m = /^chrome-extension:\/\/([a-p]{32})\//.exec(worker.scope);
-    if (!m || (worker as unknown as { __ksuite?: boolean }).__ksuite) return;
-    (worker as unknown as { __ksuite?: boolean }).__ksuite = true;
+    if (!m || (worker as unknown as { __velo?: boolean }).__velo) return;
+    (worker as unknown as { __velo?: boolean }).__velo = true;
     const extId = m[1];
     this.workers.set(extId, worker);
     worker.ipc.handle('crx:call', (_e, name: string, args: unknown[]) => {
@@ -961,7 +961,7 @@ export class ExtensionHost {
       case 'notifications.create':
       case 'notifications.update': {
         this.need(l, 'notifications');
-        const nid = String(args[0] || `ksuite-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+        const nid = String(args[0] || `velo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
         const o = (args[1] ?? {}) as { title?: string; message?: string; contextMessage?: string; iconUrl?: string; silent?: boolean; buttons?: Array<{ title: string }>; requireInteraction?: boolean };
         const key = `${id}:${nid}`;
         this.notifications.get(key)?.close();
@@ -1099,7 +1099,7 @@ export class ExtensionHost {
         return undefined;
       }
     }
-    throw new Error(`${name} non è supportato in kSuite Browser`);
+    throw new Error(`${name} non è supportato in Velo`);
   }
 
   private activeOf(w: BrowserWindowController | null): { w: BrowserWindowController; tabId: number; state: TabState; index: number } | null {
@@ -1121,17 +1121,17 @@ export class ExtensionHost {
   }
 
   private resolveUrl(l: Loaded, url: string | undefined): string {
-    if (!url) return 'ksuite://newtab/';
+    if (!url) return 'velo://newtab/';
     if (/^[a-z][\w+.-]*:/i.test(url)) {
       if (/^(javascript|file):/i.test(url)) throw new Error('Indirizzo non consentito');
       if (/^chrome-extension:/i.test(url) && !url.startsWith(`chrome-extension://${l.ext.id}/`)) {
         const other = /^chrome-extension:\/\/([a-p]{32})\//.exec(url)?.[1];
         if (!other || !this.loaded.has(other)) throw new Error('Indirizzo non consentito');
       }
-      if (/^chrome:\/\/newtab/i.test(url)) return 'ksuite://newtab/';
-      if (/^chrome:\/\/extensions/i.test(url)) return 'ksuite://extensions/';
+      if (/^chrome:\/\/newtab/i.test(url)) return 'velo://newtab/';
+      if (/^chrome:\/\/extensions/i.test(url)) return 'velo://extensions/';
       // Of the browser's own pages, extensions may only open the new tab and the extensions page.
-      if (/^(ksuite|chrome):/i.test(url) && !/^ksuite:\/\/(newtab|extensions)\//i.test(url)) throw new Error('Indirizzo non consentito');
+      if (/^(velo|chrome):/i.test(url) && !/^velo:\/\/(newtab|extensions)\//i.test(url)) throw new Error('Indirizzo non consentito');
       return url;
     }
     return new URL(url, `chrome-extension://${l.ext.id}/`).toString();
@@ -1384,7 +1384,7 @@ export class ExtensionHost {
     items.push(
       { label: l.info.pinned ? 'Togli dalla barra' : 'Fissa sulla barra', click: () => this.registry.setPinned(id, !l.info.pinned) },
       { label: 'Gestisci l’estensione', click: () => manage(id) },
-      { label: 'Rimuovi da kSuite Browser…', click: () => remove(id) },
+      { label: 'Rimuovi da Velo…', click: () => remove(id) },
     );
     Menu.buildFromTemplate(items).popup({ window: w.win });
   }
@@ -1514,7 +1514,7 @@ export class ExtensionHost {
   /** Confirmation shown before installing (or updating with new permissions). */
   async confirmInstall(w: BrowserWindowController | null, p: InstallPreview): Promise<boolean> {
     const lines = p.permissions.warnings.length ? `Potrà:\n${p.permissions.warnings.map((x) => `• ${x}`).join('\n')}` : 'Non chiede permessi particolari.';
-    const missing = p.permissions.unsupported.length ? `\n\nNon disponibile in kSuite Browser (alcune funzioni potrebbero non andare): ${p.permissions.unsupported.join(', ')}.` : '';
+    const missing = p.permissions.unsupported.length ? `\n\nNon disponibile in Velo (alcune funzioni potrebbero non andare): ${p.permissions.unsupported.join(', ')}.` : '';
     const options = {
       type: 'question' as const,
       buttons: [p.update ? 'Aggiorna' : 'Aggiungi estensione', 'Annulla'],

@@ -1,5 +1,5 @@
 import { applyTokens, isDark, SIDE_TABS_RANGE, tokens, TOOLBAR_ITEMS, type ToolbarItem } from '../shared/appearance';
-import { KSUITE_APPS } from '../shared/ksuite-apps';
+import { INFOMANIAK_APPS } from '../shared/infomaniak-apps';
 import { faviconUrl } from '../shared/top-sites';
 import { inlineCompletion } from '../shared/suggest';
 import type { Bookmark, ExtensionButton, Settings, Suggestion, TabState } from '../shared/types';
@@ -110,10 +110,14 @@ ks.events.onExtensionButtons((list) => {
   renderExtensionButtons();
 });
 
+/** Buttons that need the optional Infomaniak account. */
+const CLOUD_ITEMS: ToolbarItem[] = ['panel', 'ai'];
+
 function placeToolbar(settings: Settings): void {
   const place = (id: ToolbarItem) => (id === 'extensions' ? extSlot : buttons[id]);
-  $('tb-start').replaceChildren(...settings.toolbarStart.map(place));
-  $('tb-end').replaceChildren(...settings.toolbarEnd.map(place));
+  const shown = (id: ToolbarItem) => tokenConfigured || !CLOUD_ITEMS.includes(id);
+  $('tb-start').replaceChildren(...settings.toolbarStart.filter(shown).map(place));
+  $('tb-end').replaceChildren(...settings.toolbarEnd.filter(shown).map(place));
   // Without the extensions button in the toolbar, pinned extensions still show at the end.
   const placed = settings.toolbarStart.includes('extensions') || settings.toolbarEnd.includes('extensions');
   buttons.extensions.hidden = !placed;
@@ -166,7 +170,7 @@ ks.events.onUnread((count) => {
 
 // ---------- Tabs ----------
 
-const TAB_MIME = 'application/x-ksuite-tab';
+const TAB_MIME = 'application/x-velo-tab';
 let windowId = 0;
 
 function placeholderIcon(): HTMLElement {
@@ -177,7 +181,7 @@ function placeholderIcon(): HTMLElement {
 
 function tabIcon(t: TabState): Element {
   if (t.loading) return h('span', { class: 'spinner', role: 'progressbar', 'aria-label': 'Caricamento' });
-  if (t.url.startsWith('ksuite://')) {
+  if (t.url.startsWith('velo://')) {
     const span = h('span', { class: 'favicon internal' });
     span.append(logoMark(16));
     return span;
@@ -366,10 +370,10 @@ function renderToolbar(): void {
   reloadBtn.title = tab?.loading ? 'Interrompi' : 'Ricarica (Ctrl+R)';
   reloadBtn.setAttribute('aria-label', tab?.loading ? 'Interrompi' : 'Ricarica');
   renderSiteInfo(tab);
-  if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' && !tab.url.startsWith('ksuite://newtab') ? displayUrl(tab.url) : '';
+  if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' && !tab.url.startsWith('velo://newtab') ? displayUrl(tab.url) : '';
   renderShield(tab);
 
-  const bookmarkable = Boolean(tab && /^(https?|file|ksuite):/i.test(tab.url) && !tab.url.startsWith('ksuite://newtab'));
+  const bookmarkable = Boolean(tab && /^(https?|file|velo):/i.test(tab.url) && !tab.url.startsWith('velo://newtab'));
   // Media controls: shown while a tab of this window plays (or played) sound.
   const media = tabs.filter((t) => t.media || t.audible);
   mediaBtn.hidden = media.length === 0;
@@ -386,7 +390,7 @@ function renderToolbar(): void {
   const defaultZoom = currentSettings?.defaultZoom ?? 100;
   zoomBtn.hidden = !tab || tab.zoom === defaultZoom;
   zoomBtn.textContent = tab ? `${tab.zoom}%` : '';
-  const suffix = document.body.classList.contains('private') ? 'kSuite Browser (privata)' : 'kSuite Browser';
+  const suffix = document.body.classList.contains('private') ? 'Velo (privata)' : 'Velo';
   document.title = tab ? `${tab.title} — ${suffix}` : suffix;
 }
 
@@ -397,16 +401,16 @@ function displayUrl(url: string): string {
   return /^[^/?#]+\/$/.test(short) ? short.slice(0, -1) : short;
 }
 
-/** Lock, "not secure" warning or kSuite mark at the start of the address bar. */
+/** Lock, "not secure" warning or Velo mark at the start of the address bar. */
 function renderSiteInfo(tab: TabState | undefined): void {
   const url = tab?.url ?? '';
   siteInfo.className = 'site-info';
-  if (!tab || !url || url.startsWith('ksuite://newtab') || url === 'about:blank') {
+  if (!tab || !url || url.startsWith('velo://newtab') || url === 'about:blank') {
     siteInfo.replaceChildren(icon('search', 16));
     siteInfo.title = 'Cerca o inserisci un indirizzo';
-  } else if (url.startsWith('ksuite://')) {
+  } else if (url.startsWith('velo://')) {
     siteInfo.classList.add('internal');
-    siteInfo.replaceChildren(logoMark(16), h('span', {}, 'kSuite Browser'));
+    siteInfo.replaceChildren(logoMark(16), h('span', {}, 'Velo'));
     siteInfo.title = 'Pagina del browser';
   } else if (url.startsWith('https://')) {
     siteInfo.replaceChildren(icon('lock', 15));
@@ -440,7 +444,7 @@ function renderShield(tab: TabState | undefined): void {
 function renderSidebar(): void {
   const activeApp = activeTab()?.appId;
   sidebarApps.replaceChildren(
-    ...KSUITE_APPS.map((app) => {
+    ...INFOMANIAK_APPS.map((app) => {
       const tile = h('span', { class: `tile app-${app.id}` });
       tile.append(icon(app.icon, 19));
       const label = app.id === 'mail' && unread ? `${app.name} — ${unread} non lette` : app.name;
@@ -583,7 +587,7 @@ function renderBookmarksBar(): void {
       const el = h(
         'button',
         { class: 'bookmark', title: `${b.title}\n${b.url}` },
-        /^https?:/i.test(b.url) ? h('img', { class: 'bm-icon', src: faviconUrl(b.url), alt: '' }) : b.url.startsWith('ksuite://') ? logoMark(16) : icon('globe', 16),
+        /^https?:/i.test(b.url) ? h('img', { class: 'bm-icon', src: faviconUrl(b.url), alt: '' }) : b.url.startsWith('velo://') ? logoMark(16) : icon('globe', 16),
         h('span', { class: 'label' }, b.title),
       );
       el.addEventListener('click', () => void ks.bookmarks.open(b.id, 'current'));
@@ -725,7 +729,7 @@ ks.events.onUpdate((status) => {
   announcedUpdate = `${status.state}:${status.version}`;
   infobar.replaceChildren(
     barIcon('download'),
-    h('span', { class: 'msg' }, ready ? `kSuite Browser ${status.version} è pronto: verrà installato al prossimo riavvio.` : `È disponibile kSuite Browser ${status.version}.`),
+    h('span', { class: 'msg' }, ready ? `Velo ${status.version} è pronto: verrà installato al prossimo riavvio.` : `È disponibile Velo ${status.version}.`),
     h('span', { class: 'spacer' }),
     ready
       ? h('button', { class: 'primary', onclick: () => void ks.updates.install() }, 'Riavvia ora')
@@ -809,11 +813,11 @@ buttons.tabSearch.addEventListener('click', () => void ks.tabSearch(anchorOf(but
 buttons.newTab.addEventListener('click', () => void ks.tabs.create());
 buttons.home.addEventListener('click', () => {
   const t = activeTab();
-  const home = currentSettings?.homePage ?? 'ksuite://newtab/';
+  const home = currentSettings?.homePage ?? 'velo://newtab/';
   void (t ? ks.tabs.navigate(t.id, home) : ks.tabs.create(home));
 });
 buttons.bookmarks.addEventListener('click', () => void ks.bookmarks.all());
-buttons.history.addEventListener('click', () => void ks.tabs.create('ksuite://history/'));
+buttons.history.addEventListener('click', () => void ks.tabs.create('velo://history/'));
 buttons.ai.addEventListener('click', () => {
   if (document.body.classList.contains('panel-open') && panel.current() === 'assistant') void setPanelOpen(false);
   else void setPanelOpen(true).then(() => panel.show('assistant'));
@@ -878,8 +882,12 @@ ks.events.onSettings(async (settings) => {
   const status = await ks.token.status();
   if (status.configured !== tokenConfigured) {
     tokenConfigured = status.configured;
-    if (!tokenConfigured) unread = null;
+    if (!tokenConfigured) {
+      unread = null;
+      if (document.body.classList.contains('panel-open')) void setPanelOpen(false);
+    }
     renderSidebar();
+    applyAppearance(settings);
     if (document.body.classList.contains('panel-open')) void panel.render();
   }
 });
@@ -890,7 +898,7 @@ ks.events.onToast((t) => toast(t.kind, t.message));
 // On an extension's page in the Chrome Web Store: offer to add it to this browser.
 ks.events.onExtensionOffer((offer) => {
   if (!infobar.hidden) return;
-  const add = h('button', { class: 'primary' }, 'Aggiungi a kSuite Browser');
+  const add = h('button', { class: 'primary' }, 'Aggiungi a Velo');
   add.addEventListener('click', async () => {
     add.disabled = true;
     add.textContent = 'Installazione…';
@@ -901,9 +909,9 @@ ks.events.onExtensionOffer((offer) => {
   });
   infobar.replaceChildren(
     barIcon('puzzle'),
-    h('span', { class: 'msg' }, offer.installed ? 'Questa estensione è già installata in kSuite Browser.' : 'Puoi aggiungere questa estensione a kSuite Browser.'),
+    h('span', { class: 'msg' }, offer.installed ? 'Questa estensione è già installata in Velo.' : 'Puoi aggiungere questa estensione a Velo.'),
     h('span', { class: 'spacer' }),
-    offer.installed ? h('button', { onclick: () => { hideInfobar(); void ks.tabs.create('ksuite://extensions/'); } }, 'Gestisci') : add,
+    offer.installed ? h('button', { onclick: () => { hideInfobar(); void ks.tabs.create('velo://extensions/'); } }, 'Gestisci') : add,
     h('button', { onclick: hideInfobar }, 'Chiudi'),
   );
   infobar.hidden = false;
@@ -920,7 +928,8 @@ function applyAppearance(settings: Settings): void {
   applyTokens(root, tokens(settings, dark, isPrivateWindow), dark);
   const body = document.body;
   for (const c of [...body.classList]) if (/^(layout|rail|canvas|apps|density)-/.test(c)) body.classList.remove(c);
-  body.classList.add(`layout-${settings.tabsLayout}`, `rail-${settings.railPosition}`, `canvas-${settings.canvasStyle}`, `apps-${settings.appIconStyle}`, `density-${settings.density}`);
+  // The app bar shows the Infomaniak apps: only with an account connected.
+  body.classList.add(`layout-${settings.tabsLayout}`, `rail-${tokenConfigured ? settings.railPosition : 'hidden'}`, `canvas-${settings.canvasStyle}`, `apps-${settings.appIconStyle}`, `density-${settings.density}`);
   body.classList.toggle('side-open', settings.tabsLayout === 'side');
   body.classList.toggle('side-collapsed', settings.tabsLayout === 'side' && settings.sideTabsCollapsed);
   body.style.setProperty('--side-w', `${settings.sideTabsWidth}px`);
@@ -973,7 +982,8 @@ async function boot(): Promise<void> {
   renderTabs();
   renderToolbar();
   renderSidebar();
-  document.body.classList.toggle('panel-open', settings.panelOpen || !status.configured);
+  // The panel belongs to the optional account: closed without one.
+  document.body.classList.toggle('panel-open', settings.panelOpen && status.configured);
   panel.show('home');
   syncBounds();
 }

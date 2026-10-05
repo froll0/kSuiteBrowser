@@ -2,9 +2,9 @@ import { protocol, type Session } from 'electron';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 
-export const INTERNAL_SCHEME = 'ksuite';
+export const INTERNAL_SCHEME = 'velo';
 
-/** Internal pages: ksuite://settings, ksuite://history, … Each host maps to a folder in dist/pages. */
+/** Internal pages: velo://settings, velo://history, … Each host maps to a folder in dist/pages. */
 export const INTERNAL_PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader', 'extensions', 'assets'] as const;
 const PAGES = new Set<string>(INTERNAL_PAGES);
 
@@ -25,7 +25,7 @@ export function registerInternalScheme(): void {
   ]);
 }
 
-/** Site icons: ksuite://favicon/?url=<page url> returns the cached favicon or a letter icon. */
+/** Site icons: velo://favicon/?url=<page url> returns the cached favicon or a letter icon. */
 export type FaviconProvider = (pageUrl: string) => { mime: string; body: Buffer | string };
 
 export function serveInternalPages(session: Session, pagesDir: string, favicon: FaviconProvider): void {
@@ -50,7 +50,7 @@ export function serveInternalPages(session: Session, pagesDir: string, favicon: 
       return new Response(body, {
         headers: {
           'Content-Type': MIME[extname(file)] ?? 'application/octet-stream',
-          'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https: ksuite:; font-src 'self' ksuite:; frame-ancestors 'none'",
+          'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https: velo:; font-src 'self' velo:; frame-ancestors 'none'",
           'X-Frame-Options': 'DENY',
           'Cache-Control': 'no-store',
         },

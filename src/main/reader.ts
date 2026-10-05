@@ -4,7 +4,7 @@ import type { WebContents } from 'electron';
 import type { ReaderArticle } from '../shared/types';
 
 const WORLD = 1997;
-const READER_PREFIX = 'ksuite://reader/';
+const READER_PREFIX = 'velo://reader/';
 let scripts: { readerable: string; readability: string } | null = null;
 
 /** WebContents ids of pages that look like articles (shared: tabs move between windows). */
@@ -22,7 +22,7 @@ export function readerUrl(original: string): string {
   return `${READER_PREFIX}?url=${encodeURIComponent(original)}`;
 }
 
-/** The article address behind a ksuite://reader page, or null. */
+/** The article address behind a velo://reader page, or null. */
 export function readerOriginal(url: string): string | null {
   if (!url.startsWith(READER_PREFIX)) return null;
   try {

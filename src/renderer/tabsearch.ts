@@ -47,7 +47,7 @@ function highlight(text: string): DocumentFragment {
 }
 
 function favicon(url: string, favicon: string | null): Element {
-  if (url.startsWith('ksuite://')) {
+  if (url.startsWith('velo://')) {
     const span = h('span', { class: 'icon' });
     span.append(logoMark(16));
     return span;

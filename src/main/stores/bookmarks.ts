@@ -121,7 +121,7 @@ export class BookmarksStore {
 
 export function isValidUrl(url: string): boolean {
   try {
-    return ['http:', 'https:', 'file:', 'ksuite:'].includes(new URL(url.trim()).protocol);
+    return ['http:', 'https:', 'file:', 'velo:'].includes(new URL(url.trim()).protocol);
   } catch {
     return false;
   }

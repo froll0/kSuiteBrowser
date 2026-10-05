@@ -1,9 +1,9 @@
-import type { KSuiteBridge } from '../preload/preload';
+import type { VeloBridge } from '../preload/preload';
 
 declare global {
   interface Window {
-    ksuite: KSuiteBridge;
+    velo: VeloBridge;
   }
 }
 
-export const ks = window.ksuite;
+export const ks = window.velo;

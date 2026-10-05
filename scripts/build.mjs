@@ -34,7 +34,7 @@ function copyStatic() {
   cpSync('src/renderer/fonts', 'dist/renderer/fonts', { recursive: true });
   cpSync('build/icon-256.png', 'dist/icon.png');
   cpSync('build/icon.ico', 'dist/icon.ico');
-  // Shared assets of the internal pages (ksuite://assets/…): font and logo.
+  // Shared assets of the internal pages (velo://assets/…): font and logo.
   mkdirSync('dist/pages/assets', { recursive: true });
   cpSync('src/renderer/fonts', 'dist/pages/assets/fonts', { recursive: true });
   for (const page of PAGES) {

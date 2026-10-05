@@ -35,7 +35,7 @@ export class AiService {
 
   private client(): InfomaniakClient {
     const token = this.settings.getToken();
-    if (!token) throw new InfomaniakApiError('Collega prima l’account kSuite (Impostazioni › Account kSuite).', 401);
+    if (!token) throw new InfomaniakApiError('Collega prima un account Infomaniak (Impostazioni › Account cloud).', 401);
     return new InfomaniakClient(token);
   }
 
@@ -111,6 +111,6 @@ export class AiService {
 
 function aiError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
-  if (err instanceof InfomaniakApiError && err.status === 403) return 'Il token API non può usare AI Services: crea un token che includa lo scope relativo all’IA (AI Services) e salvalo in Impostazioni › Account kSuite.';
+  if (err instanceof InfomaniakApiError && err.status === 403) return 'Il token API non può usare AI Services: crea un token che includa lo scope relativo all’IA (AI Services) e salvalo in Impostazioni › Account cloud.';
   return message;
 }

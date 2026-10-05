@@ -1,7 +1,7 @@
 import { Notification } from 'electron';
 import { EventReminder, MailWatcher, type Notice } from '../shared/notify-logic';
 import type { CalendarEvent } from '../shared/types';
-import type { KSuiteServices } from './services';
+import type { CloudServices } from './services';
 import type { SettingsStore } from './settings';
 
 const MAIL_EVERY_MS = 2 * 60_000;
@@ -9,13 +9,13 @@ const EVENTS_EVERY_MS = 5 * 60_000;
 const REMINDER_TICK_MS = 30_000;
 
 export interface NotificationHooks {
-  /** Opens a kSuite app (mail, calendar) in a browser window. */
+  /** Opens an Infomaniak app (mail, calendar) in a browser window. */
   openApp(appId: string): void;
   /** Unread count of the inbox, for the sidebar badge (null when unknown). */
   onUnread(count: number | null): void;
 }
 
-/** Desktop notifications for new mail and upcoming events, from periodic checks of the kSuite APIs. */
+/** Desktop notifications for new mail and upcoming events, from periodic checks of the Infomaniak APIs (with an account connected). */
 export class NotificationCenter {
   private readonly mail = new MailWatcher();
   private readonly reminders = new EventReminder();
@@ -25,7 +25,7 @@ export class NotificationCenter {
 
   constructor(
     private readonly settings: SettingsStore,
-    private readonly services: KSuiteServices,
+    private readonly services: CloudServices,
     private readonly hooks: NotificationHooks,
   ) {}
 
@@ -55,7 +55,7 @@ export class NotificationCenter {
 
   /** Test notification from the settings page. */
   test(): boolean {
-    return this.show({ title: 'Notifiche di kSuite Browser attive', body: 'Riceverai qui le nuove email e i promemoria degli eventi.' }, null);
+    return this.show({ title: 'Notifiche di Velo attive', body: 'Riceverai qui le nuove email e i promemoria degli eventi.' }, null);
   }
 
   private get ready(): boolean {

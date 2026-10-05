@@ -1,6 +1,6 @@
 export type WebSearchEngineId = 'duckduckgo' | 'qwant' | 'ecosia' | 'startpage' | 'google';
-/** "ksuite" is the unified search page (your kSuite data + a link to the web engine). */
-export type SearchEngineId = WebSearchEngineId | 'ksuite';
+/** "velo" is the unified search page (bookmarks, history and, with an account, your cloud data + the web engine). */
+export type SearchEngineId = WebSearchEngineId | 'velo';
 
 export const WEB_SEARCH_ENGINES: Record<WebSearchEngineId, { name: string; template: string }> = {
   duckduckgo: { name: 'DuckDuckGo', template: 'https://duckduckgo.com/?q=%s' },
@@ -11,7 +11,7 @@ export const WEB_SEARCH_ENGINES: Record<WebSearchEngineId, { name: string; templ
 };
 
 export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; template: string }> = {
-  ksuite: { name: 'kSuite (ricerca unificata)', template: 'ksuite://search/?q=%s' },
+  velo: { name: 'Velo (ricerca unificata)', template: 'velo://search/?q=%s' },
   ...WEB_SEARCH_ENGINES,
 };
 
@@ -20,7 +20,7 @@ export function webSearchUrl(query: string, engine: WebSearchEngineId): string {
 }
 
 const SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
-const ALLOWED_SCHEMES = new Set(['http:', 'https:', 'file:', 'about:', 'view-source:', 'ksuite:']);
+const ALLOWED_SCHEMES = new Set(['http:', 'https:', 'file:', 'about:', 'view-source:', 'velo:']);
 
 /**
  * Turns what the user typed in the address bar into a URL:
@@ -78,7 +78,7 @@ export function readableUrl(url: string): string {
 export function chromeUserAgent(ua: string): string {
   return ua
     .replace(/\s+Electron\/\S+/gi, '')
-    .replace(/\s+(kSuiteBrowser|kSuite Browser|ksuite-browser)\/\S+/gi, '')
+    .replace(/\s+(kSuiteBrowser|Velo|ksuite-browser|velo)\/\S+/gi, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
@@ -89,7 +89,7 @@ export function popupTitle(url: string, title: string): string {
   try {
     parsed = new URL(url);
   } catch {
-    return title || url || 'kSuite Browser';
+    return title || url || 'Velo';
   }
   const page = title && title !== url ? ` — ${title}` : '';
   if (parsed.protocol === 'https:') return `🔒 ${parsed.host}${page}`;

@@ -10,7 +10,7 @@ import { isInternalUrl } from './internal-pages';
 import { isReaderable, readerableIds } from './reader';
 import { webRtcPolicy } from '../shared/webrtc';
 import type { PrivacyGuard } from './privacy';
-import type { KSuiteServices } from './services';
+import type { CloudServices } from './services';
 import type { SettingsStore } from './settings';
 import type { BookmarksStore } from './stores/bookmarks';
 import type { HistoryStore } from './stores/history';
@@ -24,7 +24,7 @@ import { storeIdFrom } from './extensions/registry';
 
 export interface WindowContext {
   settings: SettingsStore;
-  services: KSuiteServices;
+  services: CloudServices;
   history: HistoryStore;
   bookmarks: BookmarksStore;
   guardFor(session: Session): PrivacyGuard;
@@ -43,7 +43,7 @@ export interface WindowContext {
   readonly extensions: ExtensionHost | null;
 }
 
-export const SETTINGS_URL = 'ksuite://settings/';
+export const SETTINGS_URL = 'velo://settings/';
 /** Colours of the native parts of the window (title bar buttons, background) for the chosen appearance. */
 function frameColors(settings: Settings, isPrivate: boolean): ChromeColors {
   return chromeColors(settings, isPrivate || isDark(settings.theme, nativeTheme.shouldUseDarkColors), isPrivate);
@@ -60,7 +60,7 @@ export function popupLook(settings: Settings, isPrivate: boolean): PopupLook {
   return { dark, vars: tokens(settings, dark, isPrivate) };
 }
 
-export const NEWTAB_URL = 'ksuite://newtab/';
+export const NEWTAB_URL = 'velo://newtab/';
 
 /** One browser window: the UI around it, its tabs and its session (persistent, or in-memory when private). */
 export class BrowserWindowController {
@@ -89,7 +89,7 @@ export class BrowserWindowController {
       ...bounds,
       minWidth: 720,
       minHeight: 480,
-      title: isPrivate ? 'kSuite Browser — Finestra privata' : 'kSuite Browser',
+      title: isPrivate ? 'Velo — Finestra privata' : 'Velo',
       backgroundColor: frameColors(ctx.settings.get(), isPrivate).backdrop,
       autoHideMenuBar: true,
       icon: ctx.paths.appIcon,
@@ -125,14 +125,14 @@ export class BrowserWindowController {
           protectionActive: guard.protectionActiveFor(url || null),
           // The PDF viewer fits the page by changing the zoom itself: no badge for that.
           zoom: !contents || /\.pdf($|[?#])/i.test(url) ? ctx.settings.get().defaultZoom : Math.round(contents.getZoomFactor() * 100),
-          bookmarked: /^(https?|file|ksuite):/i.test(url) && Boolean(ctx.bookmarks.find(url)),
+          bookmarked: /^(https?|file|velo):/i.test(url) && Boolean(ctx.bookmarks.find(url)),
           readerable: contents ? readerableIds.has(contents.id) : false,
         }),
         failurePage: (contents, url) => {
           const threat = guard.threatFor(contents.id, url);
-          if (threat) return { load: `ksuite://blocked/?kind=${threat.kind}&url=${encodeURIComponent(threat.url)}`, display: threat.url };
+          if (threat) return { load: `velo://blocked/?kind=${threat.kind}&url=${encodeURIComponent(threat.url)}`, display: threat.url };
           const http = guard.httpFallbackFor(contents.id, url);
-          return http ? { load: `ksuite://https-only/?url=${encodeURIComponent(http)}`, display: http } : null;
+          return http ? { load: `velo://https-only/?url=${encodeURIComponent(http)}`, display: http } : null;
         },
       },
       { session, preload: ctx.paths.pagePreload },
@@ -250,7 +250,7 @@ export class BrowserWindowController {
     this.openInternal(section ? `${SETTINGS_URL}#${section}` : SETTINGS_URL);
   }
 
-  /** Focuses the tab already showing an internal page (ksuite://host/), or opens it. */
+  /** Focuses the tab already showing an internal page (velo://host/), or opens it. */
   openInternal(url: string): void {
     const base = url.replace(/#.*$/, '');
     const existing = this.tabs.states().find((t) => t.url.startsWith(base));
@@ -467,7 +467,8 @@ export class BrowserWindowController {
       print: (wc) => owner().print(wc),
       savePageAs: (wc) => void owner().savePageAs(wc),
       viewSource: (wc) => owner().viewSource(wc),
-      aiEnabled: () => this.ctx.settings.get().aiEnabled,
+      aiEnabled: () => this.ctx.settings.get().aiEnabled && this.ctx.settings.tokenStatus().configured,
+      cloudEnabled: () => this.ctx.settings.tokenStatus().configured,
       askAboutText: (action, text) => owner().send(IPC.evAiAsk, { action, text }),
       askAboutPage: (action) => owner().send(IPC.evAiAsk, { page: action }),
       extensionItems: (params) => (this.isPrivate ? [] : this.ctx.extensions?.contextItems(contents, params) ?? []),

@@ -148,7 +148,7 @@ export class PasswordManager {
       items.push({ label: 'Suggerisci una password sicura', click: () => fill({ password: generatePassword(), generated: true }) });
     }
     if (items.length === 0) return;
-    items.push({ type: 'separator' }, { label: 'Gestisci password…', click: () => tab.window.openInternal('ksuite://passwords/') });
+    items.push({ type: 'separator' }, { label: 'Gestisci password…', click: () => tab.window.openInternal('velo://passwords/') });
     Menu.buildFromTemplate(items).popup({ window: tab.window.win });
   }
 
@@ -216,7 +216,7 @@ export class PasswordManager {
         });
       }
     } catch {
-      /* offline: the full check in ksuite://passwords can be run later */
+      /* offline: the full check in velo://passwords can be run later */
     }
   }
 

@@ -71,3 +71,4 @@ body.private {
   --border: #3f3359; --text: #f1edf9; --text-2: #d8d0ea; --muted: #b3a8cc; --accent: #b692ff;
   color-scheme: dark;
 }
+section.no-account { display: none; }

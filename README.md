@@ -1,12 +1,13 @@
-# kSuite Browser
+# Velo
 
-Browser desktop (Windows, macOS, Linux) con le funzioni di **Infomaniak kSuite** integrate:
-navighi il web come in un normale browser e hai kDrive, Mail, Calendar, kChat, kMeet ed Euria
-a portata di clic, più un pannello nativo che usa le API ufficiali di Infomaniak.
+Browser desktop (Windows, macOS, Linux) pensato per la **privacy e l'anonimato**: nessun contatto
+con Google, protezione dal tracciamento e dal fingerprinting, finestre private e finestre Tor, interfaccia
+minimale e personalizzabile. Funziona senza alcun account; chi usa i servizi cloud di Infomaniak
+(posta, kDrive, calendario, IA) può collegarli facoltativamente.
 
-![kSuite Browser, tema chiaro con la pagina a «tela sospesa»](docs/screenshot-light.png)
+![Velo, tema chiaro con la pagina a «tela sospesa»](docs/screenshot-light.png)
 
-![kSuite Browser, tema scuro con schede di lato e sfondo sfumato](docs/screenshot-dark.png)
+![Velo, tema scuro con schede di lato e sfondo sfumato](docs/screenshot-dark.png)
 
 ## Perché Electron + TypeScript
 
@@ -32,7 +33,7 @@ quindi funzionano senza sorprese.
 - **Caratteri**: Inter, del sistema, arrotondato, con grazie o monospaziato, in quattro dimensioni
 - **Schede** su una riga insieme all'indirizzo, sopra l'indirizzo o **di lato** (colonna verticale ridimensionabile
   trascinandone il bordo e riducibile alle sole icone, schede fissate in griglia)
-- **Barra delle app kSuite** a sinistra, a destra o nascosta; icone essenziali o colorate
+- **Barra delle app** (con l'account Infomaniak collegato) a sinistra, a destra o nascosta; icone essenziali o colorate
 - **Barra degli strumenti componibile**: 13 pulsanti (indietro, avanti, ricarica, pagina iniziale, nuova scheda,
   protezioni, audio, download, cerca tra le schede, preferiti, cronologia, assistente IA, pannello) da aggiungere,
   togliere e riordinare con il trascinamento, prima o dopo l'indirizzo; anche da tastiera
@@ -40,9 +41,9 @@ quindi funzionano senza sorprese.
 - Nuova scheda con sfondo semplice, tinto o sfumato e blocchi a scelta (saluto, siti più visitati, app)
 - Anteprima dal vivo nelle impostazioni; tutto si applica subito, anche alle pagine del browser e ai popup
 
-**Estensioni** (`ksuite://extensions`, menu › Estensioni, o il pulsante a forma di puzzle)
+**Estensioni** (`velo://extensions`, menu › Estensioni, o il pulsante a forma di puzzle)
 - Estensioni del **Chrome Web Store**: si installano dalla pagina dell'estensione nel Web Store (compare la barra
-  «Aggiungi a kSuite Browser»), incollandone l'indirizzo o l'ID, oppure da file `.crx`/`.zip`; in modalità sviluppatore
+  «Aggiungi a Velo»), incollandone l'indirizzo o l'ID, oppure da file `.crx`/`.zip`; in modalità sviluppatore
   anche da una cartella, con «Ricarica»
 - Prima di installare il browser mostra cosa l'estensione potrà fare (siti a cui accede, cronologia, notifiche…) e le
   funzioni che qui non ci sono
@@ -56,11 +57,11 @@ quindi funzionano senza sorprese.
 **Browser**
 - Schede e più finestre, barra indirizzi/ricerca (DuckDuckGo, Qwant, Ecosia, Startpage, Google)
 - **Suggerimenti nella barra degli indirizzi** da preferiti e cronologia, con navigazione da tastiera
-- **Cronologia** (`ksuite://history`, `Ctrl+H`): ricerca, raggruppata per giorno, cancellazione di singole pagine o per periodo; mai registrata nelle finestre private
-- **Preferiti**: stella nella barra degli indirizzi (`Ctrl+D`), barra dei preferiti (`Ctrl+Shift+B`), gestione (`ksuite://bookmarks`, `Ctrl+Shift+O`) con modifica, riordino e cartelle; **importazione ed esportazione** in formato HTML compatibile con Chrome, Edge, Firefox e Safari
+- **Cronologia** (`velo://history`, `Ctrl+H`): ricerca, raggruppata per giorno, cancellazione di singole pagine o per periodo; mai registrata nelle finestre private
+- **Preferiti**: stella nella barra degli indirizzi (`Ctrl+D`), barra dei preferiti (`Ctrl+Shift+B`), gestione (`velo://bookmarks`, `Ctrl+Shift+O`) con modifica, riordino e cartelle; **importazione ed esportazione** in formato HTML compatibile con Chrome, Edge, Firefox e Safari
 - **Trova nella pagina** (`Ctrl+F`, `F3`/`Shift+F3`), con conteggio dei risultati e distinzione maiuscole/minuscole
 - **Zoom** (`Ctrl +`, `Ctrl −`, `Ctrl+0`, `Ctrl`+rotellina) ricordato per ogni sito, zoom predefinito nelle impostazioni
-- **Pagina nuova scheda** (`ksuite://newtab`): ricerca, siti più visitati (rimovibili) e app kSuite
+- **Pagina nuova scheda** (`velo://newtab`): ricerca, siti più visitati (rimovibili) e, con l'account collegato, le app
 - **Schede**: trascinamento per riordinarle, trascinamento fuori dalla finestra o in un'altra finestra per spostarle
   (la pagina resta aperta, senza ricaricarsi), schede fissate, audio on/off, duplicazione, "chiudi le altre",
   **riapri scheda chiusa** (`Ctrl+Shift+T`) con la sua cronologia avanti/indietro, `Ctrl+1…9`
@@ -79,7 +80,7 @@ quindi funzionano senza sorprese.
   end-to-end con una passphrase che conosci solo tu (vedi sotto)
 - **Schede dormienti**: le schede non usate da un po' (1 ora, configurabile in Impostazioni › Generale) chiudono la pagina
   per liberare memoria e si ricaricano quando le apri, con la cronologia avanti/indietro intatta. Mai quelle fissate,
-  delle app kSuite, con audio in riproduzione o con moduli compilati. Anche "Metti in pausa" nel menu della scheda
+  delle app della barra, con audio in riproduzione o con moduli compilati. Anche "Metti in pausa" nel menu della scheda
 - **Avvio veloce**: le schede della sessione precedente partono in pausa, si carica solo quella in primo piano
 - Con molte schede aperte la barra le riduce all'icona e poi scorre (rotellina del mouse)
 - **Passa alla scheda**: se la pagina che cerchi nella barra degli indirizzi è già aperta (anche in un'altra finestra),
@@ -103,25 +104,25 @@ quindi funzionano senza sorprese.
 - **Siti con accesso HTTP** (nome utente e password richiesti dal server o dal proxy) tramite la barra informazioni
 - **Browser predefinito** (Impostazioni › Generale): i link delle altre app e i file HTML/PDF si aprono qui, aggiunti alla sessione ripristinata
 
-**Ricerca kSuite** (`ksuite://search`, motore predefinito)
-- Una sola ricerca dalla barra degli indirizzi trova insieme **preferiti e cronologia, file di kDrive, email, contatti ed eventi**, con le parole cercate evidenziate
+**Ricerca unificata** (`velo://search`, motore predefinito)
+- Una sola ricerca dalla barra degli indirizzi trova insieme **preferiti e cronologia** e, con l'account Infomaniak collegato, **file di kDrive, email, contatti ed eventi**, con le parole cercate evidenziate
 - **Calcolatrice** integrata (`12*(3+4)`), senza confondere date e numeri di telefono
 - Collegamenti per continuare **sul web** con il motore scelto (DuckDuckGo, Qwant, Ecosia, Startpage, Google)
 - Clic su un contatto per scrivergli dal pannello Mail, su un file per aprirlo in kDrive
 - Nelle finestre private la cronologia non viene mai mostrata
 
-**Assistente IA** (Infomaniak AI Services, modelli ospitati in Svizzera)
+**Assistente IA** (facoltativo, con l'account Infomaniak: AI Services, modelli ospitati in Svizzera)
 - **Pannello IA** (`Ctrl+Shift+K` › IA): chat con risposte in streaming, azioni rapide sulla pagina aperta
   (riassunto, punti chiave, traduzione), opzione "Usa la pagina" per fare domande sul contenuto
 - **Menu contestuale**: *Chiedi all'IA* sul testo selezionato (spiega, riassumi, traduci, migliora) e *IA: pagina* sulle pagine web
 - **Domande dalla barra degli indirizzi**: scrivi `?` seguito dalla domanda (es. `?come si cucina il risotto`)
-- **Risposta dell'IA nella ricerca kSuite**: su richiesta, o automatica se la attivi (mai automatica nelle finestre private)
+- **Risposta dell'IA nella ricerca unificata**: su richiesta, o automatica se la attivi (mai automatica nelle finestre private)
 - **Scrivi con l'IA** nel pannello Mail: bozza dell'email partendo dall'oggetto e dai tuoi appunti
 - Le risposte sono mostrate come testo formattato costruito in modo sicuro (nessun HTML del modello viene eseguito);
   il contenuto delle pagine è passato al modello come dato, non come istruzioni
 - Si attiva in Impostazioni › Intelligenza artificiale (prodotto, modello, "Prova")
 
-**Gestore password** (`ksuite://passwords`, menu File › Password)
+**Gestore password** (`velo://passwords`, menu File › Password)
 - Dopo un accesso compare una barra per **salvare o aggiornare** la password (con "Mai per questo sito")
 - **Compilazione automatica** quando per un sito c'è un solo accesso (solo su HTTPS); altrimenti clic nel campo e scelta dal menu, che il sito non può imitare perché è nativo
 - **Password sicure suggerite** nei moduli di registrazione (20 caratteri casuali)
@@ -133,10 +134,10 @@ quindi funzionano senza sorprese.
 - **Password principale** opzionale: blocca le password finché non la inserisci, con blocco automatico dopo 30 minuti di inattività
 - Mai attivo nelle finestre private (nessun salvataggio né compilazione automatica)
 
-**Impostazioni** (`ksuite://settings`, `Ctrl+,`)
+**Impostazioni** (`velo://settings`, `Ctrl+,`)
 - Generale: avvio, pagina iniziale, motore di ricerca, download
 - Aspetto e disposizione: colori, forme, caratteri, posizione di schede e app, barra degli strumenti (vedi sopra)
-- Privacy e sicurezza, permessi dei siti, account kSuite, informazioni
+- Privacy e sicurezza, permessi dei siti, account cloud (facoltativo), informazioni
 - Ricerca tra le impostazioni
 
 **Privacy e sicurezza**
@@ -167,8 +168,8 @@ quindi funzionano senza sorprese.
 - **Finestre private**: sessione solo in memoria (cookie, cache, permessi spariscono alla chiusura), i download non vengono caricati su kDrive
 - **Permessi dei siti**: valori predefiniti (chiedi/blocca) per fotocamera e microfono, notifiche e posizione; scelte ricordate e revocabili
 
-**Integrazione kSuite**
-- Barra laterale con tutte le app della suite (ogni app resta in una scheda dedicata, login persistente)
+**Account cloud Infomaniak** (facoltativo: tutto quanto segue compare solo dopo aver collegato un account)
+- Barra delle app con Mail, kDrive, Calendar, kChat, kMeet e le altre (ogni app resta in una scheda dedicata, login persistente)
 - Badge con le email non lette, aggiornato ogni 2 minuti anche a pannello chiuso
 - **Notifiche di sistema** per le nuove email e **promemoria degli eventi** di Calendar (anticipo configurabile);
   un clic sulla notifica apre Mail o Calendar. Si configurano in Impostazioni › Notifiche
@@ -182,18 +183,18 @@ quindi funzionano senza sorprese.
 - **Invia la pagina via Mail** (`Ctrl+Shift+M`, menu File o tasto destro sulla pagina)
 - Menu contestuale: *Salva immagine/link su kDrive*, *Invia link via Mail*
 
-## Configurare l'accesso alle API
+## Collegare un account Infomaniak (facoltativo)
 
 1. Vai su [Manager Infomaniak → Token API](https://manager.infomaniak.com/v3/ng/accounts/token/list).
 2. Crea un token con questi scope: `user_info`, `drive`, `workspace:mail`, `workspace:calendar`.
-3. Apri **Impostazioni** (`Ctrl+,`) → *Account kSuite* → incolla il token → *Salva e verifica*.
+3. Apri **Impostazioni** (`Ctrl+,`) → *Account cloud* → incolla il token → *Salva e verifica*.
 
 Per l'**assistente IA** serve anche il prodotto **AI Services** attivo nel Manager Infomaniak
 (è a consumo) e un token che includa anche lo scope relativo all'IA (AI Services). Poi Impostazioni → *Intelligenza artificiale* → attiva → *Prova*.
 
 Il token è salvato cifrato con il portachiavi del sistema operativo (`safeStorage` di Electron)
 e viene usato solo dal processo principale: le pagine web non possono leggerlo.
-In alternativa puoi passarlo con la variabile d'ambiente `KSUITE_API_TOKEN`.
+In alternativa puoi passarlo con la variabile d'ambiente `VELO_API_TOKEN`.
 
 Se il tuo account ha più kDrive puoi sceglierlo nelle impostazioni (oppure indicare l'ID che trovi
 nell'URL dell'app web: `.../kdrive/app/drive/<ID>`).
@@ -216,7 +217,7 @@ attraverso il tuo kDrive (Impostazioni → *Sincronizzazione*), senza server di 
 - **Cifratura end-to-end**: i dati sono cifrati sul computer con AES-256-GCM, con una chiave derivata con scrypt da una
   **passphrase** che scegli tu (almeno 10 caratteri). Su kDrive finiscono solo file illeggibili: Infomaniak non vede
   i contenuti e **non può recuperare la passphrase**. Se la perdi, dalle impostazioni puoi eliminare i dati remoti e ricominciare.
-- **Dove**: cartella `kSuite Browser Sync` nella radice del kDrive, con `sync-key.json` (parametri della chiave e un
+- **Dove**: cartella `Velo Sync` nella radice del kDrive, con `sync-key.json` (parametri della chiave e un
   controllo per riconoscere la passphrase giusta, nessun segreto) e un file `device-<id>.ksync` per ogni computer.
   Ogni computer scrive solo il proprio file, così non ci sono conflitti di scrittura.
 - **Unione**: per ogni elemento vince la modifica più recente; le cancellazioni si propagano (e vengono dimenticate dopo
@@ -307,9 +308,9 @@ L'app verifica comunque l'integrità di ogni aggiornamento (SHA-512 dal file `la
 src/
   api/        Client REST Infomaniak (profilo, kDrive, Mail, Calendar, Contatti, AI Services) — senza dipendenze da Electron
   main/       Processo principale: finestre, schede, privacy, download, permessi, menu, IPC
-  preload/    Ponti sicuri (contextBridge): UI del browser e pagine interne ksuite://
-  renderer/   Interfaccia del browser (barra schede, sidebar, pannello kSuite)
-  pages/      Pagine interne: ksuite://newtab, search, settings, history, bookmarks, passwords, https-only
+  preload/    Ponti sicuri (contextBridge): UI del browser e pagine interne velo://
+  renderer/   Interfaccia del browser (barra schede, barra delle app, pannello cloud)
+  pages/      Pagine interne: velo://newtab, search, settings, history, bookmarks, passwords, https-only
   shared/     Tipi, canali IPC, schema delle impostazioni, regole privacy, barra indirizzi
 test/         Test Vitest
 ```
@@ -368,5 +369,6 @@ codice caricato solo dall'archivio `app.asar` (verificato su Windows e macOS), c
 
 - Icone: [Lucide](https://lucide.dev) (licenza ISC).
 - Font: [Inter](https://rsms.me/inter/) di Rasmus Andersson (SIL Open Font License 1.1, testo in `src/renderer/fonts/LICENSE-Inter.txt`).
-- Le icone delle app kSuite nella barra laterale sono pittogrammi generici: i loghi e i marchi Infomaniak appartengono ai rispettivi titolari.
+- Velo è un progetto indipendente, non affiliato a Infomaniak. Le icone delle app nella barra sono pittogrammi generici;
+  i nomi e i marchi Infomaniak, kDrive, kChat, kMeet ed Euria appartengono ai rispettivi titolari e sono citati solo per indicare la compatibilità.
 - L'icona dell'app è in `build/icon.svg`; `npm run icon` rigenera `build/icon.png`.

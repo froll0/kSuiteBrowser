@@ -1,5 +1,5 @@
 import { desktopCapturer, dialog, type BrowserWindow, type Session } from 'electron';
-import { isTrustedSuiteHost } from '../shared/ksuite-apps';
+import { isTrustedSuiteHost } from '../shared/infomaniak-apps';
 import { externalAppName, externalScheme, externalVerdict } from '../shared/external-protocols';
 import { ASKABLE_PERMISSIONS } from '../shared/settings-schema';
 import type { AskablePermission } from '../shared/types';
@@ -48,7 +48,7 @@ function hostOf(url: string): string {
 const isAskable = (p: string): p is AskablePermission => (ASKABLE_PERMISSIONS as readonly string[]).includes(p);
 
 /**
- * kSuite apps (kMeet, kChat, Mail…) get camera, microphone and notifications directly.
+ * Infomaniak apps (kMeet, kChat, Mail…) get camera, microphone and notifications directly.
  * Other sites follow the remembered decision, then the default chosen in the settings (ask or block).
  */
 export function configurePermissions(session: Session, settings: SettingsStore, memory: PermissionMemory, getWindow: () => BrowserWindow | null): void {

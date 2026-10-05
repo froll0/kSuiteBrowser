@@ -104,7 +104,7 @@ describe('new tab page', () => {
       { url: 'https://a.example/y', title: 'A y', visits: 5, lastVisit: NOW },
       { url: 'https://b.example/', title: 'B', visits: 7, lastVisit: NOW },
       { url: 'https://c.example/', title: '', visits: 1, lastVisit: NOW },
-      { url: 'ksuite://settings/', title: 'Impostazioni', visits: 50, lastVisit: NOW },
+      { url: 'velo://settings/', title: 'Impostazioni', visits: 50, lastVisit: NOW },
     ];
     expect(topSites(history, [])).toEqual([
       { url: 'https://a.example/y', title: 'A y' },
@@ -119,7 +119,7 @@ describe('new tab page', () => {
     expect(letterIconSvg('www.example.org')).toContain('>E</text>');
     expect(letterColor('example.org')).toBe(letterColor('example.org'));
     expect(letterIconSvg('<script>')).not.toContain('<script');
-    expect(faviconUrl('https://a.example/?q=1')).toBe('ksuite://favicon/?url=https%3A%2F%2Fa.example%2F%3Fq%3D1');
+    expect(faviconUrl('https://a.example/?q=1')).toBe('velo://favicon/?url=https%3A%2F%2Fa.example%2F%3Fq%3D1');
   });
 });
 

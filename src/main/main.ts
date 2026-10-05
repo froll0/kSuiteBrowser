@@ -6,7 +6,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { INTERNAL, IPC } from '../shared/ipc';
-import { KSUITE_APPS } from '../shared/ksuite-apps';
+import { INFOMANIAK_APPS } from '../shared/infomaniak-apps';
 import { siteOf } from '../shared/privacy-rules';
 import { matchesAll } from '../shared/search-match';
 import { buildSuggestions } from '../shared/suggest';
@@ -40,7 +40,7 @@ import { PasswordManager } from './passwords/manager';
 import { originOf } from './passwords/vault';
 import { configurePermissions, memoryOnly, persistentMemory } from './permissions';
 import { PrivacyGuard } from './privacy';
-import { KSuiteServices } from './services';
+import { CloudServices } from './services';
 import { SettingsStore } from './settings';
 import { BookmarksStore } from './stores/bookmarks';
 import { FaviconStore } from './stores/favicons';
@@ -48,10 +48,12 @@ import { HistoryStore } from './stores/history';
 import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } from './window';
 import { ExtensionHost } from './extensions/host';
 import { InstallError } from './extensions/registry';
+import { adoptLegacyProfile } from './legacy';
 
+adoptLegacyProfile();
 registerInternalScheme();
 // Windows shows notifications only for apps with an explicit identity.
-if (process.platform === 'win32') app.setAppUserModelId('com.ksuitebrowser.app');
+if (process.platform === 'win32') app.setAppUserModelId('io.github.froll0.velo');
 
 const PATHS = {
   chromePreload: join(__dirname, '../preload/preload.js'),
@@ -70,7 +72,7 @@ const PATHS = {
 };
 
 let settings: SettingsStore;
-let services: KSuiteServices;
+let services: CloudServices;
 let downloads: DownloadManager;
 let history: HistoryStore;
 let bookmarks: BookmarksStore;
@@ -111,7 +113,7 @@ if (!app.requestSingleInstanceLock()) {
     openFromSystem([pathToFileURL(path).href]);
   });
   app.whenReady().then(start).catch((err) => {
-    dialog.showErrorBox('kSuite Browser', String(err));
+    dialog.showErrorBox('Velo', String(err));
     app.quit();
   });
 }
@@ -181,6 +183,7 @@ async function makeDefaultBrowser(): Promise<boolean> {
 // ---------- Startup ----------
 
 async function start(): Promise<void> {
+  app.setAboutPanelOptions({ applicationName: 'Velo', applicationVersion: app.getVersion(), copyright: 'Licenza MIT' });
   // Look like a regular Chrome: the default user agent names Electron and this app, which makes the
   // browser easy to fingerprint and gets sign-ins refused by some sites (e.g. Google).
   app.userAgentFallback = chromeUserAgent(app.userAgentFallback);
@@ -189,7 +192,7 @@ async function start(): Promise<void> {
   if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(join(__dirname, '../icon.png'));
 
   settings = new SettingsStore();
-  services = new KSuiteServices(settings);
+  services = new CloudServices(settings);
   downloads = new DownloadManager(settings, services, (items) => broadcast(IPC.evDownloads, items), {
     threatCheck: (url) => threats.match(url),
     window: () => lastFocused?.win ?? null,
@@ -224,7 +227,7 @@ async function start(): Promise<void> {
   passwords.register();
   notifications = new NotificationCenter(settings, services, {
     openApp: (appId) => {
-      const appDef = KSUITE_APPS.find((a) => a.id === appId);
+      const appDef = INFOMANIAK_APPS.find((a) => a.id === appId);
       if (!appDef) return;
       const target = normalWindow() ?? openWindow(false, []);
       target.tabs.openApp(appDef.id, appDef.url);
@@ -321,12 +324,12 @@ function setupSession(ses: Session, isPrivate: boolean): void {
   downloads.attach(ses, { isPrivate });
   configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings), () => lastFocused?.win ?? null);
   serveInternalPages(ses, PATHS.pages, faviconFor);
-  ses.registerPreloadScript({ type: 'frame', id: 'ksuite-adblock', filePath: PATHS.adblockPreload });
-  ses.registerPreloadScript({ type: 'frame', id: 'ksuite-passwords', filePath: PATHS.passwordsPreload });
+  ses.registerPreloadScript({ type: 'frame', id: 'velo-adblock', filePath: PATHS.adblockPreload });
+  ses.registerPreloadScript({ type: 'frame', id: 'velo-passwords', filePath: PATHS.passwordsPreload });
   // Extensions only run in the persistent session (like Chrome, not in private windows).
   if (!isPrivate) {
-    ses.registerPreloadScript({ type: 'frame', id: 'ksuite-extensions', filePath: PATHS.extensionsPreload });
-    ses.registerPreloadScript({ type: 'service-worker', id: 'ksuite-extensions-sw', filePath: PATHS.extensionsPreload });
+    ses.registerPreloadScript({ type: 'frame', id: 'velo-extensions', filePath: PATHS.extensionsPreload });
+    ses.registerPreloadScript({ type: 'service-worker', id: 'velo-extensions-sw', filePath: PATHS.extensionsPreload });
   }
   // macOS uses the system spell checker; elsewhere pick Italian and English.
   if (process.platform !== 'darwin') {
@@ -505,7 +508,7 @@ function readSavedSession(): SavedTab[][] {
         tabs
           // Older sessions stored plain URLs.
           .map((t) => (typeof t === 'string' ? { url: t } : (t as SavedTab)))
-          .filter((t) => t && typeof t.url === 'string' && /^(https?|ksuite|file|chrome-extension):/i.test(t.url))
+          .filter((t) => t && typeof t.url === 'string' && /^(https?|velo|file|chrome-extension):/i.test(t.url))
           .map((t) => ({ url: t.url, pinned: Boolean(t.pinned), title: typeof t.title === 'string' ? t.title.slice(0, 300) : undefined })),
       )
       .filter((tabs) => tabs.length > 0);
@@ -601,7 +604,7 @@ function bookmarkPageMenu(w: BrowserWindowController, tabId: number): void {
   const wc = w.tabs.contents(tabId);
   if (!wc) return;
   const url = wc.getURL();
-  if (!/^(https?|file|ksuite):/i.test(url)) return;
+  if (!/^(https?|file|velo):/i.test(url)) return;
   const existing = bookmarks.find(url);
   if (!existing) {
     bookmarks.add({ title: wc.getTitle(), url, folder: 'bar' });
@@ -613,7 +616,7 @@ function bookmarkPageMenu(w: BrowserWindowController, tabId: number): void {
     { label: `Nei preferiti: ${existing.title}`, enabled: false },
     { type: 'separator' },
     { label: other === 'other' ? 'Sposta in Altri preferiti' : 'Sposta nella barra dei preferiti', click: () => bookmarks.update(existing.id, { folder: other }) },
-    { label: 'Modifica…', click: () => w.openInternal('ksuite://bookmarks/') },
+    { label: 'Modifica…', click: () => w.openInternal('velo://bookmarks/') },
     { label: 'Rimuovi dai preferiti', click: () => bookmarks.remove(existing.id) },
   ]).popup({ window: w.win });
 }
@@ -629,7 +632,7 @@ function bookmarkContextMenu(w: BrowserWindowController, id: string): void {
     { label: 'Apri in una finestra privata', click: () => openUrl(w, b.url, 'private') },
     { type: 'separator' },
     { label: other === 'other' ? 'Sposta in Altri preferiti' : 'Sposta nella barra dei preferiti', click: () => bookmarks.update(b.id, { folder: other }) },
-    { label: 'Modifica…', click: () => w.openInternal('ksuite://bookmarks/') },
+    { label: 'Modifica…', click: () => w.openInternal('velo://bookmarks/') },
     { label: 'Elimina', click: () => bookmarks.remove(b.id) },
   ]).popup({ window: w.win });
 }
@@ -643,7 +646,7 @@ function allBookmarksMenu(w: BrowserWindowController): void {
     ...(bar.length ? [{ type: 'separator' as const }] : []),
     { label: 'Altri preferiti', submenu: others.length ? others.map(item) : [{ label: 'Vuoto', enabled: false }] },
     { type: 'separator' },
-    { label: 'Gestisci preferiti', click: () => w.openInternal('ksuite://bookmarks/') },
+    { label: 'Gestisci preferiti', click: () => w.openInternal('velo://bookmarks/') },
   ]).popup({ window: w.win });
 }
 
@@ -713,7 +716,7 @@ function buildMenu(): Menu {
     },
     openSettings: () => current()?.openSettings(),
     customize: () => current()?.openSettings('appearance'),
-    openExtensions: () => (normalWindow() ?? openWindow(false, [])).openInternal('ksuite://extensions/'),
+    openExtensions: () => (normalWindow() ?? openWindow(false, [])).openInternal('velo://extensions/'),
     find: () => current()?.focusChrome(IPC.evFind),
     findNext: (backwards) => current()?.send(IPC.evFindNext, { backwards }),
     zoom: (direction) => {
@@ -727,9 +730,9 @@ function buildMenu(): Menu {
       const id = w?.activeTabId();
       if (w && id != null) bookmarkPageMenu(w, id);
     },
-    openHistory: () => current()?.openInternal('ksuite://history/'),
-    openBookmarks: () => current()?.openInternal('ksuite://bookmarks/'),
-    openPasswords: () => current()?.openInternal('ksuite://passwords/'),
+    openHistory: () => current()?.openInternal('velo://history/'),
+    openBookmarks: () => current()?.openInternal('velo://bookmarks/'),
+    openPasswords: () => current()?.openInternal('velo://passwords/'),
     checkUpdates: () => {
       current()?.openSettings('updates');
       void updates.check();
@@ -867,7 +870,7 @@ function hoverInfo(w: BrowserWindowController, t: TabState): HoverInfo {
   let host = t.url;
   try {
     const u = new URL(t.url);
-    host = u.protocol === 'ksuite:' ? 'kSuite Browser' : u.protocol === 'file:' ? decodeURIComponent(u.pathname) : u.host.replace(/^www\./, '');
+    host = u.protocol === 'velo:' ? 'Velo' : u.protocol === 'file:' ? decodeURIComponent(u.pathname) : u.host.replace(/^www\./, '');
   } catch {
     /* keep the address */
   }
@@ -883,7 +886,7 @@ function hoverInfo(w: BrowserWindowController, t: TabState): HoverInfo {
   return { title: t.title || t.url, host, meta: meta.join(' · ') };
 }
 
-/** Reader mode: extracts the article and shows it in ksuite://reader, or goes back to the page. */
+/** Reader mode: extracts the article and shows it in velo://reader, or goes back to the page. */
 async function toggleReader(w: BrowserWindowController, tabId: number): Promise<void> {
   const wc = w.tabs.contents(tabId);
   if (!wc) return;
@@ -953,7 +956,7 @@ function showExtensionsMenu(w: BrowserWindowController, anchor: Rect | null): vo
   }
   items.push(
     { type: 'separator' },
-    { label: 'Gestisci le estensioni', click: () => w.openInternal('ksuite://extensions/') },
+    { label: 'Gestisci le estensioni', click: () => w.openInternal('velo://extensions/') },
     { label: 'Apri il Chrome Web Store', click: () => w.tabs.activate(w.tabs.create('https://chromewebstore.google.com/category/extensions')) },
   );
   Menu.buildFromTemplate(items).popup({ window: w.win, ...(anchor ? { x: Math.round(anchor.x), y: Math.round(anchor.y + anchor.height + 4) } : {}) });
@@ -962,7 +965,7 @@ function showExtensionsMenu(w: BrowserWindowController, anchor: Rect | null): vo
 async function confirmRemoveExtension(w: BrowserWindowController | null, id: string): Promise<boolean> {
   if (!extensions) return false;
   const name = extensions.summary().find((e) => e.id === id)?.name ?? 'l’estensione';
-  const options = { type: 'question' as const, buttons: ['Rimuovi', 'Annulla'], defaultId: 1, cancelId: 1, message: `Rimuovere «${name}»?`, detail: 'I suoi dati salvati in kSuite Browser vengono cancellati.' };
+  const options = { type: 'question' as const, buttons: ['Rimuovi', 'Annulla'], defaultId: 1, cancelId: 1, message: `Rimuovere «${name}»?`, detail: 'I suoi dati salvati in Velo vengono cancellati.' };
   const { response } = w ? await dialog.showMessageBox(w.win, options) : await dialog.showMessageBox(options);
   if (response !== 0) return false;
   extensions.registry.remove(id);
@@ -1078,7 +1081,7 @@ function registerChromeIpc(): void {
   handle(IPC.tabsReload, (w, id: number) => w.tabs.reload(id));
   handle(IPC.tabsStop, (w, id: number) => w.tabs.contents(id)?.stop());
   handle(IPC.openApp, (w, appId: string) => {
-    const appDef = KSUITE_APPS.find((a) => a.id === appId);
+    const appDef = INFOMANIAK_APPS.find((a) => a.id === appId);
     if (appDef) w.tabs.openApp(appDef.id, appDef.url);
   });
   handle(IPC.setContentBounds, (w, rect: Rect) => w.tabs.setBounds(rect));
@@ -1100,7 +1103,7 @@ function registerChromeIpc(): void {
   handle(IPC.mediaMenu, (w) => showMediaMenu(w));
   handle(IPC.extButtons, (w) => extensions?.buttons(w) ?? []);
   handle(IPC.extClick, (w, id: string, rect?: Rect) => extensions?.clickAction(w, String(id), rect && typeof rect.x === 'number' ? rect : null));
-  handle(IPC.extMenu, (w, id: string) => extensions?.actionMenu(w, String(id), (x) => w.openInternal(`ksuite://extensions/#${x}`), (x) => void confirmRemoveExtension(w, x)));
+  handle(IPC.extMenu, (w, id: string) => extensions?.actionMenu(w, String(id), (x) => w.openInternal(`velo://extensions/#${x}`), (x) => void confirmRemoveExtension(w, x)));
   handle(IPC.extPuzzle, (w, rect?: Rect) => showExtensionsMenu(w, rect && typeof rect.x === 'number' ? rect : null));
   handle(IPC.extInstallStore, (w, id: string) => extensions?.installFromStore(w, String(id)) ?? { ok: false });
   handle(IPC.toolbarMenu, (w, item: string | null) => showToolbarMenu(w, item));
@@ -1196,16 +1199,16 @@ function registerChromeIpc(): void {
   handle(IPC.downloadsOpen, (_w, id: string, reveal: boolean) => downloads.open(id, reveal));
 }
 
-// ---------- IPC: internal pages (ksuite://) ----------
+// ---------- IPC: internal pages (velo://) ----------
 
-/** Handlers for internal pages; only the top frame of the allowed ksuite:// hosts may call them. */
+/** Handlers for internal pages; only the top frame of the allowed velo:// hosts may call them. */
 function handleInternal<A extends unknown[], R>(channel: string, hosts: string[], fn: (event: IpcMainInvokeEvent, ...args: A) => R): void {
   ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: unknown[]) => {
     const frame = event.senderFrame;
     let allowed = false;
     try {
       const url = new URL(frame?.url ?? '');
-      allowed = url.protocol === 'ksuite:' && hosts.includes(url.hostname) && frame === event.sender.mainFrame;
+      allowed = url.protocol === 'velo:' && hosts.includes(url.hostname) && frame === event.sender.mainFrame;
     } catch {
       allowed = false;
     }
@@ -1333,6 +1336,7 @@ function registerInternalIpc(): void {
       searchEngine: s.searchEngine,
       showTopSites: s.showTopSites,
       hiddenCount: s.hiddenTopSites.length,
+      cloud: settings.tokenStatus().configured,
     };
   });
   handleInternal(INTERNAL.newtabHide, ['newtab'], (_e, url: string) => {
@@ -1435,7 +1439,7 @@ function registerInternalIpc(): void {
   });
 }
 
-// ---------- IPC: unified search (ksuite://search) ----------
+// ---------- IPC: unified search (velo://search) ----------
 
 function registerSearchIpc(): void {
   const H = ['search'];
@@ -1448,7 +1452,7 @@ function registerSearchIpc(): void {
     return {
       tokenConfigured: configured,
       webSearchEngine: s.webSearchEngine,
-      isDefault: s.searchEngine === 'ksuite',
+      isDefault: s.searchEngine === 'velo',
       aiEnabled: configured && s.aiEnabled,
       // Private windows never send the query to the AI without a click.
       aiAutoAnswer: configured && s.aiEnabled && s.aiAutoAnswer && event.sender.session.isPersistent(),
@@ -1477,14 +1481,14 @@ function registerSearchIpc(): void {
   handleInternal(INTERNAL.searchEvents, H, (_e, query: string) => wrap(() => services.searchEvents(q(query))));
   handleInternal(INTERNAL.searchOpenDrive, H, (_e, file: DriveFile) => wrap(() => services.driveWebUrl(file)));
   handleInternal(INTERNAL.searchOpenApp, H, (event, appId: string) => {
-    const appDef = KSUITE_APPS.find((a) => a.id === appId);
+    const appDef = INFOMANIAK_APPS.find((a) => a.id === appId);
     const w = ownerOf(event.sender);
     if (appDef && w) w.tabs.openApp(appDef.id, appDef.url);
   });
   handleInternal(INTERNAL.searchCompose, H, (event, to: string) => {
     ownerOf(event.sender)?.send(IPC.evComposeMail, { to: String(to ?? ''), subject: '', body: '' });
   });
-  handleInternal(INTERNAL.searchSetDefault, H, () => settings.update({ searchEngine: 'ksuite' }));
+  handleInternal(INTERNAL.searchSetDefault, H, () => settings.update({ searchEngine: 'velo' }));
   handleInternal(INTERNAL.searchAi, H, (event, query: string) => ai.start(searchAnswerMessages(q(query)), event.sender, INTERNAL.evAi));
   handleInternal(INTERNAL.aiCancel, H, (_e, id: string) => ai.cancel(String(id)));
 }

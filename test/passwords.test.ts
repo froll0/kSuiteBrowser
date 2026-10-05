@@ -100,7 +100,7 @@ describe('helpers', () => {
   it('computes origins only for http(s)', () => {
     expect(originOf('https://Example.org:443/login?a=1')).toBe('https://example.org');
     expect(originOf('http://example.org:8080/')).toBe('http://example.org:8080');
-    expect(originOf('ksuite://settings')).toBeNull();
+    expect(originOf('velo://settings')).toBeNull();
   });
 
   it('generates strong random passwords', () => {

@@ -39,7 +39,7 @@ export interface InstallPreview {
 
 export class InstallError extends Error {}
 
-const STORE = process.env.KSUITE_WEBSTORE_BASE ?? 'https://clients2.google.com/service/update2/crx';
+const STORE = process.env.VELO_WEBSTORE_BASE ?? 'https://clients2.google.com/service/update2/crx';
 const ID_RE = /\b([a-p]{32})\b/;
 
 /** Extension ID from a Chrome Web Store address (or the ID itself). */

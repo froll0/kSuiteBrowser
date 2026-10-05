@@ -85,7 +85,7 @@ async function generalSection(): Promise<HTMLElement> {
     : h('button', {
         onclick: async () => {
           const ok = await internal.defaultBrowser.set();
-          defaultMsg.textContent = ok ? 'Fatto: i link delle altre app si apriranno qui.' : 'Scegli kSuite Browser nelle impostazioni del sistema che si sono aperte (App predefinite › Browser web).';
+          defaultMsg.textContent = ok ? 'Fatto: i link delle altre app si apriranno qui.' : 'Scegli Velo nelle impostazioni del sistema che si sono aperte (App predefinite › Browser web).';
           defaultMsg.className = `message ${ok ? 'ok' : ''}`;
           if (ok) void render();
         },
@@ -100,7 +100,7 @@ async function generalSection(): Promise<HTMLElement> {
   return section(
     'general',
     'Generale',
-    row('Browser predefinito', isDefault ? 'kSuite Browser è il tuo browser predefinito: i link delle altre app si aprono qui.' : h('span', {}, 'I link delle email e delle altre app si aprono in un altro browser. ', defaultMsg), defaultBtn),
+    row('Browser predefinito', isDefault ? 'Velo è il tuo browser predefinito: i link delle altre app si aprono qui.' : h('span', {}, 'I link delle email e delle altre app si aprono in un altro browser. ', defaultMsg), defaultBtn),
     h('div', { class: 'row stack', 'data-search': 'avvio sessione schede pagina iniziale' },
       h('div', { class: 'title' }, 'All’avvio'),
       radios('startup', settings.startup, [
@@ -112,13 +112,13 @@ async function generalSection(): Promise<HTMLElement> {
     h('div', { class: 'row stack', 'data-search': 'nuova scheda pagina siti più visitati' },
       h('div', { class: 'title' }, 'Le nuove schede aprono'),
       radios('newtab', settings.newTabPage, [
-        { value: 'newtab', title: 'La pagina nuova scheda', desc: 'Ricerca, siti più visitati e app kSuite.' },
+        { value: 'newtab', title: 'La pagina nuova scheda', desc: 'Ricerca, siti più visitati e le tue app.' },
         { value: 'home', title: 'La pagina iniziale' },
       ], (v) => void update({ newTabPage: v }), true),
     ),
-    row('Motore di ricerca', 'Usato nella barra degli indirizzi. “kSuite” cerca insieme nei tuoi dati (kDrive, email, contatti, eventi, preferiti, cronologia) e ti porta sul web con un clic.', engine),
-    row('Motore per il web', 'Usato dalla ricerca kSuite per i risultati sul web.', webEngineSelect()),
-    row('Metti in pausa le schede inattive', 'Le schede non usate da un po’ chiudono la pagina per liberare memoria e si ricaricano quando le apri. Mai quelle fissate, delle app kSuite, con audio in riproduzione o con moduli compilati.', sleepSelect()),
+    row('Motore di ricerca', 'Usato nella barra degli indirizzi. “Velo” cerca insieme in preferiti e cronologia (e, con un account Infomaniak, in file, email, contatti ed eventi) e ti porta sul web con un clic.', engine),
+    row('Motore per il web', 'Usato dalla ricerca unificata per i risultati sul web.', webEngineSelect()),
+    row('Metti in pausa le schede inattive', 'Le schede non usate da un po’ chiudono la pagina per liberare memoria e si ricaricano quando le apri. Mai quelle fissate, delle app, con audio in riproduzione o con moduli compilati.', sleepSelect()),
     row('Cartella dei download', folder, folderControls),
     row('Chiedi dove salvare ogni file', 'Mostra la finestra “Salva con nome” per ogni download.', toggle('askDownloadLocation', 'Chiedi dove salvare')),
   );
@@ -370,7 +370,7 @@ function appearanceSection(): HTMLElement {
       { value: 'comfortable', title: 'Ariosa' },
     ], (v) => look({ density: v }))),
     row('Carattere', 'Per schede, barre, menu e pagine del browser.', h('div', { class: 'control' }, font, size)),
-    row('Icone delle app kSuite', null, segmented('Icone app', settings.appIconStyle, [
+    row('Icone delle app', null, segmented('Icone app', settings.appIconStyle, [
       { value: 'mono', title: 'Essenziali' },
       { value: 'color', title: 'Colorate' },
     ], (v) => look({ appIconStyle: v }))),
@@ -399,12 +399,12 @@ function layoutSection(): HTMLElement {
         { value: 'side', title: 'Di lato', desc: 'Una colonna verticale, ridimensionabile e riducibile.' },
       ], (v) => look({ tabsLayout: v }), true),
     ),
-    row('Barra delle app kSuite', 'Mail, kDrive, Calendar e le altre app.', segmented('Barra delle app', settings.railPosition, [
+    row('Barra delle app', 'Compare quando colleghi un account Infomaniak: Mail, kDrive, Calendar e le altre app.', segmented('Barra delle app', settings.railPosition, [
       { value: 'left', title: 'A sinistra' },
       { value: 'right', title: 'A destra' },
       { value: 'hidden', title: 'Nascosta' },
     ], (v) => look({ railPosition: v }))),
-    row('Barra dei preferiti', h('span', {}, 'Sotto la barra degli indirizzi (Ctrl+Shift+B). ', h('a', { href: 'ksuite://bookmarks/' }, 'Gestisci preferiti')), toggle('showBookmarksBar', 'Mostra barra dei preferiti')),
+    row('Barra dei preferiti', h('span', {}, 'Sotto la barra degli indirizzi (Ctrl+Shift+B). ', h('a', { href: 'velo://bookmarks/' }, 'Gestisci preferiti')), toggle('showBookmarksBar', 'Mostra barra dei preferiti')),
     row('Indirizzo completo', 'Mostra sempre “https://” e “www.”; altrimenti compaiono solo quando modifichi l’indirizzo.', toggle('showFullUrl', 'Mostra l’indirizzo completo')),
     h('div', { class: 'row stack', 'data-search': 'barra degli strumenti pulsanti personalizza ordine' },
       h('div', { class: 'text' },
@@ -422,7 +422,7 @@ function layoutSection(): HTMLElement {
         ], (v) => look({ newTabBackground: v })),
         h('label', { class: 'check' }, checkbox('newTabShowGreeting'), 'Saluto'),
         h('label', { class: 'check' }, checkbox('showTopSites'), 'Siti più visitati'),
-        h('label', { class: 'check' }, checkbox('newTabShowApps'), 'App kSuite')),
+        h('label', { class: 'check' }, checkbox('newTabShowApps'), 'Le tue app')),
     ),
   );
 }
@@ -487,7 +487,7 @@ async function notificationsSection(): Promise<HTMLElement> {
   return section(
     'notifications',
     'Notifiche',
-    status.configured ? null : row('Collega l’account kSuite', h('span', {}, 'Le notifiche usano il token API. ', h('a', { href: '#ksuite' }, 'Configuralo qui.')), null),
+    status.configured ? null : row('Collega un account Infomaniak', h('span', {}, 'Le notifiche usano il token API. ', h('a', { href: '#account' }, 'Configuralo qui.')), null),
     row('Nuove email', 'Controlla la posta in arrivo ogni 2 minuti e ti avvisa dei nuovi messaggi. Clic sulla notifica per aprire Mail.', toggle('notifyMail', 'Notifiche per le nuove email')),
     row('Promemoria degli eventi', 'Avvisa prima dell’inizio degli eventi di Calendar (non per quelli di tutto il giorno).', toggle('notifyEvents', 'Promemoria degli eventi')),
     row('Anticipo del promemoria', null, lead),
@@ -509,7 +509,7 @@ async function passwordsSection(): Promise<HTMLElement> {
     row('Offri di salvare le password', 'Dopo un accesso compare una barra per salvare nome utente e password.', toggle('offerToSavePasswords', 'Offri di salvare le password')),
     row('Avvisami se salvo una password violata', 'Quando salvi una password il browser controlla se compare in violazioni di dati note (Have I Been Pwned): esce solo l’inizio della sua impronta SHA-1, mai la password.', toggle('breachCheckOnSave', 'Avvisa per le password violate')),
     row('Compila automaticamente', 'Se per un sito c’è un solo accesso salvato, il modulo viene compilato all’apertura (solo su pagine HTTPS). Altrimenti clicca nel campo per scegliere.', toggle('autofillPasswords', 'Compila automaticamente')),
-    row('Password salvate', state, h('a', { href: 'ksuite://passwords/', class: 'button-link' }, 'Gestisci password')),
+    row('Password salvate', state, h('a', { href: 'velo://passwords/', class: 'button-link' }, 'Gestisci password')),
   );
 }
 
@@ -591,7 +591,7 @@ function privacySection(): HTMLElement {
   return section(
     'privacy',
     'Privacy e sicurezza',
-    row('Salva la cronologia', h('span', {}, 'Ricorda le pagine visitate (mai nelle finestre private). ', h('a', { href: 'ksuite://history/' }, 'Apri la cronologia')), toggle('saveHistory', 'Salva la cronologia')),
+    row('Salva la cronologia', h('span', {}, 'Ricorda le pagine visitate (mai nelle finestre private). ', h('a', { href: 'velo://history/' }, 'Apri la cronologia')), toggle('saveHistory', 'Salva la cronologia')),
     h('div', { class: 'row stack', 'data-search': 'protezione tracciamento tracker pubblicità blocco annunci cookie banner' },
       h('div', { class: 'title' }, 'Protezione dal tracciamento'),
       h('div', { class: 'desc muted small' }, 'Blocca le richieste verso tracker e reti pubblicitarie con le liste di Ghostery (EasyList, EasyPrivacy e altre), aggiornate ogni settimana.'),
@@ -629,7 +629,7 @@ function privacySection(): HTMLElement {
     ),
     h('div', { class: 'row stack', 'data-search': 'cancella dati navigazione cookie cache cronologia download' },
       h('div', { class: 'title' }, 'Cancella dati di navigazione'),
-      h('div', { class: 'desc muted small' }, 'Riguarda le finestre normali: le finestre private non salvano nulla. Cancellando i cookie dovrai rifare l’accesso ai siti, anche alle app kSuite.'),
+      h('div', { class: 'desc muted small' }, 'Riguarda le finestre normali: le finestre private non salvano nulla. Cancellando i cookie dovrai rifare l’accesso ai siti, anche alle app web.'),
       h('div', { class: 'checks' },
         check('history', 'Cronologia di navigazione'),
         check('cookies', 'Cookie e dati dei siti'),
@@ -652,7 +652,7 @@ function permissionsSection(): HTMLElement {
       h('option', { value: 'block', selected: settings.permissionDefaults[p] === 'block' }, 'Blocca'),
     );
     select.addEventListener('change', () => void update({ permissionDefaults: { ...settings.permissionDefaults, [p]: select.value as 'ask' | 'block' } }));
-    return row(PERMISSION_LABELS[p], p === 'media' ? 'Le app kSuite (kMeet, kChat) sono sempre consentite.' : null, select);
+    return row(PERMISSION_LABELS[p], p === 'media' ? 'Con un account Infomaniak collegato, kMeet e kChat sono sempre consentite.' : null, select);
   });
 
   const decisions = settings.sitePermissions.length
@@ -715,7 +715,7 @@ function syncSection(): HTMLElement {
   const intro = () => h('div', { class: 'row stack', 'data-search': 'sincronizzazione kdrive cifrata dispositivi passphrase' },
     h('div', { class: 'text' },
       h('div', { class: 'title' }, 'Preferiti, password e schede su tutti i tuoi computer'),
-      h('div', { class: 'desc' }, 'I dati vengono cifrati su questo computer con una passphrase che conosci solo tu, poi salvati nella cartella «kSuite Browser Sync» del tuo kDrive. Infomaniak vede solo dati illeggibili e non può recuperare la passphrase.')));
+      h('div', { class: 'desc' }, 'I dati vengono cifrati su questo computer con una passphrase che conosci solo tu, poi salvati nella cartella «Velo Sync» del tuo kDrive. Infomaniak vede solo dati illeggibili e non può recuperare la passphrase.')));
 
   const passphraseForm = (mode: 'create' | 'join' | 'unlock', status: SyncStatus) => {
     const pass = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Passphrase di sincronizzazione', 'aria-label': 'Passphrase di sincronizzazione' });
@@ -748,7 +748,7 @@ function syncSection(): HTMLElement {
     const status = await internal.sync.status();
     const rows: Node[] = [];
     if (!status.available) {
-      rows.push(intro(), row('Collega l’account kSuite', h('span', {}, 'La sincronizzazione usa il tuo kDrive. ', h('a', { href: '#ksuite' }, 'Configura il token.')), null));
+      rows.push(intro(), row('Collega un account Infomaniak', h('span', {}, 'La sincronizzazione usa il tuo kDrive. ', h('a', { href: '#account' }, 'Configura il token.')), null));
     } else if (!status.enabled) {
       rows.push(intro());
       if (setup === 'none') {
@@ -825,7 +825,7 @@ async function aiSection(): Promise<HTMLElement> {
     row('Assistente IA', 'Attiva il pannello IA, le azioni “Chiedi all’IA” nel menu contestuale, le domande con “?” nella barra degli indirizzi e la bozza delle email.', h('label', { class: 'switch' }, enable, h('span', {}))),
   ];
   if (!status.configured) {
-    rows.push(row('Collega l’account kSuite', h('span', {}, 'L’assistente usa il token API. ', h('a', { href: '#ksuite' }, 'Configuralo qui.')), null));
+    rows.push(row('Collega un account Infomaniak', h('span', {}, 'L’assistente usa il token API. ', h('a', { href: '#account' }, 'Configuralo qui.')), null));
   } else if (settings.aiEnabled) {
     const message = h('span', { class: 'message', role: 'status' });
     const product = h('select', { 'aria-label': 'Prodotto AI Services', disabled: true }, h('option', { value: '' }, 'Caricamento…'));
@@ -871,7 +871,7 @@ async function aiSection(): Promise<HTMLElement> {
     rows.push(
       row('Prodotto AI Services', 'Il prodotto del Manager Infomaniak a cui vengono addebitate le richieste.', product),
       row('Modello', 'Il modello linguistico usato per le risposte.', model),
-      row('Risposta IA nella ricerca kSuite', 'Mostra subito una risposta dell’IA in cima ai risultati, senza premere “Chiedi all’IA”. Ogni ricerca consuma crediti.', toggle('aiAutoAnswer', 'Risposta automatica nella ricerca')),
+      row('Risposta IA nella ricerca unificata', 'Mostra subito una risposta dell’IA in cima ai risultati, senza premere “Chiedi all’IA”. Ogni ricerca consuma crediti.', toggle('aiAutoAnswer', 'Risposta automatica nella ricerca')),
       row('Verifica la connessione', message, test),
     );
   }
@@ -882,12 +882,17 @@ async function aiSection(): Promise<HTMLElement> {
   return section('ai', 'Intelligenza artificiale', ...rows);
 }
 
-async function ksuiteSection(): Promise<HTMLElement> {
+async function accountSection(): Promise<HTMLElement> {
   const status = await internal.tokenStatus();
-  const rows: Array<Node | null> = [];
+  const rows: Array<Node | null> = [
+    h('div', { class: 'row stack', 'data-search': 'account cloud facoltativo infomaniak kdrive mail calendario' },
+      h('div', { class: 'text' },
+        h('div', { class: 'title' }, 'Facoltativo'),
+        h('div', { class: 'desc' }, 'Velo funziona del tutto senza account. Se usi i servizi di Infomaniak puoi collegarli: compaiono la barra delle app, il pannello con posta, file e calendario, il salvataggio su kDrive, la ricerca nei tuoi dati, la sincronizzazione e l’assistente IA. Il token resta su questo computer, cifrato con il portachiavi di sistema.'))),
+  ];
 
   if (status.fromEnv) {
-    rows.push(row('Token API', 'Fornito dalla variabile d’ambiente KSUITE_API_TOKEN.', null));
+    rows.push(row('Token API', 'Fornito dalla variabile d’ambiente VELO_API_TOKEN.', null));
   } else {
     const input = h('input', { type: 'password', autocomplete: 'off', placeholder: status.configured ? '•••••••• (token salvato)' : 'Incolla qui il token API', 'aria-label': 'Token API' });
     const message = h('span', { class: 'message', role: 'status' });
@@ -909,7 +914,7 @@ async function ksuiteSection(): Promise<HTMLElement> {
       }
     });
     rows.push(
-      h('div', { class: 'row stack', 'data-search': 'token api account kSuite infomaniak scope' },
+      h('div', { class: 'row stack', 'data-search': 'token api account cloud infomaniak scope' },
         h('div', { class: 'title' }, status.configured ? 'Account collegato' : 'Collega il tuo account'),
         h('ol', { class: 'steps small' },
           h('li', {}, 'Apri la ', h('a', { href: TOKEN_PAGE, target: '_blank' }, 'pagina dei token API'), ' del Manager Infomaniak.'),
@@ -942,7 +947,7 @@ async function ksuiteSection(): Promise<HTMLElement> {
       row('Carica i download su kDrive', 'Ogni download completato viene copiato anche nella cartella di destinazione (non nelle finestre private).', toggle('uploadDownloadsToDrive', 'Carica i download su kDrive')),
     );
   }
-  return section('ksuite', 'Account kSuite', ...rows);
+  return section('account', 'Account cloud', ...rows);
 }
 
 function platformNote(): string {
@@ -1004,7 +1009,7 @@ async function aboutSection(): Promise<HTMLElement> {
     'Informazioni',
     h('div', { class: 'row stack' },
       h('dl', { class: 'about' },
-        ...item('kSuite Browser', a.version),
+        ...item('Velo', a.version),
         ...item('Chromium', a.chrome),
         ...item('Electron', a.electron),
         ...item('Node.js', a.node),
@@ -1024,7 +1029,7 @@ async function render(): Promise<void> {
   if (settings.theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
   const scroll = content.scrollTop || document.scrollingElement?.scrollTop || 0;
-  const sections = [await generalSection(), appearanceSection(), layoutSection(), zoomSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await ksuiteSection(), syncSection(), await aiSection(), await aboutSection()];
+  const sections = [await generalSection(), appearanceSection(), layoutSection(), zoomSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await accountSection(), syncSection(), await aiSection(), await aboutSection()];
   content.replaceChildren(...sections);
   hydrateIcons(content);
   applyFilter();

@@ -55,7 +55,7 @@ export function fileIcon(file: { type: string; name: string; mimeType?: string |
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** The kSuite Browser mark (a "k" on the brand gradient), used for internal pages. */
+/** The Velo mark (a "V" made of two veil folds on the brand gradient), used for internal pages. */
 export function logoMark(size = 16): SVGElement {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', '0 0 64 64');
@@ -64,9 +64,10 @@ export function logoMark(size = 16): SVGElement {
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('class', 'logo-mark');
   const id = `lg${Math.random().toString(36).slice(2, 8)}`;
-  svg.innerHTML = `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34a8ff"/><stop offset="1" stop-color="#3b55f0"/></linearGradient></defs>
+  svg.innerHTML = `<defs><linearGradient id="${id}" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" stop-color="#4d8dff"/><stop offset="0.55" stop-color="#3264f0"/><stop offset="1" stop-color="#22307f"/></linearGradient></defs>
 <rect width="64" height="64" rx="16" fill="url(#${id})"/>
-<path d="M24 16v32M42 25 25.5 38M31 33.5 43 48" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+<path d="M12 15 Q17 15.5 20 16 Q27 26 32 52 Q22 33 12 15Z" fill="#fff"/>
+<path d="M52 15 Q47 15.5 44 16 Q37 26 32 52 Q42 33 52 15Z" fill="#fff" fill-opacity=".6"/>`;
   return svg;
 }
 

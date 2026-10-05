@@ -29,9 +29,9 @@ const LISTS: Array<{ kind: ThreatKind; urls: string[] }> = [
   },
 ];
 
-/** Tests can point the lists elsewhere: KSUITE_THREAT_LISTS="phishing=http://…,malware=http://…". */
+/** Tests can point the lists elsewhere: VELO_THREAT_LISTS="phishing=http://…,malware=http://…". */
 function configuredLists(): Array<{ kind: ThreatKind; urls: string[] }> {
-  const env = process.env.KSUITE_THREAT_LISTS;
+  const env = process.env.VELO_THREAT_LISTS;
   if (!env) return LISTS;
   return env.split(',').map((pair) => {
     const [kind, url] = pair.split('=');

@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { net } from 'electron';
 import { pwnedCount, splitHash } from '../../shared/pwned';
 
-/** Tests can point to a local copy of the API: KSUITE_PWNED_API=http://127.0.0.1:… */
-const API = process.env.KSUITE_PWNED_API ?? 'https://api.pwnedpasswords.com';
+/** Tests can point to a local copy of the API: VELO_PWNED_API=http://127.0.0.1:… */
+const API = process.env.VELO_PWNED_API ?? 'https://api.pwnedpasswords.com';
 
 export function sha1(password: string): string {
   return createHash('sha1').update(password, 'utf8').digest('hex').toUpperCase();
@@ -18,7 +18,7 @@ export class BreachChecker {
     let pending = this.ranges.get(prefix);
     if (!pending) {
       pending = net
-        .fetch(`${API}/range/${prefix}`, { headers: { 'Add-Padding': 'true', 'User-Agent': 'kSuite-Browser-password-check' }, cache: 'no-store' })
+        .fetch(`${API}/range/${prefix}`, { headers: { 'Add-Padding': 'true', 'User-Agent': 'Velo-password-check' }, cache: 'no-store' })
         .then((res) => {
           if (!res.ok) throw new Error(`Servizio non disponibile (${res.status})`);
           return res.text();

@@ -144,6 +144,6 @@ const api = {
   },
 };
 
-export type KSuiteBridge = typeof api;
+export type VeloBridge = typeof api;
 
-contextBridge.exposeInMainWorld('ksuite', api);
+contextBridge.exposeInMainWorld('velo', api);

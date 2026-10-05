@@ -1,5 +1,5 @@
-/** Web apps of the kSuite, opened as tabs from the sidebar. */
-export interface KSuiteApp {
+/** Infomaniak web apps (optional integration), opened as tabs from the app bar once an account is connected. */
+export interface InfomaniakApp {
   id: string;
   name: string;
   url: string;
@@ -7,7 +7,7 @@ export interface KSuiteApp {
   icon: 'grid' | 'mail' | 'cloud' | 'calendar' | 'bookUser' | 'chat' | 'video' | 'sparkles' | 'send';
 }
 
-export const KSUITE_APPS: readonly KSuiteApp[] = [
+export const INFOMANIAK_APPS: readonly InfomaniakApp[] = [
   { id: 'home', name: 'kSuite', url: 'https://ksuite.infomaniak.com/', icon: 'grid' },
   { id: 'mail', name: 'Mail', url: 'https://mail.infomaniak.com/', icon: 'mail' },
   { id: 'drive', name: 'kDrive', url: 'https://kdrive.infomaniak.com/', icon: 'cloud' },

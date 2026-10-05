@@ -49,7 +49,7 @@ export class SettingsStore {
   }
 
   getToken(): string | null {
-    const env = process.env.KSUITE_API_TOKEN?.trim();
+    const env = process.env.VELO_API_TOKEN?.trim();
     if (env) return env;
     if (this.stored.tokenCipher && safeStorage.isEncryptionAvailable()) {
       // Also reads tokens written before the basic_text check existed.
@@ -84,7 +84,7 @@ export class SettingsStore {
     return {
       configured: this.getToken() !== null,
       encrypted: !this.stored.tokenPlain,
-      fromEnv: Boolean(process.env.KSUITE_API_TOKEN?.trim()),
+      fromEnv: Boolean(process.env.VELO_API_TOKEN?.trim()),
     };
   }
 

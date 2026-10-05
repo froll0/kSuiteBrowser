@@ -51,7 +51,7 @@ function fake(routes: Record<string, (url: URL) => unknown>) {
   return { client: new InfomaniakClient('t', fetchImpl), calls };
 }
 
-describe('kSuite search APIs', () => {
+describe('unified search APIs', () => {
   it('searches mail in every folder', async () => {
     const { client, calls } = fake({
       'mail.infomaniak.com/api/mailbox': () => ({ data: [{ uuid: 'mb', email: 'a@ik.me' }] }),

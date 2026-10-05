@@ -42,7 +42,23 @@ export interface AppMenuActions {
 export function buildAppMenu(a: AppMenuActions): Menu {
   const isMac = process.platform === 'darwin';
   const template: MenuItemConstructorOptions[] = [
-    ...(isMac ? [{ role: 'appMenu' } as MenuItemConstructorOptions] : []),
+    // Written out: for profiles moved from the old version the app keeps its old internal name (keychain).
+    ...(isMac
+      ? [{
+          label: 'Velo',
+          submenu: [
+            { role: 'about', label: 'Informazioni su Velo' },
+            { type: 'separator' },
+            { role: 'services', label: 'Servizi' },
+            { type: 'separator' },
+            { role: 'hide', label: 'Nascondi Velo' },
+            { role: 'hideOthers', label: 'Nascondi altre' },
+            { role: 'unhide', label: 'Mostra tutte' },
+            { type: 'separator' },
+            { role: 'quit', label: 'Esci da Velo' },
+          ],
+        } as MenuItemConstructorOptions]
+      : []),
     {
       label: 'File',
       submenu: [
@@ -111,7 +127,7 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { label: 'Dimensioni reali', accelerator: 'CmdOrCtrl+num0', click: () => a.zoom('reset'), visible: false },
         { type: 'separator' },
         { label: 'Mostra/nascondi barra dei preferiti', accelerator: 'CmdOrCtrl+Shift+B', click: a.toggleBookmarksBar },
-        { label: 'Mostra/nascondi pannello kSuite', accelerator: 'CmdOrCtrl+Shift+K', click: a.togglePanel },
+        { label: 'Mostra/nascondi pannello cloud', accelerator: 'CmdOrCtrl+Shift+K', click: a.togglePanel },
         { label: 'Modalità lettura', accelerator: 'F9', click: a.reader },
         { label: 'Picture-in-picture', accelerator: 'CmdOrCtrl+Shift+P', click: a.pictureInPicture },
         { label: 'Sorgente pagina', accelerator: 'CmdOrCtrl+U', click: a.viewSource },
@@ -140,7 +156,7 @@ export function buildAppMenu(a: AppMenuActions): Menu {
       label: 'Aiuto',
       submenu: [
         { label: 'Controlla aggiornamenti…', click: a.checkUpdates },
-        { label: 'Informazioni su kSuite Browser', click: a.about },
+        { label: 'Informazioni su Velo', click: a.about },
       ],
     },
   ];

@@ -38,8 +38,8 @@ export class UpdateService {
       return;
     }
     const u = this.updater;
-    // KSUITE_UPDATE_URL: a folder with latest*.yml and installers (a mirror, or a local server for testing).
-    const mirror = process.env.KSUITE_UPDATE_URL;
+    // VELO_UPDATE_URL: a folder with latest*.yml and installers (a mirror, or a local server for testing).
+    const mirror = process.env.VELO_UPDATE_URL;
     if (mirror) u.setFeedURL({ provider: 'generic', url: mirror });
     else u.setFeedURL({ provider: 'github', owner: REPOSITORY.owner, repo: REPOSITORY.repo, releaseType: 'release' });
     u.autoDownload = this.status.mode === 'auto' && this.settings.get().autoUpdate;

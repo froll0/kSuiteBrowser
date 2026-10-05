@@ -13,11 +13,13 @@ import type { Bookmark, RemoteTabs, SyncCollectionOption, SyncStatus } from '../
 import { keychainAvailable } from '../keychain';
 import { deriveKey, newKdfParams, open, seal, type KdfParams, type Sealed } from '../passwords/crypto';
 import type { Vault } from '../passwords/vault';
-import type { KSuiteServices } from '../services';
+import type { CloudServices } from '../services';
 import type { BookmarksStore } from '../stores/bookmarks';
 import type { HistoryStore } from '../stores/history';
 
-const FOLDER = 'kSuite Browser Sync';
+const FOLDER = 'Velo Sync';
+/** Folder used before the browser was renamed: kept if it already holds the data. */
+const LEGACY_FOLDER = 'Velo Sync';
 const META = 'sync-key.json';
 const DEVICE_PREFIX = 'device-';
 const DEVICE_SUFFIX = '.ksync';
@@ -55,7 +57,7 @@ interface LocalFile {
 
 export interface SyncDeps {
   userData: string;
-  services: KSuiteServices;
+  services: CloudServices;
   tokenConfigured: () => boolean;
   bookmarks: BookmarksStore;
   history: HistoryStore;
@@ -175,9 +177,12 @@ export class SyncEngine {
   // ---------- kDrive ----------
 
   private async drive() {
-    if (!this.deps.tokenConfigured()) throw new SyncError('Collega l’account kSuite per usare la sincronizzazione.');
+    if (!this.deps.tokenConfigured()) throw new SyncError('Collega un account Infomaniak (Impostazioni › Account cloud) per usare la sincronizzazione.');
     const { client, driveId } = await this.deps.services.driveContext();
-    const folder = await ensureDirectory(client, driveId, 1, FOLDER);
+    const root = await listAll(client, driveId, 1);
+    const legacy = root.find((f) => f.type === 'dir' && f.name === LEGACY_FOLDER);
+    const current = root.find((f) => f.type === 'dir' && f.name === FOLDER);
+    const folder = current ?? legacy ?? (await ensureDirectory(client, driveId, 1, FOLDER));
     return { client, driveId, folderId: folder.id };
   }
 

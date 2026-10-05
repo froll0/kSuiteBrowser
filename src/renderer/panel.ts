@@ -18,7 +18,7 @@ const VIEWS: Array<{ id: PanelView; label: string; icon: IconName }> = [
 
 type Notify = (kind: 'info' | 'success' | 'error', message: string) => void;
 
-/** The kSuite side panel: dashboard, kDrive browser, mail, agenda, downloads and settings. */
+/** The cloud side panel (optional Infomaniak account): dashboard, kDrive browser, mail, agenda, downloads and settings. */
 export class Panel {
   private view: PanelView = 'home';
   private driveStack: Array<{ id: number; name: string }> = [{ id: 1, name: 'kDrive' }];
@@ -117,9 +117,9 @@ export class Panel {
       { class: 'panel-view' },
       h('div', { class: 'empty-state' },
         withIcon(h('span', { class: 'big-icon' }), 'key', 26),
-        h('h2', {}, 'Collega il tuo account kSuite'),
+        h('h2', {}, 'Collega un account Infomaniak'),
         h('p', {}, 'Le app della suite funzionano già dalla barra laterale. Per kDrive, Mail e Agenda qui nel pannello serve un token API personale.'),
-        h('button', { class: 'primary', onclick: () => void ks.openSettingsPage('ksuite') }, 'Configura il token'),
+        h('button', { class: 'primary', onclick: () => void ks.openSettingsPage('account') }, 'Configura il token'),
       ),
     );
   }

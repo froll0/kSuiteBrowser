@@ -45,7 +45,7 @@ function editor(initial: { title: string; url: string; folder: BookmarkFolder },
     e.preventDefault();
     try {
       const parsed = new URL(url.value.trim());
-      if (!['http:', 'https:', 'file:', 'ksuite:'].includes(parsed.protocol)) throw new Error();
+      if (!['http:', 'https:', 'file:', 'velo:'].includes(parsed.protocol)) throw new Error();
     } catch {
       say('Indirizzo non valido.');
       url.focus();
@@ -119,7 +119,7 @@ fileInput.addEventListener('change', async () => {
 document.getElementById('export')!.addEventListener('click', () => {
   const blob = new Blob([exportBookmarksHtml(bookmarks)], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
-  const a = h('a', { href: url, download: `preferiti-ksuite-${new Date().toISOString().slice(0, 10)}.html` });
+  const a = h('a', { href: url, download: `preferiti-velo-${new Date().toISOString().slice(0, 10)}.html` });
   document.body.append(a);
   a.click();
   a.remove();

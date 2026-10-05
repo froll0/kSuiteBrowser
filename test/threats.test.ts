@@ -32,7 +32,7 @@ describe('threat lists', () => {
     expect(index.match('https://docs.google.com/forms/d/e/other/viewform')).toBeNull();
     expect(index.match('https://example.org/')).toBeNull();
     expect(index.match('https://notevil-login.example/')).toBeNull();
-    expect(index.match('ksuite://settings/')).toBeNull();
+    expect(index.match('velo://settings/')).toBeNull();
     expect(index.match('http://1.2.3.4/x')).toBe('phishing');
     expect(index.size).toBe(8);
   });

@@ -1,7 +1,7 @@
 // Overridable only through the environment, to run the app against a local mock in tests.
 const env = typeof process !== 'undefined' ? process.env : {};
-export const API_BASE = env.KSUITE_API_BASE || 'https://api.infomaniak.com';
-export const MAIL_API_BASE = env.KSUITE_MAIL_API_BASE || 'https://mail.infomaniak.com/api';
+export const API_BASE = env.VELO_API_BASE || 'https://api.infomaniak.com';
+export const MAIL_API_BASE = env.VELO_MAIL_API_BASE || 'https://mail.infomaniak.com/api';
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 

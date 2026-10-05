@@ -48,7 +48,7 @@ export interface TabManagerHooks {
 
 export interface TabManagerOptions {
   session: Session;
-  /** Preload for tabs; it only exposes an API to internal ksuite:// pages. */
+  /** Preload for tabs; it only exposes an API to internal velo:// pages. */
   preload: string;
 }
 
@@ -160,7 +160,7 @@ export class TabManager {
       emit();
     });
     wc.on('did-navigate', (_e, navUrl) => {
-      if (!navUrl.startsWith('data:') && !navUrl.startsWith('ksuite://https-only') && !navUrl.startsWith('ksuite://blocked')) tab.failedUrl = null;
+      if (!navUrl.startsWith('data:') && !navUrl.startsWith('velo://https-only') && !navUrl.startsWith('velo://blocked')) tab.failedUrl = null;
       tab.favicon = null;
       tab.mediaSeen = false;
       emit();
@@ -259,7 +259,7 @@ export class TabManager {
     return count;
   }
 
-  /** Focuses an existing tab of a kSuite app, or opens it. */
+  /** Focuses an existing tab of an app of the app bar, or opens it. */
   openApp(appId: string, url: string): void {
     const existing = this.tabs.find((t) => t.appId === appId);
     if (existing) this.activate(existing.id);
@@ -550,7 +550,7 @@ export class TabManager {
       const url = t.failedUrl ?? original ?? wc.getURL();
       return {
         id: t.id,
-        title: url.startsWith('ksuite://newtab') ? 'Nuova scheda' : wc.getTitle() || url || 'Nuova scheda',
+        title: url.startsWith('velo://newtab') ? 'Nuova scheda' : wc.getTitle() || url || 'Nuova scheda',
         url,
         favicon: t.favicon,
         loading: wc.isLoading(),

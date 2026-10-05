@@ -27,7 +27,7 @@ export const IPC = {
   tabsDetach: 'tabs:detach',
   tabsAdopt: 'tabs:adopt',
   tabsMute: 'tabs:mute',
-  openApp: 'ksuite:open-app',
+  openApp: 'cloud:open-app',
   setContentBounds: 'layout:content-bounds',
   showAppMenu: 'ui:app-menu',
   showShieldMenu: 'ui:shield-menu',
@@ -96,7 +96,7 @@ export const IPC = {
   evAiAsk: 'ev:ai-ask',
 } as const;
 
-/** Channels of the internal pages (ksuite://…), see src/preload/page.ts. */
+/** Channels of the internal pages (velo://…), see src/preload/page.ts. */
 export const INTERNAL = {
   settingsGet: 'internal:settings:get',
   settingsSet: 'internal:settings:set',

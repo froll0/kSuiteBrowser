@@ -31,7 +31,7 @@ document.getElementById('host')!.textContent = target;
 
 document.getElementById('back')!.addEventListener('click', () => {
   if (history.length > 1) history.back();
-  else location.href = 'ksuite://newtab/';
+  else location.href = 'velo://newtab/';
 });
 const detailsBtn = document.getElementById('details-btn')!;
 detailsBtn.addEventListener('click', () => {

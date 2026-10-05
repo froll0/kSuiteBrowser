@@ -33,7 +33,7 @@ if (isExtension) {
   try {
     contextBridge.executeInMainWorld({ func: installShims, args: [bridge] });
   } catch (err) {
-    console.error('[kSuite] estensione: API non disponibili', err);
+    console.error('[Velo] estensione: API non disponibili', err);
   }
 }
 
@@ -45,9 +45,9 @@ type Bridge = { invoke(name: string, args: unknown[]): Promise<unknown>; listen(
  */
 function installShims(bridge: Bridge): void {
   const g = globalThis as unknown as { chrome?: Record<string, any>; location: Location; close?: () => void };
-  if (g.location.protocol !== 'chrome-extension:' || !g.chrome || g.chrome.__ksuite) return;
+  if (g.location.protocol !== 'chrome-extension:' || !g.chrome || g.chrome.__velo) return;
   const chrome = g.chrome;
-  Object.defineProperty(chrome, '__ksuite', { value: true });
+  Object.defineProperty(chrome, '__velo', { value: true });
 
   // ---------- Events ----------
   const listeners = new Map<string, Set<(...a: unknown[]) => unknown>>();
@@ -279,7 +279,7 @@ function installShims(bridge: Bridge): void {
     ACTION_MENU_TOP_LEVEL_LIMIT: 6,
     create(props: Record<string, unknown>, cb?: () => void) {
       const { onclick, ...rest } = props ?? {};
-      const id = String(rest.id ?? `ksuite-${Math.random().toString(36).slice(2)}`);
+      const id = String(rest.id ?? `velo-${Math.random().toString(36).slice(2)}`);
       if (typeof onclick === 'function') {
         localClicks.set(id, onclick as (...a: unknown[]) => void);
         subscribe('contextMenus.onClicked');

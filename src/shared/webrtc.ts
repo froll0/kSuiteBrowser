@@ -1,4 +1,4 @@
-import { isTrustedSuiteHost } from './ksuite-apps';
+import { isTrustedSuiteHost } from './infomaniak-apps';
 
 /**
  * How much WebRTC (video calls, peer-to-peer) may reveal about the network:
@@ -12,7 +12,7 @@ export type WebRtcPolicy = 'default' | 'default_public_interface_only' | 'disabl
 
 export function webRtcPolicy(level: WebRtcProtection, pageUrl: string): WebRtcPolicy {
   if (level === 'standard') return 'default';
-  // kSuite's own calls (kMeet) keep working at every level: at most the VPN-safe mode.
+  // Infomaniak calls (kMeet) keep working at every level: at most the VPN-safe mode.
   let host = '';
   try {
     host = new URL(pageUrl).hostname;

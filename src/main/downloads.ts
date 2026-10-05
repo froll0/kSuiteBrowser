@@ -4,7 +4,7 @@ import type { ThreatKind } from '../shared/threat-match';
 import { basename, join } from 'node:path';
 import type { DownloadItemState } from '../shared/types';
 import { uniquePath } from './files';
-import type { KSuiteServices } from './services';
+import type { CloudServices } from './services';
 import type { SettingsStore } from './settings';
 
 /** Saves browser downloads (folder and "ask where" from the settings) and optionally mirrors them to kDrive. */
@@ -14,7 +14,7 @@ export class DownloadManager {
 
   constructor(
     private readonly settings: SettingsStore,
-    private readonly services: KSuiteServices,
+    private readonly services: CloudServices,
     private readonly onChange: (items: DownloadItemState[]) => void,
     private readonly safety: { threatCheck(url: string): ThreatKind | null; window(): BrowserWindow | null } = { threatCheck: () => null, window: () => null },
   ) {}

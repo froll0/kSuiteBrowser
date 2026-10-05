@@ -23,7 +23,7 @@ bridge.onItems(({ items, selected, look }) => {
       if (item.kind === 'history' || item.kind === 'bookmark' || item.kind === 'tab') {
         el = document.createElement('img');
         el.className = 'icon';
-        (el as HTMLImageElement).src = `ksuite://favicon/?url=${encodeURIComponent(item.url)}`;
+        (el as HTMLImageElement).src = `velo://favicon/?url=${encodeURIComponent(item.url)}`;
         (el as HTMLImageElement).alt = '';
       } else {
         el = document.createElement('span');

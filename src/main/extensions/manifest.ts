@@ -136,7 +136,7 @@ const PERMISSION_TEXT: Record<string, string> = {
   cookies: 'Leggere e modificare i cookie',
 };
 
-/** API that kSuite Browser doesn't offer (the extension may partly not work). */
+/** API that Velo doesn't offer (the extension may partly not work). */
 const UNSUPPORTED = new Set([
   'bookmarks', 'history', 'downloads', 'nativeMessaging', 'proxy', 'identity', 'topSites', 'sessions', 'debugger', 'pageCapture',
   'desktopCapture', 'tabCapture', 'tabGroups', 'sidePanel', 'search', 'fontSettings', 'contentSettings', 'browsingData', 'tts', 'ttsEngine',

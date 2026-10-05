@@ -13,13 +13,13 @@ interface InternalBridge {
 
 declare global {
   interface Window {
-    ksuiteInternal?: InternalBridge;
+    veloInternal?: InternalBridge;
   }
 }
 
 function bridge(): InternalBridge {
-  if (!window.ksuiteInternal) throw new Error('Questa pagina funziona solo dentro kSuite Browser.');
-  return window.ksuiteInternal;
+  if (!window.veloInternal) throw new Error('Questa pagina funziona solo dentro Velo.');
+  return window.veloInternal;
 }
 
 const call = <T>(channel: string, ...args: unknown[]) => bridge().invoke(channel, ...args) as Promise<T>;

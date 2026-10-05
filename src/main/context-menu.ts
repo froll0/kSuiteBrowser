@@ -15,11 +15,13 @@ export interface ContextMenuActions {
   aiEnabled(): boolean;
   askAboutText(action: TextAction, text: string): void;
   askAboutPage(action: PageAction): void;
+  /** An Infomaniak account is connected: kDrive and Mail actions are offered. */
+  cloudEnabled(): boolean;
   /** Items added by the installed extensions (chrome.contextMenus). */
   extensionItems?(params: Electron.ContextMenuParams): MenuItemConstructorOptions[];
 }
 
-/** Right-click menu for web pages, with the kSuite actions next to the usual browser ones. */
+/** Right-click menu for web pages, with the cloud actions (when an account is connected) next to the usual browser ones. */
 export function attachContextMenu(contents: WebContents, actions: ContextMenuActions): void {
   contents.on('context-menu', (_event, params) => {
     const items: MenuItemConstructorOptions[] = [];
@@ -33,7 +35,7 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
         ...(stripTrackingParams(link) ? [{ label: 'Copia link senza tracciamento', click: () => clipboard.writeText(stripTrackingParams(link) ?? link) }] : []),
         { label: 'Salva link con nome…', click: () => contents.downloadURL(link) },
       );
-      if (isHttp(link)) {
+      if (isHttp(link) && actions.cloudEnabled()) {
         items.push(
           { label: 'Salva destinazione link su kDrive', click: () => actions.saveUrlToDrive(link) },
           { label: 'Invia link via Mail…', click: () => actions.mailLink(link, params.linkText || link) },
@@ -50,7 +52,7 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
         { label: 'Copia immagine', click: () => contents.copyImageAt(params.x, params.y) },
         { label: 'Copia indirizzo immagine', click: () => clipboard.writeText(src) },
       );
-      if (isHttp(src)) items.push({ label: 'Salva immagine su kDrive', click: () => actions.saveUrlToDrive(src) });
+      if (isHttp(src) && actions.cloudEnabled()) items.push({ label: 'Salva immagine su kDrive', click: () => actions.saveUrlToDrive(src) });
       items.push({ type: 'separator' });
     }
 
@@ -138,8 +140,12 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
         { type: 'separator' },
         { label: 'Salva pagina con nome…', click: () => actions.savePageAs(contents) },
         { label: 'Stampa…', click: () => actions.print(contents) },
-        { label: 'Salva pagina come PDF su kDrive', click: () => actions.savePageToDrive(contents) },
-        { label: 'Invia pagina via Mail…', click: () => actions.mailLink(contents.getURL(), contents.getTitle()) },
+        ...(actions.cloudEnabled()
+          ? [
+              { label: 'Salva pagina come PDF su kDrive', click: () => actions.savePageToDrive(contents) },
+              { label: 'Invia pagina via Mail…', click: () => actions.mailLink(contents.getURL(), contents.getTitle()) },
+            ]
+          : []),
         ...(actions.aiEnabled() && /^https?:/i.test(contents.getURL())
           ? [{ label: 'IA: pagina', submenu: (Object.keys(PAGE_ACTIONS) as PageAction[]).map((a) => ({ label: PAGE_ACTIONS[a].label, click: () => actions.askAboutPage(a) })) }]
           : []),

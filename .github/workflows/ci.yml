@@ -60,7 +60,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
       - uses: actions/upload-artifact@v4
         with:
-          name: ksuite-browser-${{ matrix.os }}
+          name: velo-${{ matrix.os }}
           path: |
             release/*.exe
             release/*.dmg
@@ -86,7 +86,7 @@ jobs:
       # A pushed tag must match package.json; a manual run takes the version from package.json itself.
       - run: node scripts/check-release.mjs "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || steps.version.outputs.tag }}"
       # On a manual run the release creates the tag on the commit being built.
-      - run: gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "kSuite Browser $TAG" --generate-notes
+      - run: gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "Velo $TAG" --generate-notes
         env:
           TAG: ${{ steps.version.outputs.tag }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

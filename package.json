@@ -1,8 +1,8 @@
 {
-  "name": "ksuite-browser",
-  "productName": "kSuite Browser",
+  "name": "velo",
+  "productName": "Velo",
   "version": "0.4.0",
-  "description": "Browser desktop con integrazione nativa di Infomaniak kSuite (kDrive, Mail, Calendar, kChat, kMeet)",
+  "description": "Velo: browser desktop per la privacy e l'anonimato, con integrazione facoltativa dei servizi cloud Infomaniak",
   "main": "dist/main/main.js",
   "private": true,
   "license": "MIT",
@@ -38,8 +38,9 @@
     "vitest": "^5.0.1"
   },
   "build": {
-    "appId": "com.ksuitebrowser.app",
-    "productName": "kSuite Browser",
+    "appId": "io.github.froll0.velo",
+    "productName": "Velo",
+    "executableName": "velo",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -73,11 +74,11 @@
         "deb"
       ],
       "category": "Network",
-      "maintainer": "kSuite Browser",
+      "maintainer": "Velo",
       "icon": "build/icon.png",
       "desktop": {
         "entry": {
-          "StartupWMClass": "ksuite-browser"
+          "StartupWMClass": "velo"
         }
       },
       "mimeTypes": [
@@ -88,7 +89,7 @@
         "application/pdf"
       ]
     },
-    "artifactName": "kSuite-Browser-${version}-${os}-${arch}.${ext}",
+    "artifactName": "Velo-${version}-${os}-${arch}.${ext}",
     "publish": [
       {
         "provider": "github",

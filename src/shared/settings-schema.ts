@@ -12,9 +12,9 @@ export const ASKABLE_PERMISSIONS: readonly AskablePermission[] = ['media', 'noti
 
 export const DEFAULT_SETTINGS: Settings = {
   startup: 'restore',
-  searchEngine: 'ksuite',
+  searchEngine: 'velo',
   webSearchEngine: 'duckduckgo',
-  homePage: 'https://ksuite.infomaniak.com/',
+  homePage: 'velo://newtab/',
   downloadDir: null,
   askDownloadLocation: false,
 
@@ -147,14 +147,16 @@ export function sanitizeSettings(raw: unknown): Settings {
 
   return {
     startup: oneOf(s.startup, ['home', 'restore'] as const, d.startup),
-    searchEngine: oneOf(s.searchEngine, Object.keys(SEARCH_ENGINES) as Array<keyof typeof SEARCH_ENGINES>, d.searchEngine),
+    // The unified search was called "ksuite" before the browser became Velo.
+    searchEngine: oneOf(s.searchEngine === 'ksuite' ? 'velo' : s.searchEngine, Object.keys(SEARCH_ENGINES) as Array<keyof typeof SEARCH_ENGINES>, d.searchEngine),
     // Older settings only had searchEngine: reuse it as the web engine.
     webSearchEngine: oneOf(
       s.webSearchEngine,
       Object.keys(WEB_SEARCH_ENGINES) as Array<keyof typeof WEB_SEARCH_ENGINES>,
       oneOf(s.searchEngine, Object.keys(WEB_SEARCH_ENGINES) as Array<keyof typeof WEB_SEARCH_ENGINES>, d.webSearchEngine),
     ),
-    homePage: typeof s.homePage === 'string' && s.homePage.trim() ? s.homePage.trim() : d.homePage,
+    // The old default home page (the kSuite dashboard) becomes the new tab page.
+    homePage: typeof s.homePage === 'string' && s.homePage.trim() && s.homePage.trim() !== 'https://ksuite.infomaniak.com/' ? s.homePage.trim() : d.homePage,
     downloadDir: typeof s.downloadDir === 'string' && s.downloadDir ? s.downloadDir : null,
     askDownloadLocation: bool(s.askDownloadLocation, d.askDownloadLocation),
 

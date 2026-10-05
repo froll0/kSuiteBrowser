@@ -147,6 +147,9 @@ export class TabManager {
         spellcheck: true,
         // Built-in PDF viewer.
         plugins: true,
+        // The session preloads also run in iframes: fingerprinting protection must reach third-party
+        // frames too. Node stays off (sandbox); each preload decides whether it works in a subframe.
+        nodeIntegrationInSubFrames: true,
       },
     });
     tab.view = view;

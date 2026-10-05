@@ -152,6 +152,7 @@ quindi funzionano senza sorprese.
   così la rete (Wi-Fi pubblico, provider) non vede quali siti apri
 - **Protezione dell'IP con WebRTC**: standard, protetta (predefinita: solo la connessione principale, l'IP reale resta
   nascosto dietro una VPN) o massima (nessun collegamento diretto); le chiamate di kMeet funzionano sempre
+- **Protezione dall'impronta digitale** (fingerprinting), vedi [sotto](#protezione-dallimpronta-digitale)
 - **Link puliti**: i parametri di tracciamento (`utm_…`, `fbclid`, `gclid`, `msclkid`, `si` di YouTube…) vengono tolti dagli
   indirizzi prima di aprire la pagina; "Copia link senza tracciamento" nel menu contestuale dei link
 - **Protezione da phishing e malware**: i siti che rubano password e dati e i file di malware conosciuti vengono bloccati
@@ -243,6 +244,24 @@ Chromium, il motore delle pagine, non invia statistiche; i contatti con Google v
 All'avvio, senza aprire siti, Velo contatta solo: le liste di blocco dei tracker e degli indirizzi pericolosi (GitHub,
 GitLab), Quad9 per il DNS cifrato e, se lo colleghi, Infomaniak. Il Chrome Web Store viene contattato solo per
 installare o aggiornare le estensioni che hai preso da lì.
+
+## Protezione dall'impronta digitale
+
+Senza cookie un sito può riconoscerti dalle caratteristiche del dispositivo: come la scheda grafica disegna un'immagine,
+come la scheda audio elabora un suono, quanti processori hai, lo schermo, i caratteri installati. Velo ha due modalità:
+
+- **Standard** (predefinita, come il "farbling" di Brave): le letture di immagini canvas e WebGL e dell'audio vengono
+  alterate in modo impercettibile (un bit su qualche pixel o campione), il numero di processori è plausibile ma non reale,
+  la scheda grafica diventa generica, memoria, batteria, rete e caratteri locali non si leggono. L'alterazione dipende da
+  una chiave casuale della sessione e dal sito: lo stesso sito vede valori stabili, due siti vedono valori diversi e
+  dopo un riavvio cambiano tutti. Nessun sito smette di funzionare.
+- **Rigorosa** (come Tor Browser): valori uguali per tutti, letture canvas vuote, schermo arrotondato alla finestra,
+  lingua `en-US` (anche nell'intestazione `Accept-Language`), nessun elenco di microfoni e videocamere, nessun touch.
+
+In entrambe le modalità i *client hints* che descrivono il dispositivo in dettaglio (versione esatta, build del sistema,
+architettura, modello) non vengono mai inviati. La protezione vale anche negli iframe, con la chiave del sito principale
+(un tracker incorporato in due siti vede due dispositivi diversi). Le funzioni sostituite appaiono native (`toString` compreso). Dal
+pulsante scudo si possono spegnere tutte le protezioni per un sito.
 
 ## Come funzionano le estensioni
 
@@ -373,6 +392,8 @@ codice caricato solo dall'archivio `app.asar` (verificato su Windows e macOS), c
   può ancora usare `document.cookie` all'interno di quell'iframe.
 - Il browser si basa su Electron, che riceve gli aggiornamenti di sicurezza di Chromium con qualche settimana di ritardo:
   aggiorna regolarmente le dipendenze (`npm update electron`).
+- La protezione dall'impronta digitale agisce nelle pagine e nei loro iframe, non nei Web Worker: uno script che
+  disegna su un `OffscreenCanvas` dentro un worker legge valori reali.
 
 - Il caricamento diretto su kDrive è limitato a 1 GB per file (per file più grandi usa l'app web).
 - Il pannello Mail usa la casella principale associata al token.

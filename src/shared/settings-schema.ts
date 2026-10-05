@@ -66,6 +66,7 @@ export const DEFAULT_SETTINGS: Settings = {
   threatProtection: true,
   breachCheckOnSave: true,
   drmOptIn: false,
+  fingerprintProtection: 'standard',
   webRtcProtection: 'public',
   stripTrackingParams: true,
   secureDns: 'automatic',
@@ -210,6 +211,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     breachCheckOnSave: bool(s.breachCheckOnSave, d.breachCheckOnSave),
     // Replaces drmEnabled, which was on by default: Widevine is now only downloaded when asked for.
     drmOptIn: bool(s.drmOptIn, d.drmOptIn),
+    fingerprintProtection: oneOf(s.fingerprintProtection, ['off', 'standard', 'strict'] as const, d.fingerprintProtection),
     webRtcProtection: s.webRtcProtection === 'standard' || s.webRtcProtection === 'proxy' || s.webRtcProtection === 'public' ? s.webRtcProtection : d.webRtcProtection,
     stripTrackingParams: bool(s.stripTrackingParams, d.stripTrackingParams),
     secureDns: (['off', 'automatic', 'quad9', 'mullvad', 'cloudflare', 'custom'] as const).includes(s.secureDns as SecureDnsChoice) ? (s.secureDns as SecureDnsChoice) : d.secureDns,

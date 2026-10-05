@@ -148,7 +148,8 @@ function start(): void {
   setTimeout(() => observer.disconnect(), 30_000);
 }
 
-if (/^https?:$/.test(location.protocol)) {
+// Top frame only: the main process files logins under the address of the tab.
+if (/^https?:$/.test(location.protocol) && window === window.top) {
   ipcRenderer.on('pw:fill', (_e, data) => fill(data));
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();

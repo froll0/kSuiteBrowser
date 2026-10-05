@@ -2,6 +2,7 @@ import { webContents as allWebContents, type Session } from 'electron';
 import { deleteHeader, httpsUpgrade, isThirdParty, siteOf, stripTrackingParams } from '../shared/privacy-rules';
 import type { TrackerBlocker } from './blocker';
 import type { ThreatKind } from '../shared/threat-match';
+import { HIGH_ENTROPY_HINTS } from '../shared/fingerprint';
 import type { SettingsStore } from './settings';
 
 /**
@@ -84,6 +85,13 @@ export class PrivacyGuard {
       if (s.blockThirdPartyCookies && details.resourceType !== 'mainFrame') {
         const pageUrl = this.pageUrl(details.webContentsId, details.referrer);
         if (!this.isExempt(pageUrl) && isThirdParty(details.url, pageUrl)) deleteHeader(headers, 'Cookie');
+      }
+      // Detailed device description (exact version, OS build, CPU, model): sites asking for it get nothing.
+      if (s.fingerprintProtection !== 'off') for (const name of HIGH_ENTROPY_HINTS) deleteHeader(headers, name);
+      // Strict: the language matches what the page sees (navigator.languages), the same for everyone.
+      if (s.fingerprintProtection === 'strict' && !this.isExempt(details.resourceType === 'mainFrame' ? details.url : this.pageUrl(details.webContentsId, details.referrer))) {
+        deleteHeader(headers, 'Accept-Language');
+        headers['Accept-Language'] = 'en-US,en;q=0.9';
       }
       callback({ requestHeaders: headers });
     });

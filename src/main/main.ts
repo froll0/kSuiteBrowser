@@ -4,6 +4,8 @@ import {
 } from 'electron';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { cpus } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { INTERNAL, IPC } from '../shared/ipc';
 import { INFOMANIAK_APPS } from '../shared/infomaniak-apps';
@@ -17,6 +19,7 @@ import { TOOLBAR_ITEMS, TOOLBAR_ITEM_IDS, type ToolbarItem } from '../shared/app
 import { searchAnswerMessages } from '../shared/ai-prompts';
 import { permissionLabel } from '../shared/external-protocols';
 import { secureDnsConfig } from '../shared/secure-dns';
+import { shieldConfig } from '../shared/fingerprint';
 import { webRtcPolicy } from '../shared/webrtc';
 import { generatePassword } from '../shared/password-gen';
 import { framedIconSvg, letterIconSvg, topSites } from '../shared/top-sites';
@@ -94,6 +97,8 @@ const blocker = new TrackerBlocker();
 const threats = new ThreatProtection();
 const readerCache = new ReaderCache();
 const guards = new Map<Session, PrivacyGuard>();
+/** Random key per session for fingerprinting protection: values change at every restart. */
+const fingerprintKeys = new WeakMap<Session, Buffer>();
 const windows = new Set<BrowserWindowController>();
 let lastFocused: BrowserWindowController | null = null;
 let privateCounter = 0;
@@ -820,7 +825,7 @@ function showShieldMenu(w: BrowserWindowController, tabId: number): void {
     items.push(
       { label: `Protezioni per ${site}`, enabled: false },
       {
-        label: 'Blocca tracker e cookie di terze parti su questo sito',
+        label: 'Protezioni attive su questo sito (tracker, cookie, impronta digitale)',
         type: 'checkbox',
         checked: !exempt,
         click: () => {
@@ -1166,6 +1171,26 @@ function registerChromeIpc(): void {
   handle(IPC.tabsSwitch, (w, tabId: number) => switchToTab(w, Number(tabId)));
   handle(IPC.mediaMenu, (w) => showMediaMenu(w));
   handle(IPC.drmEnable, () => enableDrmAndRestart());
+  // Synchronous: the shield preload needs it before the page's scripts run.
+  ipcMain.on('shield:config', (event) => {
+    const ses = event.sender.session;
+    let key = fingerprintKeys.get(ses);
+    if (!key) fingerprintKeys.set(ses, (key = randomBytes(32)));
+    let top = '';
+    try {
+      top = event.senderFrame?.top?.url || event.sender.getURL();
+    } catch {
+      /* frame gone */
+    }
+    const s = settings.get();
+    event.returnValue = shieldConfig({
+      setting: s.fingerprintProtection,
+      site: /^https?:/i.test(top) ? siteOf(top) : null,
+      exceptions: s.protectionExceptions,
+      sessionKey: key,
+      cpus: cpus().length || 4,
+    });
+  });
   ipcMain.on('shield:drm-wanted', (event) => {
     if (!settings.get().drmOptIn) offerDrm(event.sender);
   });
@@ -1567,6 +1592,8 @@ function registerAdblockIpc(): void {
   ipcMain.handle('@ghostery/adblocker/is-mutation-observer-enabled', () => true);
   ipcMain.handle('@ghostery/adblocker/inject-cosmetic-filters', (event, url: string, msg?: Parameters<TrackerBlocker['cosmetics']>[1]) => {
     const guard = guards.get(event.sender.session);
+    // CSS goes into the tab's top document: requests from iframes would hide the wrong elements.
+    if (event.senderFrame !== event.sender.mainFrame) return;
     if (!guard || typeof url !== 'string' || !guard.protectionActiveFor(url)) return;
     const result = blocker.cosmetics(url, msg, { frameId: event.frameId, processId: event.processId });
     if (!result) return;

@@ -1185,4 +1185,6 @@ export const en: Record<string, string> = {
   'Scheda {0}': 'Tab {0}',
   '{0}: Canc per togliere, frecce per spostare': '{0}: Delete to remove, arrows to move',
   'Velo (ricerca unificata)': 'Velo (unified search)',
+  'Barra a scomparsa': 'Auto-hide toolbar',
+  'La pagina occupa tutta la finestra: schede e barra degli indirizzi ricompaiono portando il puntatore sul bordo in alto, oppure con Ctrl+L. Ctrl+Shift+F la attiva e disattiva.': 'The page fills the whole window: tabs and the address bar come back when you move the pointer to the top edge, or with Ctrl+L. Ctrl+Shift+F turns it on and off.',
 };

@@ -32,6 +32,8 @@ export interface AppMenuActions {
   findNext(backwards: boolean): void;
   zoom(direction: 'in' | 'out' | 'reset'): void;
   toggleBookmarksBar(): void;
+  toggleAutoHide(): void;
+  autoHide(): boolean;
   bookmarkPage(): void;
   openHistory(): void;
   openBookmarks(): void;
@@ -132,6 +134,7 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { label: tr('Dimensioni reali'), accelerator: 'CmdOrCtrl+num0', click: () => a.zoom('reset'), visible: false },
         { type: 'separator' },
         { label: tr('Mostra/nascondi barra dei preferiti'), accelerator: 'CmdOrCtrl+Shift+B', click: a.toggleBookmarksBar },
+        { label: tr('Barra a scomparsa'), type: 'checkbox', checked: a.autoHide(), accelerator: 'CmdOrCtrl+Shift+F', click: a.toggleAutoHide },
         { label: tr('Mostra/nascondi pannello cloud'), accelerator: 'CmdOrCtrl+Shift+K', click: a.togglePanel },
         { label: tr('Modalità lettura'), accelerator: 'F9', click: a.reader },
         { label: 'Picture-in-picture', accelerator: 'CmdOrCtrl+Shift+P', click: a.pictureInPicture },

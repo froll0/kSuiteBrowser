@@ -45,6 +45,8 @@ const api = {
   openApp: (appId: string) => invoke<void>(IPC.openApp, appId),
   /** Where the page goes, and the radius of its corners. */
   setContentBounds: (rect: Rect & { radius: number }) => invoke<void>(IPC.setContentBounds, rect),
+  /** Auto-hiding toolbar: the system window buttons follow the browser bar. */
+  setChromeVisible: (visible: boolean) => invoke<void>(IPC.chromeVisible, visible),
   toolbarMenu: (item: string | null) => invoke<void>(IPC.toolbarMenu, item),
   /** Turns protected content (Widevine) on and restarts the browser. */
   enableDrm: () => invoke<void>(IPC.drmEnable),
@@ -148,6 +150,8 @@ const api = {
     onExtensionButtons: (fn: (buttons: ExtensionButton[]) => void) => on(IPC.evExtButtons, fn),
     /** A site wants protected content while Widevine is off. */
     onDrmOffer: (fn: (offer: { host: string }) => void) => on(IPC.evDrmOffer, fn),
+    /** The page took the keyboard focus. */
+    onPageFocus: (fn: () => void) => on(IPC.evPageFocus, fn),
     /** Tor windows: connection progress. */
     onTorStatus: (fn: (status: { state: 'off' | 'starting' | 'ready' | 'error'; progress?: number; summary?: string; message?: string }) => void) => on(IPC.evTorStatus, fn),
     /** An extension's page in the Chrome Web Store is open. */

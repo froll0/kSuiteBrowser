@@ -239,6 +239,8 @@ export interface Settings {
   /** Extensions page: load unpacked folders and reload them. */
   extensionsDeveloperMode: boolean;
   showBookmarksBar: boolean;
+  /** The page fills the window; tabs and address bar come back when the pointer reaches the top edge. */
+  autoHideToolbar: boolean;
   panelOpen: boolean;
   /** What Ctrl+T and the + button open. */
   newTabPage: 'newtab' | 'home';

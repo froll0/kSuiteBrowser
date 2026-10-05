@@ -185,6 +185,16 @@ export class BrowserWindowController {
     return this.torRouter !== null;
   }
 
+  private chromeVisible = true;
+
+  /** Auto-hiding toolbar: the system window buttons appear and disappear with the browser bar. */
+  setChromeVisible(visible: boolean): void {
+    if (this.win.isDestroyed() || this.chromeVisible === visible) return;
+    this.chromeVisible = visible;
+    if (process.platform === 'darwin') this.win.setWindowButtonVisibility(visible);
+    else this.applyTitleBarTheme();
+  }
+
   /** Keeps the system window buttons in the colours of the current theme. */
   applyTitleBarTheme(): void {
     if (this.win.isDestroyed()) return;
@@ -193,7 +203,9 @@ export class BrowserWindowController {
       this.win.setWindowButtonPosition({ x: 14, y: Math.round((densityMetrics(this.ctx.settings.get().density).row - 14) / 2) });
       return;
     }
-    this.win.setTitleBarOverlay(titleBarOverlay(this.ctx.settings.get(), this.isPrivate));
+    const overlay = titleBarOverlay(this.ctx.settings.get(), this.isPrivate);
+    // Hidden bar: invisible buttons over the page (some systems keep a minimum height).
+    this.win.setTitleBarOverlay(this.chromeVisible ? overlay : { color: '#00000000', symbolColor: '#00000000', height: 1 });
     this.win.setBackgroundColor(frameColors(this.ctx.settings.get(), this.isPrivate).backdrop);
   }
 
@@ -421,6 +433,11 @@ export class BrowserWindowController {
     contents.on('login', (event, _details, info, callback) => {
       event.preventDefault();
       owner().requestAuth(contents, info, callback);
+    });
+    // The auto-hiding bar goes away when the page takes the focus.
+    contents.on('focus', () => {
+      const w = owner();
+      if (w.tabs.activeContents() === contents) w.send(IPC.evPageFocus);
     });
     contents.on('update-target-url', (_e, url) => {
       const w = owner();

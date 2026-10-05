@@ -38,6 +38,9 @@ quindi funzionano senza sorprese.
   protezioni, audio, download, cerca tra le schede, preferiti, cronologia, assistente IA, pannello) da aggiungere,
   togliere e riordinare con il trascinamento, prima o dopo l'indirizzo; anche da tastiera
 - Indirizzo abbreviato (senza `https://` e `www.`) finché non lo modifichi, oppure sempre completo
+- **Barra a scomparsa** (Ctrl+Maiusc+F, o in *Disposizione*): la pagina occupa tutta la finestra; schede e barra degli
+  indirizzi ricompaiono portando il puntatore sul bordo in alto (o con Ctrl+L) e spariscono quando torni alla pagina,
+  che scorre sotto la barra senza ridimensionarsi
 - Nuova scheda con sfondo semplice, tinto o sfumato e blocchi a scelta (saluto, siti più visitati, app)
 - Anteprima dal vivo nelle impostazioni; tutto si applica subito, anche alle pagine del browser e ai popup
 
@@ -447,6 +450,8 @@ codice caricato solo dall'archivio `app.asar` (verificato su Windows e macOS), c
 - La protezione dall'impronta digitale agisce nelle pagine e nei loro iframe, non nei Web Worker: uno script che
   disegna su un `OffscreenCanvas` dentro un worker legge valori reali.
 
+- Barra a scomparsa su Linux: i pulsanti della finestra (riduci, ingrandisci, chiudi) restano appena visibili in alto
+  a destra quando la barra è nascosta; il pannello cloud non compare in questa modalità.
 - Finestre Tor: un modulo inviato a un altro sito arriva come semplice apertura della pagina (la sessione cambia e i
   dati del modulo vanno persi); i popup aperti da una pagina (per esempio gli accessi con Google o Apple) restano nella
   sessione della pagina che li apre.

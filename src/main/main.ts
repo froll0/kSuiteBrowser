@@ -721,6 +721,7 @@ function onSettingsChanged(next: Settings, previous: Settings): void {
   }
   if (next.driveId !== previous.driveId) services.resetCache();
   if (next.protectionExceptions !== previous.protectionExceptions) refreshAllTabs();
+  if (next.autoHideToolbar !== previous.autoHideToolbar) Menu.setApplicationMenu(buildMenu());
   if (next.clearCookiesOnExit || next.clearCacheOnExit) dataCleared = false;
   if (next.defaultZoom !== previous.defaultZoom || next.siteZoom !== previous.siteZoom) {
     for (const w of windows) for (const t of w.tabs.states()) {
@@ -905,6 +906,8 @@ function buildMenu(): Menu {
       if (w && wc) changeZoom(w, wc, direction);
     },
     toggleBookmarksBar: () => settings.update({ showBookmarksBar: !settings.get().showBookmarksBar }),
+    toggleAutoHide: () => settings.update({ autoHideToolbar: !settings.get().autoHideToolbar }),
+    autoHide: () => settings.get().autoHideToolbar,
     bookmarkPage: () => {
       const w = current();
       const id = w?.activeTabId();
@@ -1265,6 +1268,7 @@ function registerChromeIpc(): void {
     if (appDef) w.tabs.openApp(appDef.id, appDef.url);
   });
   handle(IPC.setContentBounds, (w, rect: Rect) => w.tabs.setBounds(rect));
+  handle(IPC.chromeVisible, (w, visible: boolean) => w.setChromeVisible(Boolean(visible)));
   handle(IPC.showAppMenu, (w) => Menu.getApplicationMenu()?.popup({ window: w.win }));
   handle(IPC.showShieldMenu, (w, tabId: number) => showShieldMenu(w, tabId));
   handle(IPC.tabSearch, (w, anchor?: Rect) => toggleTabSearch(w, anchor && typeof anchor.x === 'number' ? anchor : undefined));

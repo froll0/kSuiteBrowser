@@ -964,6 +964,7 @@ function applyAppearance(settings: Settings): void {
   // The app bar shows the Infomaniak apps: only with an account connected.
   body.classList.add(`layout-${settings.tabsLayout}`, `rail-${tokenConfigured ? settings.railPosition : 'hidden'}`, `canvas-${settings.canvasStyle}`, `apps-${settings.appIconStyle}`, `density-${settings.density}`);
   body.classList.toggle('side-open', settings.tabsLayout === 'side');
+  applyAutoHide(settings.autoHideToolbar);
   body.classList.toggle('side-collapsed', settings.tabsLayout === 'side' && settings.sideTabsCollapsed);
   body.style.setProperty('--side-w', `${settings.sideTabsWidth}px`);
   const collapse = $('btn-side-collapse');
@@ -988,9 +989,76 @@ systemDark.addEventListener('change', () => {
 /** The page views are native overlays: keep them aligned with the #content placeholder (and its rounded corners). */
 function syncBounds(): void {
   const r = content.getBoundingClientRect();
+  if (autoHide.on) {
+    // The page keeps the size of the whole window: when the bar comes back it slides down (and right,
+    // past the side tabs) without changing size, so it doesn't lay itself out again. A thin strip at the
+    // top stays uncovered: the pointer reaching it brings the bar back.
+    const size = { width: Math.round(innerWidth), height: Math.round(innerHeight - AUTOHIDE_STRIP) };
+    void ks.setContentBounds(autoHide.shown ? { x: r.left, y: r.top, ...size, radius: 0 } : { x: 0, y: AUTOHIDE_STRIP, ...size, radius: 0 });
+    return;
+  }
   const radius = parseFloat(getComputedStyle(root).getPropertyValue('--r-canvas')) || 0;
   void ks.setContentBounds({ x: r.left, y: r.top, width: r.width, height: r.height, radius });
 }
+
+// ---------- Auto-hiding toolbar ----------
+
+const AUTOHIDE_STRIP = 3;
+const autoHide = { on: false, shown: false, hovering: false, timer: 0 as unknown as ReturnType<typeof setTimeout> };
+
+function setChromeShown(shown: boolean): void {
+  clearTimeout(autoHide.timer);
+  if (autoHide.shown === shown) return;
+  autoHide.shown = shown;
+  document.body.classList.toggle('chrome-shown', shown);
+  void ks.setChromeVisible(shown || !autoHide.on);
+  syncBounds();
+}
+
+/** Hides the bar after a moment, unless the pointer came back or something in it has the focus. */
+function scheduleHide(delay = 450): void {
+  clearTimeout(autoHide.timer);
+  autoHide.timer = setTimeout(() => {
+    const busy = document.hasFocus() && document.activeElement && document.activeElement !== document.body;
+    if (autoHide.on && !autoHide.hovering && !busy) setChromeShown(false);
+  }, delay);
+}
+
+function applyAutoHide(on: boolean): void {
+  if (autoHide.on === on) return;
+  autoHide.on = on;
+  document.body.classList.toggle('autohide', on);
+  autoHide.shown = !on;
+  document.body.classList.toggle('chrome-shown', autoHide.shown);
+  void ks.setChromeVisible(autoHide.shown || !on);
+  syncBounds();
+}
+
+// The bar's own page only gets the pointer where no page covers it: the top strip, or the bar once shown.
+document.addEventListener('mousemove', () => {
+  autoHide.hovering = true;
+  if (autoHide.on) setChromeShown(true);
+});
+document.documentElement.addEventListener('mouseleave', () => {
+  autoHide.hovering = false;
+  if (autoHide.on) scheduleHide();
+});
+// Keyboard: Ctrl+L, Ctrl+F, Tab into the bar… show it while something in it has the focus.
+document.addEventListener('focusin', (e) => {
+  if (autoHide.on && e.target !== document.body) setChromeShown(true);
+});
+window.addEventListener('blur', () => {
+  if (autoHide.on) scheduleHide(250);
+});
+document.addEventListener('focusout', () => {
+  if (autoHide.on) scheduleHide();
+});
+ks.events.onPageFocus(() => {
+  if (!autoHide.on) return;
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active !== document.body) active.blur();
+  scheduleHide(250);
+});
 new ResizeObserver(syncBounds).observe(content);
 window.addEventListener('resize', syncBounds);
 

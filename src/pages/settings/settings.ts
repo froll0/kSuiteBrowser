@@ -429,6 +429,7 @@ function layoutSection(): HTMLElement {
       { value: 'right', title: tr('A destra') },
       { value: 'hidden', title: tr('Nascosta') },
     ], (v) => look({ railPosition: v }))),
+    row(tr('Barra a scomparsa'), tr('La pagina occupa tutta la finestra: schede e barra degli indirizzi ricompaiono portando il puntatore sul bordo in alto, oppure con Ctrl+L. Ctrl+Shift+F la attiva e disattiva.'), toggle('autoHideToolbar', tr('Barra a scomparsa'))),
     row(tr('Barra dei preferiti'), h('span', {}, tr('Sotto la barra degli indirizzi (Ctrl+Shift+B). '), h('a', { href: 'velo://bookmarks/' }, tr('Gestisci preferiti'))), toggle('showBookmarksBar', tr('Mostra barra dei preferiti'))),
     row(tr('Indirizzo completo'), tr('Mostra sempre “https://” e “www.”; altrimenti compaiono solo quando modifichi l’indirizzo.'), toggle('showFullUrl', tr('Mostra l’indirizzo completo'))),
     h('div', { class: 'row stack', 'data-search': tr('barra degli strumenti pulsanti personalizza ordine') },

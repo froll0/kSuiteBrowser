@@ -499,6 +499,8 @@ body.resizing { cursor: col-resize; }
   overflow: hidden;
 }
 body.panel-open #panel { display: flex; }
+/* Auto-hiding toolbar: the page covers the whole window (the cloud panel would be hidden under it). */
+body.autohide.panel-open #panel { display: none; }
 
 /* ---------- Find bar ---------- */
 

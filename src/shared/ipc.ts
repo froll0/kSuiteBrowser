@@ -33,6 +33,8 @@ export const IPC = {
   tabsMute: 'tabs:mute',
   openApp: 'cloud:open-app',
   setContentBounds: 'layout:content-bounds',
+  chromeVisible: 'layout:chrome-visible',
+  evPageFocus: 'layout:page-focus',
   showAppMenu: 'ui:app-menu',
   showShieldMenu: 'ui:shield-menu',
   showSiteMenu: 'ui:site-menu',

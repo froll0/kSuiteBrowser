@@ -76,7 +76,8 @@ const work = mkdtempSync(join(tmpdir(), 'velo-tor-'));
 try {
   writeFileSync(join(work, 'sums.txt'), sums);
   writeFileSync(join(work, 'sums.txt.asc'), signature);
-  const gpg = (args) => execFileSync('gpg', ['--homedir', join(work, 'gnupg'), '--batch', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  // Relative paths, run from the work folder: Git for Windows' gpg doesn't understand "C:\…" paths.
+  const gpg = (args) => execFileSync('gpg', ['--homedir', 'gnupg', '--batch', ...args], { cwd: work, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   let verified = false;
   try {
     mkdirSync(join(work, 'gnupg'), { recursive: true, mode: 0o700 });
@@ -84,7 +85,7 @@ try {
     // say), then a key server; whatever the source, only a signature by the pinned fingerprint counts.
     try {
       writeFileSync(join(work, 'key.gpg'), await get(WKD_URL));
-      gpg(['--import', join(work, 'key.gpg')]);
+      gpg(['--import', 'key.gpg']);
     } catch {
       try {
         gpg(['--auto-key-locate', 'nodefault,wkd', '--locate-keys', 'torbrowser@torproject.org']);
@@ -92,7 +93,7 @@ try {
         gpg(['--keyserver', 'hkps://keys.openpgp.org', '--recv-keys', SIGNING_KEY]);
       }
     }
-    const status = gpg(['--status-fd', '1', '--verify', join(work, 'sums.txt.asc'), join(work, 'sums.txt')]);
+    const status = gpg(['--status-fd', '1', '--verify', 'sums.txt.asc', 'sums.txt']);
     // VALIDSIG <signing subkey> … <primary key fingerprint>
     verified = status.split('\n').some((line) => line.startsWith('[GNUPG:] VALIDSIG ') && line.trim().endsWith(SIGNING_KEY));
     if (!verified) throw new Error('firma non valida o di un\'altra chiave');

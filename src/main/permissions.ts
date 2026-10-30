@@ -52,25 +52,13 @@ const isAskable = (p: string): p is AskablePermission => (ASKABLE_PERMISSIONS as
  * Infomaniak apps (kMeet, kChat, Mail…) get camera, microphone and notifications directly.
  * Other sites follow the remembered decision, then the default chosen in the settings (ask or block).
  */
-/** Never granted in Tor windows: position, notifications (they outlive the page), protected content (Google module), and device or idle state. */
-const TOR_DENIED = new Set(['geolocation', 'notifications', 'mediaKeySystem', 'idle-detection', 'hid', 'serial', 'usb', 'bluetooth', 'window-management', 'storage-access', 'top-level-storage-access']);
-
-export function configurePermissions(
-  session: Session,
-  settings: SettingsStore,
-  memory: PermissionMemory,
-  getWindow: () => BrowserWindow | null,
-  onDrmWanted?: (contents: WebContents) => void,
-  /** Tor windows: nothing that reveals where you are or ties you to an account. */
-  tor = false,
-): void {
+export function configurePermissions(session: Session, settings: SettingsStore, memory: PermissionMemory, getWindow: () => BrowserWindow | null, onDrmWanted?: (contents: WebContents) => void): void {
   const decide = (host: string, permission: string): boolean | 'ask' => {
     if (ALWAYS_ALLOWED.has(permission)) return true;
-    if (tor && TOR_DENIED.has(permission)) return false;
     // Protected content (Widevine): on/off from the privacy settings, no question per site.
     if (permission === 'mediaKeySystem') return settings.get().drmOptIn;
     if (!DESCRIPTIONS[permission]) return false;
-    if (!tor && isTrustedSuiteHost(host) && settings.tokenStatus().configured) return true;
+    if (isTrustedSuiteHost(host) && settings.tokenStatus().configured) return true;
     const remembered = memory.get(host, permission);
     if (remembered !== undefined) return remembered;
     if (isAskable(permission) && settings.get().permissionDefaults[permission] === 'block') return false;
@@ -80,7 +68,7 @@ export function configurePermissions(
   session.setPermissionRequestHandler((contents, permission, callback, details) => {
     const host = hostOf(details.requestingUrl || contents.getURL());
     // A site wants protected content while Widevine is off: offer to turn it on.
-    if (permission === 'mediaKeySystem' && !settings.get().drmOptIn && !tor) onDrmWanted?.(contents);
+    if (permission === 'mediaKeySystem' && !settings.get().drmOptIn) onDrmWanted?.(contents);
     if (permission === 'openExternal') {
       void confirmExternal(host, 'externalURL' in details ? String(details.externalURL ?? '') : '').then(callback);
       return;
@@ -135,8 +123,7 @@ export function configurePermissions(
 
   // Synchronous checks (e.g. Notification.permission): only a remembered or trusted "allow" counts.
   session.setPermissionCheckHandler((_contents, permission, requestingOrigin) => {
-    if (permission === 'mediaKeySystem') return !tor && settings.get().drmOptIn;
-    if (tor && TOR_DENIED.has(permission)) return false;
+    if (permission === 'mediaKeySystem') return settings.get().drmOptIn;
     if (!isAskable(permission)) return true;
     return decide(hostOf(requestingOrigin), permission) === true;
   });

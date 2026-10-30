@@ -18,8 +18,6 @@ export interface ContextMenuActions {
   askAboutPage(action: PageAction): void;
   /** An Infomaniak account is connected: kDrive and Mail actions are offered. */
   cloudEnabled(): boolean;
-  /** Items added by the installed extensions (chrome.contextMenus). */
-  extensionItems?(params: Electron.ContextMenuParams): MenuItemConstructorOptions[];
 }
 
 /** Right-click menu for web pages, with the cloud actions (when an account is connected) next to the usual browser ones. */
@@ -157,8 +155,6 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
     if (!link && !params.isEditable && params.mediaType === 'none' && /^(https?|file):/i.test(contents.getURL())) {
       items.push({ label: tr('Visualizza sorgente pagina'), click: () => actions.viewSource(contents) });
     }
-    const fromExtensions = actions.extensionItems?.(params) ?? [];
-    if (fromExtensions.length) items.push(...fromExtensions, { type: 'separator' });
     items.push({ label: tr('Ispeziona'), click: () => contents.inspectElement(params.x, params.y) });
     Menu.buildFromTemplate(items).popup();
   });

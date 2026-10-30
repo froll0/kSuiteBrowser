@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const watch = process.argv.includes('--watch');
-const PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader', 'extensions'];
+const PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader'];
 
 const common = { bundle: true, sourcemap: true, logLevel: 'info' };
 const node = { ...common, platform: 'node', format: 'cjs', target: 'node22', external: ['electron'] };
@@ -19,7 +19,6 @@ const targets = [
   { ...node, entryPoints: ['src/preload/suggest.ts'], outfile: 'dist/preload/suggest.js' },
   { ...node, entryPoints: ['src/preload/tabsearch.ts'], outfile: 'dist/preload/tabsearch.js' },
   { ...node, entryPoints: ['src/preload/passwords.ts'], outfile: 'dist/preload/passwords.js' },
-  { ...node, entryPoints: ['src/preload/extensions.ts'], outfile: 'dist/preload/extensions.js' },
   { ...node, entryPoints: ['src/preload/shield.ts'], outfile: 'dist/preload/shield.js' },
   { ...web, entryPoints: ['src/renderer/suggest.ts'], outfile: 'dist/renderer/suggest.js' },
   { ...web, entryPoints: ['src/renderer/tabsearch.ts'], outfile: 'dist/renderer/tabsearch.js' },

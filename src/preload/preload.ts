@@ -4,7 +4,7 @@ import { IPC } from '../shared/ipc';
 import type {
   AiChatRequest, AiEvent, AiStatus, AuthPrompt, Bookmark, FindResult, PasswordPrompt, Suggestion, UpdateStatus,
   ApiResult, CalendarEvent, DriveFile, DriveListing, DownloadItemState, MailOverview,
-  NewEvent, OutgoingMail, Profile, Rect, Settings, TabState, TokenStatus, ExtensionButton,
+  NewEvent, OutgoingMail, Profile, Rect, Settings, TabState, TokenStatus,
 } from '../shared/types';
 
 // Interface language, before the page's scripts run (see shared/i18n.ts).
@@ -57,9 +57,7 @@ const api = {
   tabSearch: (anchor?: Rect) => invoke<void>(IPC.tabSearch, anchor),
   mediaMenu: () => invoke<void>(IPC.mediaMenu),
   openSettingsPage: (section?: string) => invoke<void>(IPC.openSettingsPage, section),
-  windowInfo: () => invoke<{ isPrivate: boolean; isTor: boolean; windowId: number; platform: string }>(IPC.windowInfo),
-  /** Tor windows: status and identity menu. */
-  torMenu: () => invoke<void>(IPC.torMenu),
+  windowInfo: () => invoke<{ isPrivate: boolean; windowId: number; platform: string }>(IPC.windowInfo),
   suggest: {
     query: (input: string) => invoke<Suggestion[]>(IPC.suggest, input),
     show: (items: Suggestion[], rect: Rect, selected: number) => invoke<void>(IPC.suggestShow, items, rect, selected),
@@ -115,15 +113,6 @@ const api = {
     calendarUpcoming: () => invoke<ApiResult<CalendarEvent[]>>(IPC.apiCalendarUpcoming),
     calendarCreate: (event: NewEvent) => invoke<ApiResult<void>>(IPC.apiCalendarCreate, event),
   },
-  extensions: {
-    buttons: () => invoke<ExtensionButton[]>(IPC.extButtons),
-    /** Click on an extension's button (its popup opens under `rect`). */
-    click: (id: string, rect: Rect) => invoke<void>(IPC.extClick, id, rect),
-    menu: (id: string) => invoke<void>(IPC.extMenu, id),
-    /** Menu of the extensions button. */
-    all: (rect: Rect) => invoke<void>(IPC.extPuzzle, rect),
-    installFromStore: (id: string) => invoke<{ ok: boolean; id?: string; error?: string }>(IPC.extInstallStore, id),
-  },
   downloads: {
     list: () => invoke<DownloadItemState[]>(IPC.downloadsList),
     open: (id: string, reveal: boolean) => invoke<void>(IPC.downloadsOpen, id, reveal),
@@ -147,15 +136,10 @@ const api = {
     onAiAsk: (fn: (ask: { action?: TextAction; text?: string; page?: PageAction; question?: string }) => void) => on(IPC.evAiAsk, fn),
     onComposeMail: (fn: (mail: OutgoingMail) => void) => on(IPC.evComposeMail, fn),
     onToast: (fn: (toast: { kind: 'info' | 'success' | 'error'; message: string }) => void) => on(IPC.evToast, fn),
-    onExtensionButtons: (fn: (buttons: ExtensionButton[]) => void) => on(IPC.evExtButtons, fn),
     /** A site wants protected content while Widevine is off. */
     onDrmOffer: (fn: (offer: { host: string }) => void) => on(IPC.evDrmOffer, fn),
     /** The page took the keyboard focus. */
     onPageFocus: (fn: () => void) => on(IPC.evPageFocus, fn),
-    /** Tor windows: connection progress. */
-    onTorStatus: (fn: (status: { state: 'off' | 'starting' | 'ready' | 'error'; progress?: number; summary?: string; message?: string }) => void) => on(IPC.evTorStatus, fn),
-    /** An extension's page in the Chrome Web Store is open. */
-    onExtensionOffer: (fn: (offer: { id: string; installed: boolean }) => void) => on(IPC.evExtOffer, fn),
   },
 };
 

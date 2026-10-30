@@ -5,8 +5,6 @@ export interface AppMenuActions {
   newTab(): void;
   newWindow(): void;
   newPrivateWindow(): void;
-  newTorWindow(): void;
-  newTorIdentity(): void;
   reopenClosed(): void;
   selectTab(index: number): void;
   closeTab(): void;
@@ -24,7 +22,6 @@ export interface AppMenuActions {
   viewSource(): void;
   openSettings(): void;
   customize(): void;
-  openExtensions(): void;
   searchTabs(): void;
   reader(): void;
   pictureInPicture(): void;
@@ -70,8 +67,6 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { label: tr('Nuova scheda'), accelerator: 'CmdOrCtrl+T', click: a.newTab },
         { label: tr('Nuova finestra'), accelerator: 'CmdOrCtrl+N', click: a.newWindow },
         { label: tr('Nuova finestra privata'), accelerator: 'CmdOrCtrl+Shift+N', click: a.newPrivateWindow },
-        { label: tr('Nuova finestra Tor'), accelerator: 'Alt+Shift+N', click: a.newTorWindow },
-        { label: tr('Nuova identità Tor'), click: a.newTorIdentity },
         { label: tr('Chiudi scheda'), accelerator: 'CmdOrCtrl+W', click: a.closeTab },
         { label: tr('Riapri scheda chiusa'), accelerator: 'CmdOrCtrl+Shift+T', click: a.reopenClosed },
         { type: 'separator' },
@@ -83,7 +78,6 @@ export function buildAppMenu(a: AppMenuActions): Menu {
         { type: 'separator' },
         { label: tr('Impostazioni'), accelerator: 'CmdOrCtrl+,', click: a.openSettings },
         { label: tr('Personalizza l’aspetto…'), click: a.customize },
-        { label: tr('Estensioni'), click: a.openExtensions },
         { label: 'Password', click: a.openPasswords },
         { label: tr('Cancella dati di navigazione…'), accelerator: 'CmdOrCtrl+Shift+Delete', click: a.clearData },
         { type: 'separator' },

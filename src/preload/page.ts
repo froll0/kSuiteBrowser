@@ -31,11 +31,6 @@ if (window.location.protocol === 'velo:' && window === window.top) {
       ipcRenderer.on('internal:ev:sync', wrapped);
       return () => ipcRenderer.removeListener('internal:ev:sync', wrapped);
     },
-    onExtensions: (listener: () => void) => {
-      const wrapped = () => listener();
-      ipcRenderer.on('internal:ev:extensions', wrapped);
-      return () => ipcRenderer.removeListener('internal:ev:extensions', wrapped);
-    },
     onBookmarks: (listener: (list: unknown) => void) => {
       const wrapped = (_e: unknown, list: unknown) => listener(list);
       ipcRenderer.on('internal:ev:bookmarks', wrapped);

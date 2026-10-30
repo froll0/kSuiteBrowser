@@ -11,6 +11,11 @@ describe('translations', () => {
     expect(missing).toEqual([]);
   });
 
+  it('has no leftover texts nobody uses', () => {
+    const keys = collectKeys('src') as Map<string, string>;
+    expect(Object.keys(en).filter((k) => !keys.has(k))).toEqual([]);
+  });
+
   it('keeps the placeholders of each text', () => {
     const marks = (s: string) => (s.match(/\{\d+\}|\{n\}/g) ?? []).sort().join(',');
     const broken = Object.entries(en).filter(([k, v]) => marks(k) !== marks(v)).map(([k]) => k);
@@ -28,10 +33,10 @@ describe('translations', () => {
   it('translates and fills in the arguments', () => {
     setLocale('en');
     expect(tr('Nuova scheda')).toBe('New tab');
-    expect(tr('Nessuna scheda con id {0}', 7)).toBe('No tab with id 7');
+    expect(tr('Chiudi {0}', 'x')).toBe('Close x');
     expect(plural(3, 'Una scheda', '{n} schede')).toBe('3 tabs');
     expect(tr('testo sconosciuto')).toBe('testo sconosciuto');
     setLocale('it');
-    expect(tr('Nessuna scheda con id {0}', 7)).toBe('Nessuna scheda con id 7');
+    expect(tr('Chiudi {0}', 'x')).toBe('Chiudi x');
   });
 });

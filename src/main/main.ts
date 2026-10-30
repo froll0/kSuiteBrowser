@@ -1,7 +1,7 @@
 // Must stay first: the interface language is chosen before the other modules load.
 import './locale-boot';
 import {
-  BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, nativeTheme, session as electronSession, shell,
+  BrowserWindow, Menu, app, dialog, ipcMain, nativeTheme, session as electronSession, shell,
   webContents as allWebContents, type IpcMainInvokeEvent, type Session,
 } from 'electron';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -51,12 +51,8 @@ import { BookmarksStore } from './stores/bookmarks';
 import { FaviconStore } from './stores/favicons';
 import { HistoryStore } from './stores/history';
 import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } from './window';
-import { ExtensionHost } from './extensions/host';
-import { InstallError } from './extensions/registry';
 import { adoptLegacyProfile } from './legacy';
-import { TorProcess, findTor, type TorStatus } from './tor/process';
-import { SocksRelay } from './tor/relay';
-import { TorIdentity } from './tor/identity';
+import { purgeRemovedFeatures } from './purge';
 import { locale, resolveLocale, tr } from '../shared/i18n';
 
 adoptLegacyProfile();
@@ -72,7 +68,6 @@ const PATHS = {
   pagePreload: join(__dirname, '../preload/page.js'),
   adblockPreload: join(__dirname, '../preload/adblock.js'),
   passwordsPreload: join(__dirname, '../preload/passwords.js'),
-  extensionsPreload: join(__dirname, '../preload/extensions.js'),
   shieldPreload: join(__dirname, '../preload/shield.js'),
   chromeHtml: join(__dirname, '../renderer/index.html'),
   suggestHtml: join(__dirname, '../renderer/suggest.html'),
@@ -91,7 +86,6 @@ let history: HistoryStore;
 let bookmarks: BookmarksStore;
 let passwords: PasswordManager;
 let sync: SyncEngine;
-let extensions: ExtensionHost | null = null;
 let favicons: FaviconStore;
 let notifications: NotificationCenter;
 let updates: UpdateService;
@@ -103,8 +97,6 @@ const blocker = new TrackerBlocker();
 const threats = new ThreatProtection();
 const readerCache = new ReaderCache();
 const guards = new Map<Session, PrivacyGuard>();
-/** Tor windows: started on first use. */
-const tor: { process: TorProcess | null; relay: SocksRelay | null; identity: TorIdentity | null } = { process: null, relay: null, identity: null };
 /** Random key per session for fingerprinting protection: values change at every restart. */
 const fingerprintKeys = new WeakMap<Session, Buffer>();
 const windows = new Set<BrowserWindowController>();
@@ -137,8 +129,6 @@ if (!app.requestSingleInstanceLock()) {
 
 app.on('window-all-closed', () => app.quit());
 app.on('will-quit', () => {
-  tor.relay?.closeAll();
-  tor.process?.stop();
   history?.flush();
   bookmarks?.flush();
   favicons?.flush();
@@ -283,34 +273,9 @@ async function start(): Promise<void> {
   registerChromeIpc();
   registerInternalIpc();
   registerAdblockIpc();
+  // Extensions and Tor were removed: what older versions left in the profile goes too.
+  await purgeRemovedFeatures(app.getPath('userData'), electronSession.defaultSession).catch((err) => console.error('[profilo] pulizia non riuscita:', err));
   Menu.setApplicationMenu(buildMenu());
-
-  extensions = new ExtensionHost({
-    session: electronSession.defaultSession,
-    windows: () => [...windows].filter((w) => !w.isPrivate),
-    focused: () => {
-      const f = current();
-      return f && !f.isPrivate ? f : normalWindow();
-    },
-    openWindow: (urls) => openWindow(false, urls.length ? urls.map((url) => ({ url, open: true })) : [{ url: newTabUrl() }]),
-    firstInstall: () => {
-      const s = settings.get();
-      if (s.extensionsButtonAdded) return;
-      if (s.toolbarStart.includes('extensions') || s.toolbarEnd.includes('extensions')) return void settings.update({ extensionsButtonAdded: true });
-      const end = [...s.toolbarEnd];
-      const at = end.indexOf('panel');
-      end.splice(at === -1 ? end.length : at, 0, 'extensions');
-      settings.update({ toolbarEnd: end, extensionsButtonAdded: true });
-    },
-  }, app.getPath('userData'));
-  extensions.registry.onChange(() => sendToInternalPages(INTERNAL.evExtensions, null));
-  // Keyboard shortcuts of extensions (manifest "commands"), wherever the focus is.
-  app.on('web-contents-created', (_e, wc) => {
-    wc.on('before-input-event', (event, input) => {
-      if (extensions?.handleShortcut(input)) event.preventDefault();
-    });
-  });
-  await extensions.start().catch((err) => console.error('[extensions] avvio non riuscito:', err));
 
   // Protected content (Netflix…): pages opened before the Widevine module is ready can't play it.
   if (settings.get().drmOptIn) await widevineReady(8000);
@@ -332,34 +297,20 @@ async function start(): Promise<void> {
   }, 60_000).unref();
 }
 
-/** tor: the site of a Tor session ('' for its internal pages). */
-function setupSession(ses: Session, isPrivate: boolean, torSite: string | null = null): void {
-  const isTor = torSite !== null;
-  // A Tor tab loads only its own site's pages in this session (other sites have their own).
-  const torPageAllowed = (url: string, wcId: number | undefined) => {
-    const wc = wcId === undefined ? undefined : allWebContents.fromId(wcId);
-    if (!wc || ![...windows].some((w) => w.isTor && w.tabs.idOf(wc) !== null)) return true;
-    const key = tor.identity?.keyFor(url) ?? null;
-    return key === null || key === torSite;
-  };
+function setupSession(ses: Session, isPrivate: boolean): void {
   const guard = new PrivacyGuard(ses, settings, blocker, (wcId) => {
     const wc = allWebContents.fromId(wcId);
     if (!wc) return;
     for (const w of windows) if (w.tabs.idOf(wc) !== null) w.scheduleRefresh();
-  }, (url) => threats.match(url), isTor ? torPageAllowed : null);
+  }, (url) => threats.match(url));
   guard.install();
   guards.set(ses, guard);
   downloads.attach(ses, { isPrivate });
-  configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings), () => lastFocused?.win ?? null, (contents) => offerDrm(contents), isTor);
+  configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings), () => lastFocused?.win ?? null, (contents) => offerDrm(contents));
   serveInternalPages(ses, PATHS.pages, faviconFor);
   ses.registerPreloadScript({ type: 'frame', id: 'velo-adblock', filePath: PATHS.adblockPreload });
   ses.registerPreloadScript({ type: 'frame', id: 'velo-passwords', filePath: PATHS.passwordsPreload });
   ses.registerPreloadScript({ type: 'frame', id: 'velo-shield', filePath: PATHS.shieldPreload });
-  // Extensions only run in the persistent session (like Chrome, not in private windows).
-  if (!isPrivate) {
-    ses.registerPreloadScript({ type: 'frame', id: 'velo-extensions', filePath: PATHS.extensionsPreload });
-    ses.registerPreloadScript({ type: 'service-worker', id: 'velo-extensions-sw', filePath: PATHS.extensionsPreload });
-  }
   // On Linux Chromium downloads the Hunspell dictionaries from Google: Velo ships them instead, and
   // the download address leads nowhere (a closed local port) so nothing ever goes to Google.
   if (process.platform === 'linux') {
@@ -400,19 +351,9 @@ const windowContext: WindowContext = {
   paths: PATHS,
   onTabsChanged: (w) => {
     if (!w.isPrivate) scheduleSessionSave();
-    extensions?.tabsChanged(w);
-  },
-  get extensions() {
-    return extensions;
   },
   onClosed: (w) => {
-    extensions?.windowClosed(w);
     windows.delete(w);
-    // Last Tor window closed: nothing of it remains (cookies, cache, circuits), as with private windows.
-    if (w.isTor && ![...windows].some((x) => x.isTor)) {
-      void tor.identity?.reset();
-      tor.process?.stop();
-    }
     if (lastFocused === w) lastFocused = null;
     // Keep the last window's tabs for the next start (closing it quits the app).
     if (!w.isPrivate && !quitting && normalWindow()) scheduleSessionSave();
@@ -422,7 +363,7 @@ const windowContext: WindowContext = {
 function openWindow(
   isPrivate: boolean,
   tabs: SavedTab[] | null,
-  options: { session?: Session; bounds?: Partial<Electron.Rectangle>; tor?: TorIdentity } = {},
+  options: { session?: Session; bounds?: Partial<Electron.Rectangle> } = {},
 ): BrowserWindowController {
   let ses = options.session ?? electronSession.defaultSession;
   if (isPrivate && !options.session) {
@@ -430,15 +371,12 @@ function openWindow(
     ses = electronSession.fromPartition(`private-${++privateCounter}`);
     setupSession(ses, true);
   }
-  const controller = new BrowserWindowController(windowContext, ses, isPrivate, tabs, options.bounds, options.tor ?? null);
-  extensions?.windowCreated(controller);
+  const controller = new BrowserWindowController(windowContext, ses, isPrivate, tabs, options.bounds);
   windows.add(controller);
   lastFocused = controller;
   controller.win.on('focus', () => (lastFocused = controller));
   // A private session lives as long as one of its windows (a tab may have been moved to a new one).
-  if (controller.isTor) {
-    controller.win.webContents.once('did-finish-load', () => controller.send(IPC.evTorStatus, tor.process?.status ?? { state: 'off' }));
-  } else if (isPrivate) controller.win.on('closed', () => {
+  if (isPrivate) controller.win.on('closed', () => {
     if (![...windows].some((w) => w.session === ses)) guards.delete(ses);
   });
   return controller;
@@ -457,78 +395,6 @@ function faviconFor(pageUrl: string): { mime: string; body: Buffer | string } {
   return { mime: 'image/svg+xml', body: letterIconSvg(host || '?') };
 }
 
-// ---------- Tor windows ----------
-
-function torIdentity(): TorIdentity {
-  if (!tor.identity) {
-    const proc = new TorProcess(() => findTor(process.resourcesPath, app.getAppPath()), join(app.getPath('userData'), 'tor'));
-    proc.onStatus((status: TorStatus) => {
-      for (const w of windows) if (w.isTor) w.send(IPC.evTorStatus, status);
-    });
-    tor.process = proc;
-    tor.relay = new SocksRelay(() => proc.ready());
-    tor.identity = new TorIdentity(tor.relay, (ses, key) => setupSession(ses, true, key), (ses) => guards.delete(ses));
-  }
-  return tor.identity;
-}
-
-/** Opens a Tor window (starting Tor if needed). */
-async function openTorWindow(url?: string): Promise<BrowserWindowController | null> {
-  const identity = torIdentity();
-  if (!tor.process!.available()) {
-    void dialog.showMessageBox({
-      type: 'warning',
-      message: tr('Tor non è disponibile'),
-      detail: tr('Questa installazione di Velo non include Tor. Scarica Velo dalla pagina delle versioni ufficiali, oppure installa Tor sul sistema.'),
-    });
-    return null;
-  }
-  void tor.process!.start();
-  const base = await identity.prepare('');
-  const tabUrl = url ?? NEWTAB_URL;
-  return openWindow(true, [{ url: tabUrl }], { session: base, tor: identity });
-}
-
-/** New identity: the Tor windows close, every Tor session is wiped, a new Tor window opens. */
-async function newTorIdentity(): Promise<void> {
-  const old = [...windows].filter((w) => w.isTor);
-  await tor.identity?.reset();
-  await openTorWindow();
-  for (const w of old) if (!w.win.isDestroyed()) w.win.close();
-}
-
-/** New circuit for the site of a Tor tab, then reload. */
-async function newTorCircuit(w: BrowserWindowController, tabId: number): Promise<void> {
-  const wc = w.tabs.contents(tabId);
-  const key = wc && tor.identity ? tor.identity.keyFor(wc.getURL()) : null;
-  if (!wc || key === null || !tor.identity) return;
-  await tor.identity.newCircuit(key);
-  if (!wc.isDestroyed()) wc.reload();
-}
-
-function torStatusLabel(status: TorStatus | undefined): string {
-  if (!status || status.state === 'off') return tr('Tor non è avviato');
-  if (status.state === 'starting') return tr('Connessione alla rete Tor… {0}%', status.progress);
-  if (status.state === 'error') return tr('Tor non riesce a connettersi: {0}', status.message);
-  return tr('Connesso alla rete Tor');
-}
-
-/** Menu of the Tor badge of a Tor window. */
-function showTorMenu(w: BrowserWindowController): void {
-  const id = w.activeTabId();
-  const url = id !== null ? (w.tabs.contents(id)?.getURL() ?? '') : '';
-  const site = tor.identity?.keyFor(url) ?? null;
-  const status = tor.process?.status;
-  Menu.buildFromTemplate([
-    { label: torStatusLabel(status), enabled: false },
-    ...(site ? [{ label: tr('Questo sito vede un indirizzo diverso dagli altri ({0})', site), enabled: false }] : []),
-    { type: 'separator' },
-    { label: tr('Nuovo circuito Tor per questo sito'), enabled: Boolean(site && id !== null), click: () => void newTorCircuit(w, id!) },
-    { label: tr('Nuova identità'), click: () => void newTorIdentity() },
-    ...(status?.state === 'error' ? [{ label: tr('Riprova a connettersi'), click: () => void tor.process?.start() }] : []),
-  ]).popup({ window: w.win });
-}
-
 // ---------- Moving tabs ----------
 
 /** Moves a tab (with its live page) to another window of the same session, or to a new window. */
@@ -542,7 +408,7 @@ function moveTab(from: BrowserWindowController, tabId: number, to: BrowserWindow
   if (target === 'new') {
     const [width, height] = from.win.getSize();
     const bounds = point && Number.isFinite(point.x) && Number.isFinite(point.y) ? { x: Math.round(point.x - 120), y: Math.round(point.y - 20), width, height } : undefined;
-    target = openWindow(from.isPrivate, null, { session: from.session, bounds, tor: from.isTor ? torIdentity() : undefined });
+    target = openWindow(from.isPrivate, null, { session: from.session, bounds });
   }
   target.tabs.adopt(tab, index);
   target.focus();
@@ -684,7 +550,7 @@ function readSavedSession(): SavedTab[][] {
         tabs
           // Older sessions stored plain URLs.
           .map((t) => (typeof t === 'string' ? { url: t } : (t as SavedTab)))
-          .filter((t) => t && typeof t.url === 'string' && /^(https?|velo|file|chrome-extension):/i.test(t.url))
+          .filter((t) => t && typeof t.url === 'string' && /^(https?|velo|file):/i.test(t.url))
           .map((t) => ({ url: t.url, pinned: Boolean(t.pinned), title: typeof t.title === 'string' ? t.title.slice(0, 300) : undefined })),
       )
       .filter((tabs) => tabs.length > 0);
@@ -770,10 +636,9 @@ function changeZoom(w: BrowserWindowController, wc: Electron.WebContents, direct
 
 // ---------- Bookmarks ----------
 
-function openUrl(w: BrowserWindowController, url: string, how: 'current' | 'tab' | 'background' | 'window' | 'private' | 'tor'): void {
+function openUrl(w: BrowserWindowController, url: string, how: 'current' | 'tab' | 'background' | 'window' | 'private'): void {
   if (how === 'window') openWindow(false, [{ url }]);
   else if (how === 'private') openWindow(true, [{ url }]);
-  else if (how === 'tor') void openTorWindow(url);
   else if (how === 'current' && w.activeTabId() !== null) w.tabs.navigate(w.activeTabId()!, url);
   else w.tabs.create(url, { background: how === 'background' });
 }
@@ -808,7 +673,6 @@ function bookmarkContextMenu(w: BrowserWindowController, id: string): void {
     { label: tr('Apri in una nuova scheda'), click: () => openUrl(w, b.url, 'background') },
     { label: tr('Apri in una nuova finestra'), click: () => openUrl(w, b.url, 'window') },
     { label: tr('Apri in una finestra privata'), click: () => openUrl(w, b.url, 'private') },
-    { label: tr('Apri in una finestra Tor'), click: () => openUrl(w, b.url, 'tor') },
     { type: 'separator' },
     { label: other === 'other' ? tr('Sposta in Altri preferiti') : tr('Sposta nella barra dei preferiti'), click: () => bookmarks.update(b.id, { folder: other }) },
     { label: tr('Modifica…'), click: () => w.openInternal('velo://bookmarks/') },
@@ -844,8 +708,6 @@ function buildMenu(): Menu {
     newTab: () => current()?.newTab(),
     newWindow: () => openWindow(false, [{ url: newTabUrl() }]),
     newPrivateWindow: () => openWindow(true, [{ url: newTabUrl() }]),
-    newTorWindow: () => void openTorWindow(),
-    newTorIdentity: () => void newTorIdentity(),
     reopenClosed: () => current()?.tabs.reopenClosed(),
     selectTab: (index) => current()?.tabs.activateIndex(index),
     closeTab: () => current()?.closeActiveTab(),
@@ -897,7 +759,6 @@ function buildMenu(): Menu {
     },
     openSettings: () => current()?.openSettings(),
     customize: () => current()?.openSettings('appearance'),
-    openExtensions: () => (normalWindow() ?? openWindow(false, [])).openInternal('velo://extensions/'),
     find: () => current()?.focusChrome(IPC.evFind),
     findNext: (backwards) => current()?.send(IPC.evFindNext, { backwards }),
     zoom: (direction) => {
@@ -1122,39 +983,6 @@ function showToolbarMenu(w: BrowserWindowController, item: string | null): void 
   if (!w.win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: w.win });
 }
 
-/** Menu of the extensions button: every extension, pinning, management. */
-function showExtensionsMenu(w: BrowserWindowController, anchor: Rect | null): void {
-  if (!extensions || w.isPrivate) return;
-  const host = extensions;
-  const buttons = host.buttons(w);
-  const icon = (b: { icon: string | null }) => (b.icon ? nativeImage.createFromDataURL(b.icon).resize({ width: 16, height: 16 }) : undefined);
-  const items: Electron.MenuItemConstructorOptions[] = buttons.length
-    ? buttons.map((b) => ({ label: b.name, icon: icon(b), enabled: b.enabled, click: () => host.clickAction(w, b.id, anchor, true) }))
-    : [{ label: tr('Nessuna estensione installata'), enabled: false }];
-  if (buttons.length) {
-    items.push(
-      { type: 'separator' },
-      { label: tr('Fissa sulla barra'), submenu: buttons.map((b) => ({ label: b.name, type: 'checkbox' as const, checked: b.pinned, click: () => host.registry.setPinned(b.id, !b.pinned) })) },
-    );
-  }
-  items.push(
-    { type: 'separator' },
-    { label: tr('Gestisci le estensioni'), click: () => w.openInternal('velo://extensions/') },
-    { label: tr('Apri il Chrome Web Store'), click: () => w.tabs.activate(w.tabs.create('https://chromewebstore.google.com/category/extensions')) },
-  );
-  Menu.buildFromTemplate(items).popup({ window: w.win, ...(anchor ? { x: Math.round(anchor.x), y: Math.round(anchor.y + anchor.height + 4) } : {}) });
-}
-
-async function confirmRemoveExtension(w: BrowserWindowController | null, id: string): Promise<boolean> {
-  if (!extensions) return false;
-  const name = extensions.summary().find((e) => e.id === id)?.name ?? tr('l’estensione');
-  const options = { type: 'question' as const, buttons: [tr('Rimuovi'), tr('Annulla')], defaultId: 1, cancelId: 1, message: `Rimuovere «${name}»?`, detail: tr('I suoi dati salvati in Velo vengono cancellati.') };
-  const { response } = w ? await dialog.showMessageBox(w.win, options) : await dialog.showMessageBox(options);
-  if (response !== 0) return false;
-  extensions.registry.remove(id);
-  return true;
-}
-
 async function showMediaMenu(w: BrowserWindowController): Promise<void> {
   const tabs = w.tabs.states().filter((t) => t.media || t.audible);
   const items: Electron.MenuItemConstructorOptions[] = [];
@@ -1242,7 +1070,7 @@ function registerChromeIpc(): void {
     const w = [...windows].find((c) => c.suggestions.contents === event.sender);
     if (w && Number.isInteger(index)) w.suggestions.choose(index);
   });
-  handle(IPC.windowInfo, (w) => ({ isPrivate: w.isPrivate, isTor: w.isTor, windowId: w.win.id, platform: process.platform }));
+  handle(IPC.windowInfo, (w) => ({ isPrivate: w.isPrivate, windowId: w.win.id, platform: process.platform }));
   handle(IPC.tabsMove, (w, id: number, index: number) => w.tabs.move(id, Number(index)));
   handle(IPC.tabsMenu, (w, id: number) => tabContextMenu(w, id));
   handle(IPC.tabsMute, (w, id: number) => {
@@ -1286,7 +1114,6 @@ function registerChromeIpc(): void {
   handle(IPC.tabsSwitch, (w, tabId: number) => switchToTab(w, Number(tabId)));
   handle(IPC.mediaMenu, (w) => showMediaMenu(w));
   handle(IPC.drmEnable, () => enableDrmAndRestart());
-  handle(IPC.torMenu, (w) => showTorMenu(w));
   // Synchronous: the shield preload needs it before the page's scripts run.
   ipcMain.on('shield:config', (event) => {
     const ses = event.sender.session;
@@ -1304,18 +1131,12 @@ function registerChromeIpc(): void {
       site: /^https?:/i.test(top) ? siteOf(top) : null,
       exceptions: s.protectionExceptions,
       sessionKey: key,
-      forceStrict: tor.identity?.isTorSession(ses) ?? false,
       cpus: cpus().length || 4,
     });
   });
   ipcMain.on('shield:drm-wanted', (event) => {
     if (!settings.get().drmOptIn) offerDrm(event.sender);
   });
-  handle(IPC.extButtons, (w) => extensions?.buttons(w) ?? []);
-  handle(IPC.extClick, (w, id: string, rect?: Rect) => extensions?.clickAction(w, String(id), rect && typeof rect.x === 'number' ? rect : null));
-  handle(IPC.extMenu, (w, id: string) => extensions?.actionMenu(w, String(id), (x) => w.openInternal(`velo://extensions/#${x}`), (x) => void confirmRemoveExtension(w, x)));
-  handle(IPC.extPuzzle, (w, rect?: Rect) => showExtensionsMenu(w, rect && typeof rect.x === 'number' ? rect : null));
-  handle(IPC.extInstallStore, (w, id: string) => extensions?.installFromStore(w, String(id)) ?? { ok: false });
   handle(IPC.toolbarMenu, (w, item: string | null) => showToolbarMenu(w, item));
   handle(IPC.readerToggle, (w, tabId: number) => toggleReader(w, Number(tabId)));
   handle(IPC.tabHover, (w, tabId: number | null, rect?: Rect) => {
@@ -1430,7 +1251,7 @@ function handleInternal<A extends unknown[], R>(channel: string, hosts: string[]
 function registerInternalIpc(): void {
   const S = ['settings'];
   // Every internal page reads the settings (theme); only the settings page changes them.
-  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader', 'extensions'], () => settings.get());
+  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader'], () => settings.get());
   handleInternal(INTERNAL.settingsSet, S, (_e, patch: Partial<Settings>) => settings.update(patch));
   handleInternal(INTERNAL.localeInfo, S, () => ({ current: locale(), system: resolveLocale('system', app.getPreferredSystemLanguages()) }));
   handleInternal(INTERNAL.restart, S, () => restartVelo());
@@ -1542,16 +1363,13 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.newtabData, ['newtab'], (event) => {
     const s = settings.get();
     const isPrivate = !event.sender.session.isPersistent();
-    const isTor = tor.identity?.isTorSession(event.sender.session) ?? false;
     return {
       isPrivate,
-      isTor,
       topSites: !isPrivate && s.saveHistory && s.showTopSites ? topSites(history.summaries(), s.hiddenTopSites) : [],
       searchEngine: s.searchEngine,
       showTopSites: s.showTopSites,
       hiddenCount: s.hiddenTopSites.length,
-      // The cloud apps would open outside Tor.
-      cloud: settings.tokenStatus().configured && !isTor,
+      cloud: settings.tokenStatus().configured,
     };
   });
   handleInternal(INTERNAL.newtabHide, ['newtab'], (_e, url: string) => {
@@ -1574,50 +1392,6 @@ function registerInternalIpc(): void {
   });
   handleInternal(INTERNAL.threatStatus, ['settings'], () => threats.status());
   handleInternal(INTERNAL.drmStatus, ['settings'], () => widevineStatus());
-  const E = ['extensions'];
-  const host = () => {
-    if (!extensions) throw new Error(tr('Estensioni non disponibili'));
-    return extensions;
-  };
-  const installWrap = async (fn: () => Promise<{ id: string } | null>) => {
-    try {
-      const item = await fn();
-      if (item) host().installed();
-      return { ok: Boolean(item), id: item?.id };
-    } catch (err) {
-      return { ok: false, error: err instanceof InstallError || err instanceof Error ? err.message : String(err) };
-    }
-  };
-  handleInternal(INTERNAL.extList, E, () => ({ items: host().summary(), developerMode: settings.get().extensionsDeveloperMode }));
-  handleInternal(INTERNAL.extSetEnabled, E, (_e, id: string, enabled: boolean) => host().registry.setEnabled(String(id), Boolean(enabled)));
-  handleInternal(INTERNAL.extSetPinned, E, (_e, id: string, pinned: boolean) => host().registry.setPinned(String(id), Boolean(pinned)));
-  handleInternal(INTERNAL.extRemove, E, (_e, id: string) => confirmRemoveExtension(current(), String(id)));
-  handleInternal(INTERNAL.extInstallStore, E, (_e, input: string) => host().installFromStore(current(), String(input ?? '')));
-  handleInternal(INTERNAL.extInstallFile, E, async () => {
-    const w = current();
-    const opts = { title: tr('Installa estensione'), properties: ['openFile' as const], filters: [{ name: tr('Estensioni (.crx, .zip)'), extensions: ['crx', 'zip'] }] };
-    const res = w ? await dialog.showOpenDialog(w.win, opts) : await dialog.showOpenDialog(opts);
-    if (res.canceled || !res.filePaths[0]) return { ok: false };
-    const file = res.filePaths[0];
-    const data = readFileSync(file);
-    const confirm = (p: Parameters<ExtensionHost['confirmInstall']>[1]) => host().confirmInstall(w, p);
-    return installWrap(() => (/\.crx$/i.test(file) ? host().registry.installCrx(data, 'file', confirm) : host().registry.installZip(data, confirm)));
-  });
-  handleInternal(INTERNAL.extLoadUnpacked, E, async () => {
-    const w = current();
-    const opts = { title: tr('Carica la cartella di un’estensione'), properties: ['openDirectory' as const] };
-    const res = w ? await dialog.showOpenDialog(w.win, opts) : await dialog.showOpenDialog(opts);
-    if (res.canceled || !res.filePaths[0]) return { ok: false };
-    return installWrap(() => host().registry.installUnpacked(res.filePaths[0], (p) => host().confirmInstall(w, p)));
-  });
-  handleInternal(INTERNAL.extReload, E, (_e, id: string) => host().registry.reload(String(id)));
-  handleInternal(INTERNAL.extOptions, E, (_e, id: string) => host().openOptions(String(id)));
-  handleInternal(INTERNAL.extCheckUpdates, E, () => wrap(() => host().registry.checkUpdates()));
-  handleInternal(INTERNAL.extApplyUpdate, E, (_e, id: string) => installWrap(async () => {
-    await host().registry.applyPendingUpdate(String(id), (p) => host().confirmInstall(current(), p));
-    return { id: String(id) };
-  }));
-  handleInternal(INTERNAL.extSetDevMode, E, (_e, on: boolean) => settings.update({ extensionsDeveloperMode: Boolean(on) }).extensionsDeveloperMode);
   handleInternal(INTERNAL.syncStatus, S, () => sync.status());
   handleInternal(INTERNAL.syncProbe, S, () => wrap(() => sync.probe()));
   handleInternal(INTERNAL.syncEnable, S, (_e, passphrase: string, deviceName?: string) => wrap(() => sync.enable(String(passphrase ?? ''), typeof deviceName === 'string' ? deviceName : undefined)));

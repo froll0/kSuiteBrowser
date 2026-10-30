@@ -34,7 +34,7 @@ export function shieldConfig(opts: {
   /** Sites where the user turned the protections off. */
   exceptions: readonly string[];
   sessionKey: Buffer;
-  /** Tor windows: always strict. */
+  /** Strict whatever the setting (the highest security level). */
   forceStrict?: boolean;
   /** Real CPU count. */
   cpus: number;

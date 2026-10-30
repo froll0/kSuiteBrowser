@@ -140,15 +140,6 @@
     "afterPack": "scripts/after-pack.cjs",
     "electronDownload": {
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
-    },
-    "extraResources": [
-      {
-        "from": "build/tor/${os}",
-        "to": "tor",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ]
+    }
   }
 }

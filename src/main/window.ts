@@ -18,9 +18,7 @@ import { HoverCard } from './hover-card';
 import { StatusBubble } from './status-bubble';
 import { TabSearchPopup } from './tab-search-popup';
 import { SuggestionsPopup } from './suggestions-popup';
-import { TabManager, type SessionRouter } from './tabs';
-import type { ExtensionHost } from './extensions/host';
-import { storeIdFrom } from './extensions/registry';
+import { TabManager } from './tabs';
 import { tr } from '../shared/i18n';
 
 export interface WindowContext {
@@ -28,7 +26,7 @@ export interface WindowContext {
   services: CloudServices;
   history: HistoryStore;
   bookmarks: BookmarksStore;
-  /** Undefined for a Tor session just wiped by "new identity" (its window is closing). */
+  /** Undefined once a private session is gone (its window is closing). */
   guardFor(session: Session): PrivacyGuard | undefined;
   /** Applies the zoom saved for the page's site (or the default zoom). */
   applyZoom(contents: WebContents): void;
@@ -41,8 +39,6 @@ export interface WindowContext {
   switchToTab(from: BrowserWindowController, tabId: number): boolean;
   recordFavicon(contents: WebContents, faviconUrl: string): void;
   onClosed(controller: BrowserWindowController): void;
-  /** Installed extensions (null before they are loaded). */
-  readonly extensions: ExtensionHost | null;
 }
 
 export const SETTINGS_URL = 'velo://settings/';
@@ -84,8 +80,6 @@ export class BrowserWindowController {
     /** null: start without tabs (a tab moved from another window is about to arrive). */
     initialTabs: Array<{ url: string; pinned?: boolean; title?: string; open?: boolean }> | null,
     bounds?: Partial<Electron.Rectangle>,
-    /** Tor window: one session per site, all through Tor. */
-    readonly torRouter: SessionRouter | null = null,
   ) {
     this.win = new BrowserWindow({
       width: 1400,
@@ -93,7 +87,7 @@ export class BrowserWindowController {
       ...bounds,
       minWidth: 720,
       minHeight: 480,
-      title: torRouter ? tr('Velo — Finestra Tor') : isPrivate ? tr('Velo — Finestra privata') : 'Velo',
+      title: isPrivate ? tr('Velo — Finestra privata') : 'Velo',
       backgroundColor: frameColors(ctx.settings.get(), isPrivate).backdrop,
       autoHideMenuBar: true,
       icon: ctx.paths.appIcon,
@@ -113,7 +107,6 @@ export class BrowserWindowController {
     this.win.webContents.on('will-navigate', (e) => e.preventDefault());
     this.win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
-    // Tor windows have one session (and one guard) per site.
     const guardOf = (contents: WebContents | null) => ctx.guardFor(contents?.session ?? session);
     this.tabs = new TabManager(
       this.win,
@@ -142,7 +135,7 @@ export class BrowserWindowController {
           return http ? { load: `velo://https-only/?url=${encodeURIComponent(http)}`, display: http } : null;
         },
       },
-      { session, preload: ctx.paths.pagePreload, ...(torRouter ? { router: torRouter, letterbox: true } : {}) },
+      { session, preload: ctx.paths.pagePreload },
     );
 
     this.suggestions = new SuggestionsPopup(this.win, { html: ctx.paths.suggestHtml, preload: ctx.paths.suggestPreload }, (item) => {
@@ -159,7 +152,7 @@ export class BrowserWindowController {
     this.hoverCard = new HoverCard(this.win, look, () => ctx.settings.get().tabsLayout === 'side');
 
     const initialLook = JSON.stringify(popupLook(ctx.settings.get(), isPrivate));
-    void this.win.loadFile(ctx.paths.chromeHtml, { query: { ...(isPrivate ? { private: '1' } : {}), ...(torRouter ? { tor: '1' } : {}), look: initialLook } });
+    void this.win.loadFile(ctx.paths.chromeHtml, { query: { ...(isPrivate ? { private: '1' } : {}), look: initialLook } });
     this.applyTitleBarTheme();
     this.win.webContents.once('did-finish-load', () => {
       if (initialTabs === null) return;
@@ -179,10 +172,6 @@ export class BrowserWindowController {
       this.tabs.destroy();
       ctx.onClosed(this);
     });
-  }
-
-  get isTor(): boolean {
-    return this.torRouter !== null;
   }
 
   private chromeVisible = true;
@@ -391,16 +380,6 @@ export class BrowserWindowController {
   private setupPage(contents: WebContents): void {
     // The tab may move to another window: always act on the window that holds it now.
     const owner = () => this.ctx.ownerOf(contents) ?? this;
-    if (!this.isPrivate) {
-      this.ctx.extensions?.attachPage(contents);
-      // On an extension's page in the Chrome Web Store: offer to add it here.
-      contents.on('did-navigate', (_e, url) => {
-        if (!/^https:\/\/(chromewebstore\.google\.com\/detail\/|chrome\.google\.com\/webstore\/detail\/)/.test(url)) return;
-        const id = storeIdFrom(url);
-        const w = owner();
-        if (id && w.tabs.activeContents() === contents) w.send(IPC.evExtOffer, { id, installed: Boolean(this.ctx.extensions?.isLoaded(id)) });
-      });
-    }
     // History (never for private windows) and per-site zoom.
     let visitId: string | null = null;
     const record = (url: string) => {
@@ -422,10 +401,7 @@ export class BrowserWindowController {
       if (visitId) this.ctx.history.setTitle(visitId, title);
     });
     // WebRTC may only use what the privacy setting allows, decided again for every page.
-    // Tor windows: only through the proxy, which carries no UDP, so WebRTC never reveals an address.
-    const applyWebRtc = (url: string) =>
-      contents.setWebRTCIPHandlingPolicy(this.torRouter ? 'disable_non_proxied_udp' : webRtcPolicy(this.ctx.settings.get().webRtcProtection, url));
-    if (this.torRouter) emulateTorLocale(contents);
+    const applyWebRtc = (url: string) => contents.setWebRTCIPHandlingPolicy(webRtcPolicy(this.ctx.settings.get().webRtcProtection, url));
     applyWebRtc(contents.getURL());
     contents.on('did-start-navigation', (details) => {
       if (details.isMainFrame && !details.isSameDocument) applyWebRtc(details.url);
@@ -498,39 +474,11 @@ export class BrowserWindowController {
       print: (wc) => owner().print(wc),
       savePageAs: (wc) => void owner().savePageAs(wc),
       viewSource: (wc) => owner().viewSource(wc),
-      // Tor windows: nothing leaves outside Tor (cloud saves and the assistant use Velo's own connection).
-      aiEnabled: () => !this.torRouter && this.ctx.settings.get().aiEnabled && this.ctx.settings.tokenStatus().configured,
-      cloudEnabled: () => !this.torRouter && this.ctx.settings.tokenStatus().configured,
+      aiEnabled: () => this.ctx.settings.get().aiEnabled && this.ctx.settings.tokenStatus().configured,
+      cloudEnabled: () => this.ctx.settings.tokenStatus().configured,
       askAboutText: (action, text) => owner().send(IPC.evAiAsk, { action, text }),
       askAboutPage: (action) => owner().send(IPC.evAiAsk, { page: action }),
-      extensionItems: (params) => (this.isPrivate ? [] : this.ctx.extensions?.contextItems(contents, params) ?? []),
     });
   }
 }
 
-/**
- * Tor windows: time zone UTC and English locale for the page and every frame and worker it starts,
- * as Tor Browser does (the local time zone and language narrow down who and where you are).
- */
-function emulateTorLocale(contents: WebContents): void {
-  const dbg = contents.debugger;
-  const apply = (sessionId?: string) =>
-    Promise.all([
-      dbg.sendCommand('Emulation.setTimezoneOverride', { timezoneId: 'UTC' }, sessionId).catch(() => undefined),
-      dbg.sendCommand('Emulation.setLocaleOverride', { locale: 'en-US' }, sessionId).catch(() => undefined),
-    ]);
-  try {
-    dbg.attach('1.3');
-  } catch {
-    return; // DevTools protocol busy: the strict fingerprinting protection still applies
-  }
-  // Frames of other sites and workers run as their own targets: each is set up before it starts.
-  dbg.on('message', (_e, method, params: { sessionId?: string; targetInfo?: { type?: string } }) => {
-    if (method !== 'Target.attachedToTarget' || !params.sessionId) return;
-    const sessionId = params.sessionId;
-    void apply(sessionId)
-      .then(() => dbg.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }, sessionId).catch(() => undefined))
-      .finally(() => dbg.sendCommand('Runtime.runIfWaitingForDebugger', {}, sessionId).catch(() => undefined));
-  });
-  void apply().then(() => dbg.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }).catch(() => undefined));
-}

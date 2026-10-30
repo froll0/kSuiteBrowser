@@ -6,7 +6,7 @@ import { tr } from '../shared/i18n';
 export const INTERNAL_SCHEME = 'velo';
 
 /** Internal pages: velo://settings, velo://history, … Each host maps to a folder in dist/pages. */
-export const INTERNAL_PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader', 'extensions', 'assets'] as const;
+export const INTERNAL_PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader', 'assets'] as const;
 const PAGES = new Set<string>(INTERNAL_PAGES);
 
 const MIME: Record<string, string> = {

@@ -1,7 +1,7 @@
 # Velo
 
 Browser desktop (Windows, macOS, Linux) pensato per la **privacy e l'anonimato**: nessun contatto
-con Google, protezione dal tracciamento e dal fingerprinting, finestre private e finestre Tor, interfaccia
+con Google, protezione dal tracciamento e dal fingerprinting, finestre private, interfaccia
 minimale e personalizzabile. Funziona senza alcun account; chi usa i servizi cloud di Infomaniak
 (posta, kDrive, calendario, IA) può collegarli facoltativamente.
 
@@ -43,19 +43,6 @@ quindi funzionano senza sorprese.
   che scorre sotto la barra senza ridimensionarsi
 - Nuova scheda con sfondo semplice, tinto o sfumato e blocchi a scelta (saluto, siti più visitati, app)
 - Anteprima dal vivo nelle impostazioni; tutto si applica subito, anche alle pagine del browser e ai popup
-
-**Estensioni** (`velo://extensions`, menu › Estensioni, o il pulsante a forma di puzzle)
-- Estensioni del **Chrome Web Store**: si installano dalla pagina dell'estensione nel Web Store (compare la barra
-  «Aggiungi a Velo»), incollandone l'indirizzo o l'ID, oppure da file `.crx`/`.zip`; in modalità sviluppatore
-  anche da una cartella, con «Ricarica»
-- Prima di installare il browser mostra cosa l'estensione potrà fare (siti a cui accede, cronologia, notifiche…) e le
-  funzioni che qui non ci sono
-- I pacchetti `.crx` sono verificati: l'ID deriva dalla chiave dello sviluppatore e la firma deve corrispondere
-  (un file alterato non si installa)
-- Pulsanti delle estensioni nella barra con icona, titolo e badge (per scheda), popup sotto il pulsante, menu con
-  «Opzioni», «Fissa/Togli dalla barra» e «Rimuovi»; voci aggiunte al menu contestuale; scorciatoie da tastiera
-- Aggiornamenti automatici dal Web Store; se una nuova versione chiede più permessi aspetta la tua conferma
-- Attivazione/disattivazione, rimozione, pagina delle opzioni. Non funzionano nelle finestre private
 
 **Browser**
 - Schede e più finestre, barra indirizzi/ricerca (DuckDuckGo, Qwant, Ecosia, Startpage, Google)
@@ -156,8 +143,6 @@ quindi funzionano senza sorprese.
 - **Protezione dell'IP con WebRTC**: standard, protetta (predefinita: solo la connessione principale, l'IP reale resta
   nascosto dietro una VPN) o massima (nessun collegamento diretto); le chiamate di kMeet funzionano sempre
 - **Protezione dall'impronta digitale** (fingerprinting), vedi [sotto](#protezione-dallimpronta-digitale)
-- **Finestre Tor** (File › *Nuova finestra Tor*, Alt+Maiusc+N): Tor è incluso, ogni sito vede un indirizzo IP diverso,
-  vedi [sotto](#finestre-tor)
 - **Link puliti**: i parametri di tracciamento (`utm_…`, `fbclid`, `gclid`, `msclkid`, `si` di YouTube…) vengono tolti dagli
   indirizzi prima di aprire la pagina; "Copia link senza tracciamento" nel menu contestuale dei link
 - **Protezione da phishing e malware**: i siti che rubano password e dati e i file di malware conosciuti vengono bloccati
@@ -247,8 +232,7 @@ Chromium, il motore delle pagine, non invia statistiche; i contatti con Google v
 | DNS cifrato «automatico» | sceglieva il DNS del sistema, spesso `dns.google` | Quad9, con riserva sul DNS della rete |
 
 All'avvio, senza aprire siti, Velo contatta solo: le liste di blocco dei tracker e degli indirizzi pericolosi (GitHub,
-GitLab), Quad9 per il DNS cifrato e, se lo colleghi, Infomaniak. Il Chrome Web Store viene contattato solo per
-installare o aggiornare le estensioni che hai preso da lì.
+GitLab), Quad9 per il DNS cifrato e, se lo colleghi, Infomaniak..
 
 ## Protezione dall'impronta digitale
 
@@ -267,58 +251,6 @@ In entrambe le modalità i *client hints* che descrivono il dispositivo in detta
 architettura, modello) non vengono mai inviati. La protezione vale anche negli iframe, con la chiave del sito principale
 (un tracker incorporato in due siti vede due dispositivi diversi). Le funzioni sostituite appaiono native (`toString` compreso). Dal
 pulsante scudo si possono spegnere tutte le protezioni per un sito.
-
-## Finestre Tor
-
-Una finestra Tor fa passare tutte le pagine dalla rete [Tor](https://www.torproject.org): i siti non vedono il tuo
-indirizzo IP, il provider e la rete Wi-Fi vedono solo che usi Tor. Il client Tor è quello ufficiale (il *Tor Expert
-Bundle* di Tor Browser), incluso nel pacchetto e avviato da Velo alla prima finestra Tor.
-
-Come in Tor Browser:
-
-- **Ogni sito è isolato**: ha la sua sessione in memoria (cookie, cache, archivi) e il suo circuito Tor, quindi il suo
-  indirizzo di uscita. I contenuti incorporati (iframe, script, immagini) viaggiano con il sito che li incorpora: un
-  tracker presente su due siti vede due persone diverse, con due indirizzi diversi. Quando una scheda passa a un altro
-  sito, la pagina si sposta nella sessione di quel sito (avanti e indietro funzionano).
-- **Impronta uniforme**: protezione dall'impronta in modalità rigorosa qualunque sia l'impostazione, fuso orario UTC e
-  lingua `en-US` (pagina, iframe e worker), area della pagina arrotondata a multipli di 200×100 pixel
-  (*letterboxing*), nessun client hint dettagliato.
-- **Nessuna fuga**: WebRTC solo attraverso il proxy (quindi mai UDP diretto), i nomi dei siti sono risolti dalla rete
-  Tor e non dal DNS del computer, niente prefetch DNS, nemmeno i servizi del computer (`localhost`) sono raggiungibili;
-  le favicon delle schede arrivano attraverso Tor; posizione, notifiche, contenuti protetti (Widevine) e dispositivi
-  sono negati; nessuna estensione, nessun salvataggio su kDrive né assistente IA (userebbero la connessione normale).
-- **Niente resta**: cronologia, cookie e dati spariscono quando chiudi l'ultima finestra Tor. Dal pulsante **Tor**
-  accanto alle schede: stato della connessione, *Nuovo circuito Tor per questo sito* e *Nuova identità* (chiude le
-  finestre Tor, cancella tutto e ne apre una nuova con circuiti nuovi).
-- I siti `.onion` funzionano e restano su `http://` (sono già cifrati da Tor).
-
-Dettagli tecnici: Chromium non sa inviare le credenziali SOCKS che Tor usa per separare i circuiti
-(`IsolateSOCKSAuth`), quindi Velo mette davanti a Tor un piccolo relay SOCKS5 locale (`src/main/tor/relay.ts`): ogni
-sito ha un suo ingresso, che aggiunge a ogni connessione nome utente e password del sito. Le richieste di pagina di un
-altro sito vengono fermate prima di partire e riaperte nella sessione giusta.
-
-Velo non è Tor Browser: il motore è Chromium, quindi chi ti osserva può capire che usi Velo con Tor, e tra gli utenti
-di Velo le finestre Tor si somigliano tutte. Per la massima anonimità (giornalisti, attivisti, minacce serie) usa
-Tor Browser.
-
-## Come funzionano le estensioni
-
-Electron esegue da sé una parte dell'API delle estensioni di Chrome (script nelle pagine, `storage`, `alarms`,
-`scripting`, `declarativeNetRequest`, `webRequest`, `offscreen`, messaggi). Il resto è implementato dal browser
-(`src/main/extensions/`, `src/preload/extensions.ts`), sopra le sue schede e finestre:
-
-- `action`/`browserAction` (pulsante, popup, badge, icone anche da `ImageData`), `tabs` (query, create, update,
-  remove, move, discard, captureVisibleTab, eventi), `windows` (anche finestre popup delle estensioni),
-  `contextMenus`, `notifications`, `cookies`, `webNavigation`, `permissions` (permessi opzionali con conferma),
-  `commands` (scorciatoie), `runtime.onInstalled`/`onStartup`/`openOptionsPage`, `downloads.download`, `sidePanel`
-  (mostrato come popup)
-- Gli ID delle schede sono quelli delle pagine (come in Chrome), quindi `tabs.sendMessage` e `sender.tab` combaciano;
-  le schede in pausa hanno un ID proprio e risultano «discarded»
-- Il service worker delle estensioni Manifest V3 viene risvegliato quando arriva un evento a cui è in ascolto;
-  le estensioni Manifest V2 funzionano anche con pagine di sfondo non persistenti
-
-Non disponibili: `bookmarks`, `history`, `nativeMessaging` (per esempio lo sblocco con l'app desktop di un gestore di
-password), `identity`, `tabGroups`, `sessions`, `debugger`. Chi le usa installa comunque, ma quelle funzioni non vanno.
 
 ## Lingue
 
@@ -341,11 +273,6 @@ npm start          # compila e avvia
 npm test           # test unitari (client API, omnibox, utilità)
 npm run typecheck
 ```
-
-Per le finestre Tor in sviluppo serve un eseguibile `tor`: quello installato nel sistema (per esempio
-`apt install tor`, `brew install tor`), oppure `node scripts/fetch-tor.mjs` scarica e verifica il Tor Expert Bundle in
-`build/tor/`. Senza rete Tor, `VELO_TOR_PATH=scripts/fake-tor.mjs` usa un finto Tor che si collega direttamente (solo
-per i test: non anonimizza nulla).
 
 ### Creare l'installer
 
@@ -396,7 +323,6 @@ L'app verifica comunque l'integrità di ogni aggiornamento (SHA-512 dal file `la
 src/
   api/        Client REST Infomaniak (profilo, kDrive, Mail, Calendar, Contatti, AI Services) — senza dipendenze da Electron
   main/       Processo principale: finestre, schede, privacy, download, permessi, menu, IPC
-              (tor/: processo Tor, relay SOCKS e sessioni per sito delle finestre Tor)
   preload/    Ponti sicuri (contextBridge): UI del browser e pagine interne velo://
   renderer/   Interfaccia del browser (barra schede, barra delle app, pannello cloud)
   pages/      Pagine interne: velo://newtab, search, settings, history, bookmarks, passwords, https-only
@@ -452,9 +378,6 @@ codice caricato solo dall'archivio `app.asar` (verificato su Windows e macOS), c
 
 - Barra a scomparsa su Linux: i pulsanti della finestra (riduci, ingrandisci, chiudi) restano appena visibili in alto
   a destra quando la barra è nascosta; il pannello cloud non compare in questa modalità.
-- Finestre Tor: un modulo inviato a un altro sito arriva come semplice apertura della pagina (la sessione cambia e i
-  dati del modulo vanno persi); i popup aperti da una pagina (per esempio gli accessi con Google o Apple) restano nella
-  sessione della pagina che li apre.
 - Il caricamento diretto su kDrive è limitato a 1 GB per file (per file più grandi usa l'app web).
 - Il pannello Mail usa la casella principale associata al token.
 - L'app non è ancora firmata digitalmente: Windows mostra l'avviso di SmartScreen e macOS chiede conferma all'apertura
@@ -465,9 +388,6 @@ codice caricato solo dall'archivio `app.asar` (verificato su Windows e macOS), c
 ## Crediti
 
 - Icone: [Lucide](https://lucide.dev) (licenza ISC).
-- [Tor](https://www.torproject.org) di The Tor Project (licenza BSD a 3 clausole), incluso senza modifiche nelle
-  versioni pubblicate; scaricato dal sito ufficiale e verificato (checksum firmati) durante la compilazione.
-  Velo non è affiliato al Tor Project.
 - Font: [Inter](https://rsms.me/inter/) di Rasmus Andersson (SIL Open Font License 1.1, testo in `src/renderer/fonts/LICENSE-Inter.txt`).
 - Velo è un progetto indipendente, non affiliato a Infomaniak. Le icone delle app nella barra sono pittogrammi generici;
   i nomi e i marchi Infomaniak, kDrive, kChat, kMeet ed Euria appartengono ai rispettivi titolari e sono citati solo per indicare la compatibilità.

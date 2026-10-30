@@ -2,7 +2,7 @@ import { applyTokens, isDark, SIDE_TABS_RANGE, tokens, TOOLBAR_ITEMS, type Toolb
 import { INFOMANIAK_APPS } from '../shared/infomaniak-apps';
 import { faviconUrl } from '../shared/top-sites';
 import { inlineCompletion } from '../shared/suggest';
-import type { Bookmark, ExtensionButton, Settings, Suggestion, TabState } from '../shared/types';
+import type { Bookmark, Settings, Suggestion, TabState } from '../shared/types';
 import { ks } from './bridge';
 import { h } from './dom';
 import { hydrateIcons, icon, logoMark, type IconName } from './icons';
@@ -80,51 +80,14 @@ toolbar.addEventListener('contextmenu', (e) => {
   void ks.toolbarMenu(null);
 });
 
-// Extensions: pinned buttons sit next to the extensions (puzzle) button.
-const extSlot = h('div', { class: 'ext-slot' });
-const extPinned = h('div', { class: 'ext-pinned' });
-extSlot.append(extPinned, buttons.extensions);
-let extButtons: ExtensionButton[] = [];
-
-function renderExtensionButtons(): void {
-  extPinned.replaceChildren(
-    ...extButtons.filter((b) => b.pinned).map((b) => {
-      const el = h('button', { class: `icon-btn ext-action${b.enabled ? '' : ' disabled'}`, title: b.title, 'aria-label': b.title, 'data-ext': b.id });
-      el.append(b.icon ? h('img', { src: b.icon, alt: '' }) : h('span', { class: 'ext-letter' }, b.name.slice(0, 1).toUpperCase()));
-      if (b.badge) {
-        const badge = h('span', { class: 'ext-badge' }, b.badge.slice(0, 4));
-        badge.style.background = b.badgeBg;
-        badge.style.color = b.badgeColor;
-        el.append(badge);
-      }
-      el.addEventListener('click', () => void ks.extensions.click(b.id, anchorOf(el)));
-      el.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        void ks.extensions.menu(b.id);
-      });
-      return el;
-    }),
-  );
-}
-
-ks.events.onExtensionButtons((list) => {
-  extButtons = list;
-  renderExtensionButtons();
-});
-
 /** Buttons that need the optional Infomaniak account. */
 const CLOUD_ITEMS: ToolbarItem[] = ['panel', 'ai'];
 
 function placeToolbar(settings: Settings): void {
-  const place = (id: ToolbarItem) => (id === 'extensions' ? extSlot : buttons[id]);
+  const place = (id: ToolbarItem) => buttons[id];
   const shown = (id: ToolbarItem) => tokenConfigured || !CLOUD_ITEMS.includes(id);
   $('tb-start').replaceChildren(...settings.toolbarStart.filter(shown).map(place));
   $('tb-end').replaceChildren(...settings.toolbarEnd.filter(shown).map(place));
-  // Without the extensions button in the toolbar, pinned extensions still show at the end.
-  const placed = settings.toolbarStart.includes('extensions') || settings.toolbarEnd.includes('extensions');
-  buttons.extensions.hidden = !placed;
-  if (!placed) $('tb-end').append(extSlot);
 }
 
 let tabs: TabState[] = [];
@@ -393,7 +356,7 @@ function renderToolbar(): void {
   const defaultZoom = currentSettings?.defaultZoom ?? 100;
   zoomBtn.hidden = !tab || tab.zoom === defaultZoom;
   zoomBtn.textContent = tab ? `${tab.zoom}%` : '';
-  const suffix = document.body.classList.contains('tor') ? 'Velo (Tor)' : document.body.classList.contains('private') ? tr('Velo (privata)') : 'Velo';
+  const suffix = document.body.classList.contains('private') ? tr('Velo (privata)') : 'Velo';
   document.title = tab ? `${tab.title} — ${suffix}` : suffix;
 }
 
@@ -811,7 +774,6 @@ const anchorOf = (el: HTMLElement) => {
   return { x: r.left, y: r.top, width: r.width, height: r.height };
 };
 buttons.panel.addEventListener('click', togglePanel);
-buttons.extensions.addEventListener('click', () => void ks.extensions.all(anchorOf(buttons.extensions)));
 buttons.tabSearch.addEventListener('click', () => void ks.tabSearch(anchorOf(buttons.tabSearch)));
 buttons.newTab.addEventListener('click', () => void ks.tabs.create());
 buttons.home.addEventListener('click', () => {
@@ -899,23 +861,6 @@ ks.events.onAiAsk((ask) => void setPanelOpen(true).then(() => panel.askAi(ask)))
 ks.events.onToast((t) => toast(t.kind, t.message));
 
 // A site wants protected content (Netflix…) while Widevine is off.
-// Tor windows: connection state on the badge.
-const torBadge = document.getElementById('tor-badge') as HTMLButtonElement;
-torBadge.addEventListener('click', () => void ks.torMenu());
-ks.events.onTorStatus((status) => {
-  torBadge.className = status.state;
-  const label = torBadge.querySelector('.tor-label')!;
-  label.textContent = status.state === 'starting' ? `Tor ${status.progress ?? 0}%` : status.state === 'error' ? tr('Tor non connesso') : 'Tor';
-  torBadge.title =
-    status.state === 'ready'
-      ? tr('Connesso alla rete Tor: ogni sito vede un indirizzo diverso, nulla resta alla chiusura')
-      : status.state === 'starting'
-        ? tr('Connessione alla rete Tor… {0}', status.summary ?? '')
-        : status.state === 'error'
-          ? tr('Tor non riesce a connettersi: {0}', status.message ?? '')
-          : tr('Tor non è avviato');
-});
-
 ks.events.onDrmOffer((offer) => {
   if (!infobar.hidden) return;
   infobar.replaceChildren(
@@ -924,28 +869,6 @@ ks.events.onDrmOffer((offer) => {
     h('span', { class: 'spacer' }),
     h('button', { class: 'primary', onclick: () => void ks.enableDrm() }, tr('Attiva e riavvia')),
     h('button', { onclick: hideInfobar }, tr('Non ora')),
-  );
-  infobar.hidden = false;
-});
-
-// On an extension's page in the Chrome Web Store: offer to add it to this browser.
-ks.events.onExtensionOffer((offer) => {
-  if (!infobar.hidden) return;
-  const add = h('button', { class: 'primary' }, tr('Aggiungi a Velo'));
-  add.addEventListener('click', async () => {
-    add.disabled = true;
-    add.textContent = tr('Installazione…');
-    const res = await ks.extensions.installFromStore(offer.id);
-    hideInfobar();
-    if (res.ok) toast('success', tr('Estensione aggiunta: la trovi nel pulsante delle estensioni.'));
-    else if (res.error) toast('error', res.error);
-  });
-  infobar.replaceChildren(
-    barIcon('puzzle'),
-    h('span', { class: 'msg' }, offer.installed ? tr('Questa estensione è già installata in Velo.') : tr('Puoi aggiungere questa estensione a Velo.')),
-    h('span', { class: 'spacer' }),
-    offer.installed ? h('button', { onclick: () => { hideInfobar(); void ks.tabs.create('velo://extensions/'); } }, tr('Gestisci')) : add,
-    h('button', { onclick: hideInfobar }, tr('Chiudi')),
   );
   infobar.hidden = false;
 });
@@ -1065,11 +988,9 @@ window.addEventListener('resize', syncBounds);
 // ---------- Boot ----------
 
 async function boot(): Promise<void> {
-  const [settings, status, initialTabs, info, bookmarkList, extensionList] = await Promise.all([
-    ks.settings.get(), ks.token.status(), ks.tabs.list(), ks.windowInfo(), ks.bookmarks.list(), ks.extensions.buttons(),
+  const [settings, status, initialTabs, info, bookmarkList] = await Promise.all([
+    ks.settings.get(), ks.token.status(), ks.tabs.list(), ks.windowInfo(), ks.bookmarks.list(),
   ]);
-  extButtons = extensionList;
-  renderExtensionButtons();
   tabs = initialTabs;
   windowId = info.windowId;
   document.body.classList.add(`platform-${info.platform}`);
@@ -1079,7 +1000,6 @@ async function boot(): Promise<void> {
   renderBookmarksBar();
   tokenConfigured = status.configured;
   document.body.classList.toggle('private', info.isPrivate);
-  document.body.classList.toggle('tor', info.isTor);
   applyAppearance(settings);
   renderTabs();
   renderToolbar();

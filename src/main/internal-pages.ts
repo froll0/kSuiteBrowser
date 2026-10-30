@@ -2,6 +2,7 @@ import { protocol, type Session } from 'electron';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { tr } from '../shared/i18n';
+import { INTERNAL_PAGE_CSP, internalPagePath } from '../shared/ipc-guard';
 
 export const INTERNAL_SCHEME = 'velo';
 
@@ -42,16 +43,18 @@ export function serveInternalPages(session: Session, pagesDir: string, favicon: 
     if (!PAGES.has(url.hostname)) return new Response(tr('Pagina non trovata'), { status: 404 });
 
     const root = join(pagesDir, url.hostname);
-    const relative = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
-    const file = normalize(join(root, relative));
-    if (!file.startsWith(root + sep)) return new Response(tr('Accesso negato'), { status: 403 });
+    const relative = internalPagePath(url.pathname);
+    const file = relative ? normalize(join(root, relative)) : '';
+    if (!relative || !file.startsWith(root + sep)) return new Response(tr('Accesso negato'), { status: 403 });
 
     try {
       const body = await readFile(file);
       return new Response(body, {
         headers: {
           'Content-Type': MIME[extname(file)] ?? 'application/octet-stream',
-          'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https: velo:; font-src 'self' velo:; frame-ancestors 'none'",
+          'Content-Security-Policy': INTERNAL_PAGE_CSP,
+          'X-Content-Type-Options': 'nosniff',
+          'Referrer-Policy': 'no-referrer',
           'X-Frame-Options': 'DENY',
           'Cache-Control': 'no-store',
         },

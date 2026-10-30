@@ -1,0 +1,31 @@
+name: Electron security updates
+
+# Electron carries Chromium's security fixes: every week check for a newer castlabs build and open an
+# issue when there is one.
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check for a newer Electron
+        run: |
+          set +e
+          node scripts/check-electron.mjs --issue
+          code=$?
+          if [ "$code" = "2" ]; then echo "::warning::È disponibile una versione più recente di Electron (vedi la issue)."; exit 0; fi
+          exit $code
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

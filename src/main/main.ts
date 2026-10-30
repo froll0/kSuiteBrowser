@@ -53,6 +53,7 @@ import { HistoryStore } from './stores/history';
 import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } from './window';
 import { adoptLegacyProfile } from './legacy';
 import { purgeRemovedFeatures } from './purge';
+import { isAllowedInternalSender } from '../shared/ipc-guard';
 import { locale, resolveLocale, tr } from '../shared/i18n';
 
 adoptLegacyProfile();
@@ -60,6 +61,12 @@ adoptLegacyProfile();
 // stays off and the browser makes no request to Google's update servers.
 if (!drmOptedIn()) app.commandLine.appendSwitch('disable-component-update');
 registerInternalScheme();
+// Every renderer runs in Chromium's sandbox, whatever its own options say.
+app.enableSandbox();
+// No page may embed a <webview> (a full browser inside the page) or open windows Velo doesn't manage.
+app.on('web-contents-created', (_e, contents) => {
+  contents.on('will-attach-webview', (event) => event.preventDefault());
+});
 // Windows shows notifications only for apps with an explicit identity.
 if (process.platform === 'win32') app.setAppUserModelId('io.github.froll0.velo');
 
@@ -1236,14 +1243,7 @@ function registerChromeIpc(): void {
 function handleInternal<A extends unknown[], R>(channel: string, hosts: string[], fn: (event: IpcMainInvokeEvent, ...args: A) => R): void {
   ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: unknown[]) => {
     const frame = event.senderFrame;
-    let allowed = false;
-    try {
-      const url = new URL(frame?.url ?? '');
-      allowed = url.protocol === 'velo:' && hosts.includes(url.hostname) && frame === event.sender.mainFrame;
-    } catch {
-      allowed = false;
-    }
-    if (!allowed) throw new Error('Unauthorized IPC sender');
+    if (!isAllowedInternalSender(frame?.url, hosts, Boolean(frame) && frame === event.sender.mainFrame)) throw new Error('Unauthorized IPC sender');
     return fn(event, ...(args as A));
   });
 }

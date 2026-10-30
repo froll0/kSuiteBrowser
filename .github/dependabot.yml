@@ -1,0 +1,17 @@
+# Security and version updates for the other dependencies (Electron itself comes from castlabs' git
+# releases: scripts/check-electron.mjs watches it).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: electron
+    groups:
+      dev-tools:
+        dependency-type: development
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

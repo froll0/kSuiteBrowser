@@ -88,14 +88,15 @@ export class PasswordManager {
       return { username: logins[0].username, password: logins[0].password };
     });
 
+    // Only the page itself, never its frames: logins belong to the address in the address bar.
     ipcMain.handle('pw:field-click', (event, info: { newPassword?: boolean }) => {
       const ctx = this.context(event);
-      if (ctx) this.showFieldMenu(ctx, Boolean(info?.newPassword));
+      if (ctx && ctx.frame === event.sender.mainFrame) this.showFieldMenu(ctx, Boolean(info?.newPassword));
     });
 
     ipcMain.on('pw:submit', (event, data: { username?: unknown; password?: unknown }) => {
       const ctx = this.context(event);
-      if (!ctx || ctx.tab.window.isPrivate || !this.settings.get().offerToSavePasswords) return;
+      if (!ctx || ctx.frame !== event.sender.mainFrame || ctx.tab.window.isPrivate || !this.settings.get().offerToSavePasswords) return;
       const username = typeof data?.username === 'string' ? data.username.slice(0, 512) : '';
       const password = typeof data?.password === 'string' ? data.password.slice(0, 1024) : '';
       if (!password) return;

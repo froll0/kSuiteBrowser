@@ -140,6 +140,7 @@
     "afterPack": "scripts/after-pack.cjs",
     "electronDownload": {
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
-    }
+    },
+    "afterSign": "scripts/after-sign.cjs"
   }
 }

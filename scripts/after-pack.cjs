@@ -3,8 +3,8 @@
 // electron-builder would flip the fuses after this hook, which changes the Electron binary and would break
 // a VMP signature made here: the fuses are flipped here instead (the "electronFuses" config stays unset).
 // macOS: VMP must come before code signing, so the app is ad-hoc signed again afterwards when no real
-// identity is used. Windows: VMP must come after code signing; the app isn't code signed yet (when it is,
-// move the Windows part to an afterSign hook).
+// identity is used. Windows: VMP must come after code signing: done here only for unsigned builds,
+// otherwise by the afterSign hook (after-sign.cjs).
 const { execFileSync } = require('node:child_process');
 const { readdirSync } = require('node:fs');
 const { join } = require('node:path');
@@ -12,6 +12,11 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 
 function python() {
   return process.platform === 'win32' ? 'python' : 'python3';
+}
+
+/** Windows builds signed with a certificate (CSC_LINK / WIN_CSC_LINK in the CI secrets). */
+function windowsCodeSigned() {
+  return Boolean(process.env.WIN_CSC_LINK || process.env.CSC_LINK);
 }
 
 function vmpSign(appOutDir) {
@@ -22,6 +27,9 @@ function vmpSign(appOutDir) {
   console.log(`  • VMP: firma Widevine di ${appOutDir}`);
   execFileSync(python(), ['-m', 'castlabs_evs.vmp', 'sign-pkg', appOutDir], { stdio: 'inherit' });
 }
+
+exports.vmpSign = vmpSign;
+exports.windowsCodeSigned = windowsCodeSigned;
 
 exports.default = async function afterPack(context) {
   const platform = context.electronPlatformName;
@@ -41,7 +49,7 @@ exports.default = async function afterPack(context) {
   });
 
   // Widevine VMP exists on Windows and macOS only.
-  if (platform === 'darwin' || platform === 'win32') vmpSign(context.appOutDir);
+  if (platform === 'darwin' || (platform === 'win32' && !windowsCodeSigned())) vmpSign(context.appOutDir);
 
   if (platform === 'darwin' && process.env.CSC_IDENTITY_AUTO_DISCOVERY === 'false') {
     const app = readdirSync(context.appOutDir).find((f) => f.endsWith('.app'));

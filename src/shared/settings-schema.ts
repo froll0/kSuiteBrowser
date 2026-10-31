@@ -1,7 +1,8 @@
-import type { AskablePermission, PermissionDefault, ReaderTheme, ReaderWidth, Settings, SitePermission } from './types';
+import type { Container, TagColor, Workspace, AskablePermission, PermissionDefault, ReaderTheme, ReaderWidth, Settings, SitePermission } from './types';
 import type { SecureDnsChoice } from './secure-dns';
 import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from './url';
 import { ZOOM_STEPS } from './zoom';
+import { sanitizeShortcuts } from './commands';
 import { DEFAULT_ACCENT, FONT_SIZES, RADIUS_RANGE, SIDE_TABS_RANGE, TOOLBAR_ITEM_IDS, UI_FONTS, validHex, type ToolbarItem, type UiFont } from './appearance';
 
 export const REMINDER_MINUTES = [5, 10, 15, 30, 60] as const;
@@ -10,7 +11,22 @@ export const SLEEP_MINUTES = [0, 15, 30, 60, 120, 240] as const;
 
 export const ASKABLE_PERMISSIONS: readonly AskablePermission[] = ['media', 'notifications', 'geolocation'];
 
+export const TAG_COLORS: readonly TagColor[] = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'];
+
+export const DEFAULT_WORKSPACES: Workspace[] = [{ id: 'default', name: 'Generale', color: 'blue' }];
+
+export const DEFAULT_CONTAINERS: Container[] = [
+  { id: 'personal', name: 'Personale', color: 'blue' },
+  { id: 'work', name: 'Lavoro', color: 'orange' },
+  { id: 'shopping', name: 'Acquisti', color: 'pink' },
+  { id: 'banking', name: 'Banca', color: 'green' },
+];
+
 export const DEFAULT_SETTINGS: Settings = {
+  onboarded: false,
+  shortcuts: {},
+  workspaces: DEFAULT_WORKSPACES,
+  containers: DEFAULT_CONTAINERS,
   startup: 'restore',
   searchEngine: 'velo',
   webSearchEngine: 'duckduckgo',
@@ -40,6 +56,8 @@ export const DEFAULT_SETTINGS: Settings = {
   newTabShowApps: true,
   showBookmarksBar: true,
   autoHideToolbar: false,
+  revealToolbarOnScrollUp: false,
+  reduceMotion: false,
   panelOpen: true,
   newTabPage: 'newtab',
   showTopSites: true,
@@ -58,6 +76,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sleepTabsAfter: 60,
   offerToSavePasswords: true,
   autofillPasswords: true,
+  autofillForms: true,
   saveHistory: true,
   trackingProtection: 'standard',
   blockThirdPartyCookies: true,
@@ -139,6 +158,21 @@ function sitePermissions(value: unknown): SitePermission[] {
   return [...seen.values()].sort((a, b) => a.host.localeCompare(b.host) || a.permission.localeCompare(b.permission));
 }
 
+/** Named, coloured items with unique ids (workspaces, containers); `fallback` when none is left. */
+export function tagList<T extends { id: string; name: string; color: TagColor }>(value: unknown, fallback: T[], max = 30): T[] {
+  if (!Array.isArray(value)) return fallback;
+  const out: T[] = [];
+  for (const v of value) {
+    if (!v || typeof v !== 'object') continue;
+    const { id, name, color } = v as Partial<T>;
+    if (typeof id !== 'string' || !/^[a-z0-9-]{1,40}$/.test(id) || out.some((o) => o.id === id)) continue;
+    const label = typeof name === 'string' ? name.trim().slice(0, 40) : '';
+    out.push({ id, name: label || id, color: TAG_COLORS.includes(color as TagColor) ? (color as TagColor) : 'grey' } as T);
+    if (out.length >= max) break;
+  }
+  return out.length ? out : fallback;
+}
+
 /** Fills in defaults and drops invalid values, so a hand-edited or old settings file never breaks the app. */
 export function sanitizeSettings(raw: unknown): Settings {
   const s = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof Settings, unknown>>;
@@ -150,6 +184,11 @@ export function sanitizeSettings(raw: unknown): Settings {
   const toolbarEnd = toolbar(s.toolbarEnd, d.toolbarEnd, taken);
 
   return {
+    // A settings file from before the welcome page existed: that user doesn't need it.
+    onboarded: bool(s.onboarded, Object.keys(s).length > 0),
+    shortcuts: sanitizeShortcuts(s.shortcuts),
+    workspaces: tagList(s.workspaces, d.workspaces),
+    containers: tagList(s.containers, d.containers),
     startup: oneOf(s.startup, ['home', 'restore'] as const, d.startup),
     // The unified search was called "ksuite" before the browser became Velo.
     searchEngine: oneOf(s.searchEngine === 'ksuite' ? 'velo' : s.searchEngine, Object.keys(SEARCH_ENGINES) as Array<keyof typeof SEARCH_ENGINES>, d.searchEngine),
@@ -187,6 +226,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     newTabShowApps: bool(s.newTabShowApps, d.newTabShowApps),
     showBookmarksBar: bool(s.showBookmarksBar, d.showBookmarksBar),
     autoHideToolbar: bool(s.autoHideToolbar, d.autoHideToolbar),
+    revealToolbarOnScrollUp: bool(s.revealToolbarOnScrollUp, d.revealToolbarOnScrollUp),
+    reduceMotion: bool(s.reduceMotion, d.reduceMotion),
     panelOpen: bool(s.panelOpen, d.panelOpen),
     newTabPage: oneOf(s.newTabPage, ['newtab', 'home'] as const, d.newTabPage),
     showTopSites: bool(s.showTopSites, d.showTopSites),
@@ -205,6 +246,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     eventReminderMinutes: (REMINDER_MINUTES as readonly number[]).includes(s.eventReminderMinutes as number) ? (s.eventReminderMinutes as number) : d.eventReminderMinutes,
     offerToSavePasswords: bool(s.offerToSavePasswords, d.offerToSavePasswords),
     autofillPasswords: bool(s.autofillPasswords, d.autofillPasswords),
+    autofillForms: bool(s.autofillForms, d.autofillForms),
     saveHistory: bool(s.saveHistory, d.saveHistory),
     trackingProtection: oneOf(s.trackingProtection, ['off', 'standard', 'strict'] as const, d.trackingProtection),
     blockThirdPartyCookies: bool(s.blockThirdPartyCookies, d.blockThirdPartyCookies),

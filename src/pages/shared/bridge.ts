@@ -1,5 +1,5 @@
 import { INTERNAL } from '../../shared/ipc';
-import type { AiEvent, AboutInfo, BreachReport, ReaderArticle, SyncCollectionOption, SyncStatus, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
+import type { SiteSettingsInfo, SiteSettingsPatch, AiEvent, AboutInfo, BreachReport, ReaderArticle, SyncCollectionOption, SyncStatus, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
 import { translateDom, tr, type Locale } from '../../shared/i18n';
 
 interface InternalBridge {
@@ -59,6 +59,19 @@ export const internal = {
     reset: () => call<ApiResult<void>>(INTERNAL.syncReset),
     options: (options: { deviceName?: string; collections?: Partial<Record<SyncCollectionOption, boolean>> }) => call<void>(INTERNAL.syncOptions, options),
     onChange: (fn: (s: SyncStatus) => void) => bridge().onSync(fn),
+  },
+  /** Ends the welcome page: opens `url` there, restarting first when the language changed. */
+  welcomeFinish: (url: string, restart: boolean) => call<void>(INTERNAL.welcomeFinish, url, restart),
+  shortcuts: {
+    info: () => call<{ platform: string; commands: Array<{ id: string; label: string; group: string; keys: string; defaultKeys: string }> }>(INTERNAL.shortcutsInfo),
+    capture: (on: boolean) => call<void>(INTERNAL.shortcutsCapture, on),
+  },
+  site: {
+    info: (host: string) => call<SiteSettingsInfo | null>(INTERNAL.siteInfo, host),
+    set: (host: string, patch: SiteSettingsPatch) => call<SiteSettingsInfo | null>(INTERNAL.siteSet, host, patch),
+    clear: (host: string) => call<SiteSettingsInfo | null>(INTERNAL.siteClear, host),
+    /** Hosts with something saved (permissions, zoom, exceptions). */
+    list: () => call<Array<{ host: string; what: string[] }>>(INTERNAL.siteList),
   },
   drmStatus: () => call<{ supported: boolean; ready: boolean; version: string | null; status: string }>(INTERNAL.drmStatus),
   threatStatus: () => call<{ entries: number; loadedAt: number | null }>(INTERNAL.threatStatus),

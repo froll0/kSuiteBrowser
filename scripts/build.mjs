@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const watch = process.argv.includes('--watch');
-const PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader'];
+const PAGES = ['newtab', 'search', 'settings', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader', 'site', 'welcome'];
 
 const common = { bundle: true, sourcemap: true, logLevel: 'info' };
 const node = { ...common, platform: 'node', format: 'cjs', target: 'node22', external: ['electron'] };
@@ -18,6 +18,8 @@ const targets = [
   { ...web, entryPoints: ['src/renderer/app.ts'], outfile: 'dist/renderer/app.js' },
   { ...node, entryPoints: ['src/preload/suggest.ts'], outfile: 'dist/preload/suggest.js' },
   { ...node, entryPoints: ['src/preload/tabsearch.ts'], outfile: 'dist/preload/tabsearch.js' },
+  { ...node, entryPoints: ['src/preload/palette.ts'], outfile: 'dist/preload/palette.js' },
+  { ...web, entryPoints: ['src/renderer/palette.ts'], outfile: 'dist/renderer/palette.js' },
   { ...node, entryPoints: ['src/preload/passwords.ts'], outfile: 'dist/preload/passwords.js' },
   { ...node, entryPoints: ['src/preload/shield.ts'], outfile: 'dist/preload/shield.js' },
   { ...web, entryPoints: ['src/renderer/suggest.ts'], outfile: 'dist/renderer/suggest.js' },
@@ -30,7 +32,7 @@ const targets = [
 
 function copyStatic() {
   for (const dir of ['dist/renderer', 'dist/preload', ...PAGES.map((p) => `dist/pages/${p}`)]) mkdirSync(dir, { recursive: true });
-  for (const file of ['index.html', 'styles.css', 'suggest.html', 'suggest.css', 'tabsearch.html', 'tabsearch.css']) cpSync(`src/renderer/${file}`, `dist/renderer/${file}`);
+  for (const file of ['index.html', 'styles.css', 'suggest.html', 'suggest.css', 'tabsearch.html', 'tabsearch.css', 'palette.html', 'palette.css']) cpSync(`src/renderer/${file}`, `dist/renderer/${file}`);
   cpSync('src/renderer/fonts', 'dist/renderer/fonts', { recursive: true });
   cpSync('build/icon-256.png', 'dist/icon.png');
   cpSync('build/icon.ico', 'dist/icon.ico');

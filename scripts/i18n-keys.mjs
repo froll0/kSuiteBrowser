@@ -33,6 +33,10 @@ export function collectKeys(root = 'src') {
     const src = readFileSync(file, 'utf8');
     if (file.endsWith('.ts')) {
       for (const m of src.matchAll(new RegExp(String.raw`\btr\(\s*` + STR, 'g'))) add(unescape(m[1]), file);
+      // Lists of labels translated where they are shown (commands, default names).
+      if (/shared[\\/](commands|settings-schema)\.ts$/.test(file)) {
+        for (const m of src.matchAll(new RegExp(String.raw`\b(?:label|group|keywords|name): ` + STR, 'g'))) add(unescape(m[1]), file);
+      }
       for (const m of src.matchAll(new RegExp(String.raw`\bplural\([^,]+,\s*` + STR + String.raw`,\s*` + STR, 'g'))) {
         add(unescape(m[1]), file);
         add(unescape(m[2]), file);

@@ -17,6 +17,7 @@ import type { HistoryStore } from './stores/history';
 import { HoverCard } from './hover-card';
 import { StatusBubble } from './status-bubble';
 import { TabSearchPopup } from './tab-search-popup';
+import { CommandPalette } from './command-palette';
 import { SuggestionsPopup } from './suggestions-popup';
 import { TabManager } from './tabs';
 import { protectWorkers } from './worker-shield';
@@ -35,7 +36,7 @@ export interface WindowContext {
   /** Applies the zoom saved for the page's site (or the default zoom). */
   applyZoom(contents: WebContents): void;
   stepZoom(controller: BrowserWindowController, contents: WebContents, direction: 'in' | 'out'): void;
-  paths: { chromePreload: string; pagePreload: string; chromeHtml: string; suggestHtml: string; suggestPreload: string; tabSearchHtml: string; tabSearchPreload: string; appIcon: string };
+  paths: { chromePreload: string; pagePreload: string; chromeHtml: string; suggestHtml: string; suggestPreload: string; tabSearchHtml: string; tabSearchPreload: string; paletteHtml: string; palettePreload: string; appIcon: string };
   onTabsChanged(controller: BrowserWindowController): void;
   /** Window currently holding a tab's page (tabs can move between windows). */
   ownerOf(contents: WebContents): BrowserWindowController | null;
@@ -71,6 +72,7 @@ export class BrowserWindowController {
   readonly suggestions: SuggestionsPopup;
   readonly statusBubble: StatusBubble;
   readonly tabSearch: TabSearchPopup;
+  readonly palette: CommandPalette;
   readonly hoverCard: HoverCard;
   private refreshTimer: NodeJS.Timeout | null = null;
   private lastActive: number | null = null;
@@ -151,6 +153,7 @@ export class BrowserWindowController {
     });
 
     this.tabSearch = new TabSearchPopup(this.win, { html: ctx.paths.tabSearchHtml, preload: ctx.paths.tabSearchPreload }, () => densityMetrics(ctx.settings.get().density).row);
+    this.palette = new CommandPalette(this.win, { html: ctx.paths.paletteHtml, preload: ctx.paths.palettePreload }, () => densityMetrics(ctx.settings.get().density).row);
     const look = () => popupLook(ctx.settings.get(), isPrivate);
     this.statusBubble = new StatusBubble(this.win, () => this.tabs.pageArea(), look);
     this.hoverCard = new HoverCard(this.win, look, () => ctx.settings.get().tabsLayout === 'side');
@@ -172,6 +175,7 @@ export class BrowserWindowController {
       this.suggestions.destroy();
       this.statusBubble.destroy();
       this.tabSearch.destroy();
+      this.palette.destroy();
       this.hoverCard.destroy();
       this.tabs.destroy();
       ctx.onClosed(this);

@@ -9,6 +9,7 @@ import { ZOOM_STEPS } from '../../shared/zoom';
 import { hydrateIcons, logoMark } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 import { LOCALES, LOCALE_NAMES, localeTag, tr } from '../../shared/i18n';
+import { acceleratorFromEvent, displayShortcut, shortcutConflicts } from '../../shared/commands';
 
 const AI_PAGE = 'https://www.infomaniak.com/it/hosting/ai-services';
 const TOKEN_PAGE = 'https://manager.infomaniak.com/v3/ng/accounts/token/list';
@@ -736,6 +737,7 @@ function permissionsSection(): HTMLElement {
   return section(
     'permissions',
     tr('Permessi dei siti'),
+    row(tr('Impostazioni per sito'), tr('Permessi, cookie, zoom ed eccezioni di ogni sito in un solo posto.'), h('a', { class: 'button-link', href: 'velo://site/' }, tr('Apri…'))),
     ...defaults,
     h('div', { class: 'row stack', 'data-search': tr('permessi siti scelte salvate fotocamera microfono notifiche posizione') }, h('div', { class: 'title' }, tr('Scelte salvate')), decisions),
   );
@@ -1091,12 +1093,72 @@ async function aboutSection(): Promise<HTMLElement> {
 
 // ---------- Page ----------
 
+// ---------- Keyboard shortcuts ----------
+
+async function shortcutsSection(): Promise<HTMLElement> {
+  const info = await internal.shortcuts.info();
+  const conflicts = shortcutConflicts(settings.shortcuts);
+  const setKeys = (id: string, keys: string | null) => {
+    const next = { ...settings.shortcuts };
+    if (keys === null) delete next[id];
+    else next[id] = keys;
+    void update({ shortcuts: next }).then(render);
+  };
+  const rows: HTMLElement[] = [];
+  let group = '';
+  for (const c of info.commands) {
+    if (c.group !== group) {
+      group = c.group;
+      rows.push(h('div', { class: 'row subhead', 'data-search': group.toLowerCase() }, h('div', { class: 'title muted small' }, group)));
+    }
+    const shown = displayShortcut(c.keys, info.platform);
+    const record = h('button', { class: 'keys', 'aria-label': tr('Scorciatoia per {0}: {1}. Premi per cambiarla', c.label, shown || tr('nessuna')) }, shown ? h('kbd', {}, shown) : h('span', { class: 'muted' }, tr('Nessuna')));
+    record.addEventListener('click', () => {
+      record.replaceChildren(h('span', {}, tr('Premi i tasti…')));
+      record.classList.add('recording');
+      void internal.shortcuts.capture(true);
+      const stop = () => {
+        document.removeEventListener('keydown', onKey, true);
+        record.removeEventListener('blur', cancel);
+        void internal.shortcuts.capture(false);
+      };
+      const cancel = () => {
+        stop();
+        void render();
+      };
+      const onKey = (e: KeyboardEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Escape') return cancel();
+        const keys = acceleratorFromEvent(e);
+        if (!keys) return;
+        stop();
+        setKeys(c.id, keys === c.defaultKeys ? null : keys);
+      };
+      document.addEventListener('keydown', onKey, true);
+      record.addEventListener('blur', cancel);
+    });
+    const clash = c.keys ? conflicts.get(c.keys)?.filter((id) => id !== c.id) : undefined;
+    const clashNames = clash?.map((id) => info.commands.find((x) => x.id === id)?.label ?? id).join(', ');
+    rows.push(h('div', { class: 'row', 'data-search': `${c.label} ${shown}`.toLowerCase() },
+      h('div', { class: 'text' }, h('div', { class: 'title' }, c.label), clashNames ? h('div', { class: 'desc warning' }, tr('Usata anche da: {0}', clashNames)) : null),
+      h('div', { class: 'control' },
+        record,
+        c.keys ? h('button', { class: 'link', onclick: () => setKeys(c.id, c.defaultKeys ? '' : null) }, tr('Rimuovi')) : null,
+        c.keys !== c.defaultKeys ? h('button', { class: 'link', onclick: () => setKeys(c.id, null) }, tr('Ripristina')) : null)));
+  }
+  const resetAll = Object.keys(settings.shortcuts).length
+    ? h('div', { class: 'row' }, h('div', { class: 'text' }, h('div', { class: 'desc' }, tr('Le scorciatoie Ctrl+1…9 (vai alla scheda) restano fisse.'))), h('div', { class: 'control' }, h('button', { onclick: () => void update({ shortcuts: {} }).then(render) }, tr('Ripristina tutte'))))
+    : h('div', { class: 'row' }, h('div', { class: 'text' }, h('div', { class: 'desc' }, tr('Premi una scorciatoia per cambiarla. Le scorciatoie Ctrl+1…9 (vai alla scheda) restano fisse.'))));
+  return section('shortcuts', tr('Scorciatoie da tastiera'), resetAll, ...rows);
+}
+
 async function render(): Promise<void> {
   settings = await internal.settings();
   if (settings.theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
   const scroll = content.scrollTop || document.scrollingElement?.scrollTop || 0;
-  const sections = [await generalSection(), appearanceSection(), layoutSection(), zoomSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await accountSection(), syncSection(), await aiSection(), await aboutSection()];
+  const sections = [await generalSection(), appearanceSection(), layoutSection(), zoomSection(), await shortcutsSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await accountSection(), syncSection(), await aiSection(), await aboutSection()];
   content.replaceChildren(...sections);
   hydrateIcons(content);
   applyFilter();

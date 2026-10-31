@@ -200,8 +200,65 @@ export interface SitePermission {
   allowed: boolean;
 }
 
+/** A colour for tab groups, workspaces and containers. */
+export type TagColor = 'grey' | 'blue' | 'red' | 'yellow' | 'green' | 'pink' | 'purple' | 'cyan' | 'orange';
+
+/** A set of tabs of a window, shown one at a time (Ctrl+Alt+←/→ to switch). */
+export interface Workspace {
+  id: string;
+  name: string;
+  color: TagColor;
+}
+
+/** Tabs sharing their own cookies and site data, kept apart from the other tabs (e.g. work and personal). */
+export interface Container {
+  id: string;
+  name: string;
+  color: TagColor;
+}
+
+/** A group of tabs in the tab strip. */
+export interface TabGroup {
+  id: string;
+  name: string;
+  color: TagColor;
+  collapsed: boolean;
+}
+
+export type SitePermissionState = 'default' | 'allow' | 'block';
+
+/** What velo://site/ shows for a host. */
+export interface SiteSettingsInfo {
+  host: string;
+  /** Registrable domain (protections, remembered sites and cookies are per site). */
+  site: string;
+  permissions: Array<{ permission: string; label: string; state: SitePermissionState; fallback: 'ask' | 'block' }>;
+  /** Zoom chosen for the host, or null for the default one. */
+  zoom: number | null;
+  defaultZoom: number;
+  protectionOff: boolean;
+  httpAllowed: boolean;
+  remembered: boolean;
+  forgetSitesOnClose: boolean;
+  cookies: number;
+}
+
+export interface SiteSettingsPatch {
+  permission?: { name: string; state: SitePermissionState };
+  zoom?: number | null;
+  protectionOff?: boolean;
+  httpAllowed?: boolean;
+  remembered?: boolean;
+}
+
 export interface Settings {
   // Generale
+  /** The welcome page was shown (first start). */
+  onboarded: boolean;
+  /** Keyboard shortcuts changed by the user: command id → accelerator ('' = none). See shared/commands.ts. */
+  shortcuts: Record<string, string>;
+  workspaces: Workspace[];
+  containers: Container[];
   startup: StartupMode;
   searchEngine: SearchEngineId;
   /** Engine for the web part of the unified search (and when it is off). */
@@ -237,6 +294,10 @@ export interface Settings {
   showBookmarksBar: boolean;
   /** The page fills the window; tabs and address bar come back when the pointer reaches the top edge. */
   autoHideToolbar: boolean;
+  /** With the auto-hiding bar: it also comes back when the page is scrolled up. */
+  revealToolbarOnScrollUp: boolean;
+  /** No animations in the browser (also when the system doesn't ask for it). */
+  reduceMotion: boolean;
   panelOpen: boolean;
   /** What Ctrl+T and the + button open. */
   newTabPage: 'newtab' | 'home';
@@ -273,6 +334,8 @@ export interface Settings {
   offerToSavePasswords: boolean;
   /** Fill the login form when a page has exactly one saved login. */
   autofillPasswords: boolean;
+  /** Offer saved addresses and payment cards in forms. */
+  autofillForms: boolean;
 
   // Privacy e sicurezza
   /** Record visited pages (never in private windows). */
@@ -504,6 +567,22 @@ export interface RemoteTabs {
   updatedAt: number;
   tabs: Array<{ title: string; url: string }>;
 }
+
+/** What the command palette (Ctrl+K) searches. */
+export interface PaletteData {
+  commands: Array<{ id: string; label: string; group: string; keys: string }>;
+  tabs: TabSearchItem[];
+  bookmarks: Array<{ title: string; url: string }>;
+  sections: Array<{ id: string; label: string; keywords: string }>;
+  look: PopupLook;
+}
+
+export type PaletteChoice =
+  | { kind: 'command'; id: string }
+  | { kind: 'tab'; tabId: number }
+  | { kind: 'url'; url: string }
+  | { kind: 'setting'; id: string }
+  | { kind: 'input'; text: string };
 
 /** Colours and shapes for the small popup views (suggestions, tab search, cards). */
 export interface PopupLook {

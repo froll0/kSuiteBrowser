@@ -1,0 +1,8 @@
+.row .kbd, kbd { flex: none; font: 600 11px/1 var(--font, 'Inter Variable', system-ui, sans-serif); color: var(--muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; }
+.row .group-label { flex: none; font-size: 11.5px; color: var(--muted); }
+.hints { display: flex; gap: 14px; padding: 7px 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11.5px; }
+.hints kbd { margin-right: 3px; padding: 2px 5px; }
+.card { animation: pop .14s ease-out; }
+@keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.99); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .card { animation: none; } }
+:root.reduce-motion .card { animation: none; }

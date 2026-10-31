@@ -42,6 +42,8 @@ export function permissionLabel(permission: string): string {
     notifications: tr('Notifiche'),
     geolocation: tr('Posizione'),
     'clipboard-read': tr('Lettura appunti'),
+    'storage-access': tr('Cookie quando è incorporato'),
+    'top-level-storage-access': tr('Cookie quando è incorporato'),
   };
   return labels[permission] ?? permission;
 }

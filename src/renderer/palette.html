@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src velo: https: http: data:; font-src 'self'" />
+  <link rel="stylesheet" href="tabsearch.css" />
+  <link rel="stylesheet" href="palette.css" />
+</head>
+<body>
+  <div class="card" role="dialog" aria-label="Tavolozza dei comandi">
+    <div class="search">
+      <span id="search-icon"></span>
+      <input id="q" type="text" placeholder="Cerca comandi, schede, impostazioni e preferiti" aria-label="Cerca comandi, schede, impostazioni e preferiti" spellcheck="false" autocomplete="off" role="combobox" aria-controls="list" aria-expanded="true" />
+    </div>
+    <div id="list" role="listbox" aria-label="Risultati"></div>
+    <div class="hints" aria-hidden="true"><span><kbd>↑</kbd><kbd>↓</kbd> scegli</span><span><kbd>Invio</kbd> esegui</span><span><kbd>Esc</kbd> chiudi</span></div>
+  </div>
+  <script src="palette.js"></script>
+</body>
+</html>

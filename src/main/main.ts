@@ -15,7 +15,7 @@ import { siteOf } from '../shared/privacy-rules';
 import { matchesAll } from '../shared/search-match';
 import { buildSuggestions } from '../shared/suggest';
 import type {
-  AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
+  PaletteChoice, PaletteData, SiteSettingsPatch, AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
 } from '../shared/types';
 import { TOOLBAR_ITEMS, TOOLBAR_ITEM_IDS, type ToolbarItem } from '../shared/appearance';
 import { searchAnswerMessages } from '../shared/ai-prompts';
@@ -27,7 +27,8 @@ import { generatePassword } from '../shared/password-gen';
 import { framedIconSvg, letterIconSvg, topSites } from '../shared/top-sites';
 import { chromeUserAgent, resolveOmniboxInput } from '../shared/url';
 import { stepZoom, withSiteZoom, zoomFor } from '../shared/zoom';
-import { buildAppMenu } from './app-menu';
+import { buildAppMenu, type AppMenuActions } from './app-menu';
+import { COMMANDS, COMMAND_IDS, SETTINGS_SECTIONS, displayShortcut, shortcutFor, type CommandId } from '../shared/commands';
 import { TrackerBlocker } from './blocker';
 import { ThreatProtection } from './threats';
 import { ReaderCache, extractArticle, readerOriginal, readerUrl } from './reader';
@@ -55,6 +56,7 @@ import { adoptLegacyProfile } from './legacy';
 import { DEFAULT_SETTINGS, sanitizeSettings } from '../shared/settings-schema';
 import { purgeRemovedFeatures } from './purge';
 import { SiteForgetter } from './forget';
+import { applySiteSettings, clearSiteData, normalizeSiteHost, siteSettingsInfo } from './site-settings';
 import { openSites } from '../shared/forget-sites';
 import { isAllowedInternalSender } from '../shared/ipc-guard';
 import { locale, resolveLocale, tr } from '../shared/i18n';
@@ -96,6 +98,8 @@ const PATHS = {
   suggestPreload: join(__dirname, '../preload/suggest.js'),
   tabSearchHtml: join(__dirname, '../renderer/tabsearch.html'),
   tabSearchPreload: join(__dirname, '../preload/tabsearch.js'),
+  paletteHtml: join(__dirname, '../renderer/palette.html'),
+  palettePreload: join(__dirname, '../preload/palette.js'),
   // Windows wants a multi-size .ico for crisp taskbar and title bar icons.
   appIcon: join(__dirname, process.platform === 'win32' ? '../icon.ico' : '../icon.png'),
   pages: join(__dirname, '../pages'),
@@ -319,7 +323,10 @@ async function start(): Promise<void> {
     restored[restored.length - 1].push(...pendingUrls);
     for (const tabs of restored) openWindow(false, tabs);
   } else {
-    openWindow(false, pendingUrls);
+    // First start: the welcome page (shown once, also if it's closed before the end).
+    const first = settings.get().onboarded ? [] : [{ url: 'velo://welcome/', open: true }];
+    if (first.length) settings.update({ onboarded: true });
+    openWindow(false, [...first, ...pendingUrls]);
   }
   pendingUrls.length = 0;
 
@@ -641,7 +648,7 @@ function onSettingsChanged(next: Settings, previous: Settings): void {
   }
   if (next.driveId !== previous.driveId) services.resetCache();
   if (next.protectionExceptions !== previous.protectionExceptions) refreshAllTabs();
-  if (next.autoHideToolbar !== previous.autoHideToolbar) Menu.setApplicationMenu(buildMenu());
+  if (next.autoHideToolbar !== previous.autoHideToolbar || JSON.stringify(next.shortcuts) !== JSON.stringify(previous.shortcuts)) Menu.setApplicationMenu(buildMenu());
   if (next.clearCookiesOnExit || next.clearCacheOnExit) dataCleared = false;
   if (next.defaultZoom !== previous.defaultZoom || next.siteZoom !== previous.siteZoom) {
     for (const w of windows) for (const t of w.tabs.states()) {
@@ -757,8 +764,9 @@ function broadcast(channel: string, payload?: unknown): void {
 
 // ---------- Menu ----------
 
-function buildMenu(): Menu {
-  return buildAppMenu({
+/** What each command does (menu, shortcuts, command palette). */
+function appActions(): AppMenuActions {
+  return {
     newTab: () => current()?.newTab(),
     newWindow: () => openWindow(false, [{ url: newTabUrl() }]),
     newPrivateWindow: () => openWindow(true, [{ url: newTabUrl() }]),
@@ -815,11 +823,14 @@ function buildMenu(): Menu {
     customize: () => current()?.openSettings('appearance'),
     find: () => current()?.focusChrome(IPC.evFind),
     findNext: (backwards) => current()?.send(IPC.evFindNext, { backwards }),
-    zoom: (direction) => {
-      const w = current();
-      const wc = w?.activeContents();
-      if (w && wc) changeZoom(w, wc, direction);
-    },
+    zoomIn: () => zoomActive('in'),
+    zoomOut: () => zoomActive('out'),
+    zoomReset: () => zoomActive('reset'),
+    duplicateTab: () => withActiveTab((w, id) => w.tabs.duplicate(id)),
+    pinTab: () => withActiveTab((w, id) => w.tabs.setPinned(id, !w.tabs.states().find((t) => t.id === id)?.pinned)),
+    muteTab: () => withActiveTab((w, id) => w.tabs.setMuted(id, !w.tabs.states().find((t) => t.id === id)?.muted)),
+    commandPalette: () => toggleCommandPalette(current()),
+    siteSettings: () => withActiveTab((w, id) => openSiteSettings(w, w.tabs.states().find((t) => t.id === id)?.url ?? '')),
     toggleBookmarksBar: () => settings.update({ showBookmarksBar: !settings.get().showBookmarksBar }),
     toggleAutoHide: () => settings.update({ autoHideToolbar: !settings.get().autoHideToolbar }),
     autoHide: () => settings.get().autoHideToolbar,
@@ -838,7 +849,23 @@ function buildMenu(): Menu {
     about: () => current()?.openSettings('about'),
     clearData: () => current()?.openSettings('privacy'),
     devTools: () => current()?.activeContents()?.toggleDevTools(),
-  });
+  };
+}
+
+function buildMenu(): Menu {
+  return buildAppMenu(appActions(), settings.get().shortcuts);
+}
+
+function withActiveTab(fn: (w: BrowserWindowController, tabId: number) => void): void {
+  const w = current();
+  const id = w?.activeTabId();
+  if (w && id != null) fn(w, id);
+}
+
+function zoomActive(direction: 'in' | 'out' | 'reset'): void {
+  const w = current();
+  const wc = w?.activeContents();
+  if (w && wc) changeZoom(w, wc, direction);
 }
 
 function showShieldMenu(w: BrowserWindowController, tabId: number): void {
@@ -939,9 +966,20 @@ function showSiteMenu(w: BrowserWindowController, tabId: number): void {
     },
     { type: 'separator' },
     { label: tr('Protezioni del sito…'), click: () => showShieldMenu(w, tabId) },
-    { label: tr('Impostazioni dei siti…'), click: () => w.openSettings('permissions') },
+    { label: tr('Impostazioni del sito…'), click: () => openSiteSettings(w, url) },
   );
   Menu.buildFromTemplate(items).popup({ window: w.win });
+}
+
+/** velo://site/ for the site of a page (or the list of sites). */
+function openSiteSettings(w: BrowserWindowController, pageUrl: string): void {
+  let host = '';
+  try {
+    host = /^https?:/i.test(pageUrl) ? new URL(pageUrl).hostname : '';
+  } catch {
+    /* list of sites */
+  }
+  w.openInternal(host ? `velo://site/?host=${encodeURIComponent(host)}` : 'velo://site/');
 }
 
 /** Tabs listed by "search tabs": every normal window, or only this one for a private window. */
@@ -1068,6 +1106,49 @@ async function showMediaMenu(w: BrowserWindowController): Promise<void> {
   if (!w.win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: w.win });
 }
 
+/** Commands that need the optional cloud account. */
+const CLOUD_COMMANDS: CommandId[] = ['savePageToDrive', 'mailPage', 'togglePanel'];
+
+function paletteData(w: BrowserWindowController): PaletteData {
+  const s = settings.get();
+  const cloud = settings.tokenStatus().configured;
+  return {
+    commands: COMMANDS.filter((c) => c.id !== 'commandPalette' && (cloud || !CLOUD_COMMANDS.includes(c.id))).map((c) => ({
+      id: c.id, label: tr(c.label), group: c.group, keys: displayShortcut(shortcutFor(c.id, s.shortcuts), process.platform),
+    })),
+    tabs: tabSearchData(w).tabs,
+    bookmarks: bookmarks.list().map((b) => ({ title: b.title, url: b.url })),
+    sections: SETTINGS_SECTIONS.map((x) => ({ id: x.id, label: tr(x.label), keywords: tr(x.keywords) })),
+    look: popupLook(s, w.isPrivate),
+  };
+}
+
+function toggleCommandPalette(w: BrowserWindowController | null): void {
+  if (!w) return;
+  if (w.palette.isVisible()) w.palette.hide();
+  else if (!w.palette.justHidden()) {
+    w.suggestions.hide();
+    w.tabSearch.hide();
+    void w.palette.show(paletteData(w));
+  }
+}
+
+function runPaletteChoice(w: BrowserWindowController, choice: PaletteChoice): void {
+  w.palette.hide();
+  if (choice.kind === 'command' && COMMAND_IDS.includes(choice.id as CommandId)) {
+    w.focus();
+    appActions()[choice.id as CommandId]();
+  } else if (choice.kind === 'tab') {
+    switchToTab(w, Number(choice.tabId));
+  } else if (choice.kind === 'setting' && SETTINGS_SECTIONS.some((x) => x.id === choice.id)) {
+    w.openSettings(choice.id);
+  } else if (choice.kind === 'url' && typeof choice.url === 'string' && /^(https?|velo|file):/i.test(choice.url)) {
+    w.tabs.create(choice.url);
+  } else if (choice.kind === 'input' && typeof choice.text === 'string' && choice.text.trim()) {
+    w.tabs.create(resolveOmniboxInput(choice.text, settings.get().searchEngine));
+  }
+}
+
 function toggleTabSearch(w: BrowserWindowController | null, anchor?: Rect): void {
   if (!w) return;
   if (w.tabSearch.isVisible()) w.tabSearch.hide();
@@ -1129,6 +1210,17 @@ function registerChromeIpc(): void {
     const w = searcher(event.sender);
     if (!w) return;
     w.tabSearch.hide();
+    w.activeContents()?.focus();
+  });
+  const paletteOwner = (sender: Electron.WebContents) => [...windows].find((c) => c.palette.contents === sender);
+  ipcMain.on('palette:choose', (event, choice: PaletteChoice) => {
+    const w = paletteOwner(event.sender);
+    if (w && choice && typeof choice === 'object') runPaletteChoice(w, choice);
+  });
+  ipcMain.on('palette:dismiss', (event) => {
+    const w = paletteOwner(event.sender);
+    if (!w) return;
+    w.palette.hide();
     w.activeContents()?.focus();
   });
   ipcMain.on('suggest:choose', (event, index: number) => {
@@ -1299,12 +1391,56 @@ function handleInternal<A extends unknown[], R>(channel: string, hosts: string[]
 function registerInternalIpc(): void {
   const S = ['settings'];
   // Every internal page reads the settings (theme); only the settings page changes them.
-  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader'], () => settings.get());
-  handleInternal(INTERNAL.settingsSet, S, (_e, patch: Partial<Settings>) => settings.update(patch));
-  handleInternal(INTERNAL.localeInfo, S, () => ({ current: locale(), system: resolveLocale('system', app.getPreferredSystemLanguages()) }));
-  handleInternal(INTERNAL.restart, S, () => restartVelo());
+  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader', 'site', 'welcome'], () => settings.get());
+  // The welcome page makes the first choices (language, look, privacy).
+  const SW = ['settings', 'welcome'];
+  handleInternal(INTERNAL.settingsSet, SW, (_e, patch: Partial<Settings>) => settings.update(patch));
+  handleInternal(INTERNAL.localeInfo, SW, () => ({ current: locale(), system: resolveLocale('system', app.getPreferredSystemLanguages()) }));
+  handleInternal(INTERNAL.restart, SW, () => restartVelo());
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
   handleInternal(INTERNAL.defaultBrowserStatus, S, () => isDefaultBrowser());
+  handleInternal(INTERNAL.shortcutsInfo, S, () => ({
+    platform: process.platform,
+    commands: COMMANDS.map((c) => ({ id: c.id, label: tr(c.label), group: tr(c.group), keys: shortcutFor(c.id, settings.get().shortcuts), defaultKeys: c.keys })),
+  }));
+  // While the settings page records a shortcut, the menu must not run the command it belongs to.
+  handleInternal(INTERNAL.shortcutsCapture, S, (event, on: boolean) => event.sender.setIgnoreMenuShortcuts(Boolean(on)));
+  handleInternal(INTERNAL.welcomeFinish, ['welcome'], (event, url: string, restart: boolean) => {
+    settings.update({ onboarded: true });
+    const target = url === 'velo://settings/#account' ? url : newTabUrl();
+    if (restart) event.sender.once('did-finish-load', () => restartVelo());
+    void event.sender.loadURL(target);
+  });
+  // Per-site settings (velo://site/?host=…).
+  const SITE = ['site'];
+  const siteHost = (input: unknown) => normalizeSiteHost(String(input ?? ''));
+  handleInternal(INTERNAL.siteInfo, SITE, (event, input: string) => {
+    const host = siteHost(input);
+    return host ? siteSettingsInfo(settings, event.sender.session, host) : null;
+  });
+  handleInternal(INTERNAL.siteSet, SITE, (event, input: string, patch: SiteSettingsPatch) => {
+    const host = siteHost(input);
+    if (!host || !patch || typeof patch !== 'object') return null;
+    applySiteSettings(settings, host, patch);
+    return siteSettingsInfo(settings, event.sender.session, host);
+  });
+  handleInternal(INTERNAL.siteClear, SITE, async (event, input: string) => {
+    const host = siteHost(input);
+    if (!host) return null;
+    await clearSiteData(event.sender.session, host);
+    return siteSettingsInfo(settings, event.sender.session, host);
+  });
+  handleInternal(INTERNAL.siteList, [...SITE, 'settings'], () => {
+    const s = settings.get();
+    const sites = new Map<string, Set<string>>();
+    const add = (host: string, what: string) => sites.set(host, (sites.get(host) ?? new Set()).add(what));
+    for (const p of s.sitePermissions) add(p.host, 'permissions');
+    for (const host of Object.keys(s.siteZoom)) add(host, 'zoom');
+    for (const host of s.protectionExceptions) add(host, 'protection');
+    for (const host of s.httpExceptions) add(host, 'http');
+    for (const host of s.rememberedSites) add(host, 'remembered');
+    return [...sites].sort(([a], [b]) => a.localeCompare(b)).map(([host, what]) => ({ host, what: [...what] }));
+  });
   handleInternal(INTERNAL.defaultBrowserSet, S, () => makeDefaultBrowser());
   handleInternal(INTERNAL.tokenSet, S, (_e, token: string) =>
     wrap(async () => {

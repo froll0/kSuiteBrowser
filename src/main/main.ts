@@ -16,7 +16,7 @@ import { siteOf } from '../shared/privacy-rules';
 import { matchesAll } from '../shared/search-match';
 import { buildSuggestions } from '../shared/suggest';
 import type {
-  TabGroup, TagColor, TabLayout, PaletteChoice, PaletteData, SiteSettingsPatch, AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
+  AutofillAddress, AutofillCard, ImportReport, TabGroup, TagColor, TabLayout, PaletteChoice, PaletteData, SiteSettingsPatch, AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
 } from '../shared/types';
 import { TOOLBAR_ITEMS, TOOLBAR_ITEM_IDS, type ToolbarItem } from '../shared/appearance';
 import { searchAnswerMessages } from '../shared/ai-prompts';
@@ -43,7 +43,7 @@ import { isInternalUrl, registerInternalScheme, serveInternalPages } from './int
 import { AiService, readPage } from './ai';
 import { NotificationCenter } from './notifications';
 import { UpdateService } from './updater';
-import { PasswordManager } from './passwords/manager';
+import { PasswordManager, currentTotp } from './passwords/manager';
 import { originOf } from './passwords/vault';
 import { configurePermissions, memoryOnly, persistentMemory } from './permissions';
 import { PrivacyGuard } from './privacy';
@@ -57,6 +57,7 @@ import { DEFAULT_SETTINGS, TAG_COLORS, TAG_COLOR_INFO, sanitizeSettings } from '
 import { purgeRemovedFeatures } from './purge';
 import { SiteForgetter } from './forget';
 import { createProfile, currentProfile, listProfiles, openProfile, removeProfile, updateProfile } from './profiles';
+import { detectSources, importCookies, readSource, type ImportKind } from './importer';
 import { applySiteSettings, clearSiteData, normalizeSiteHost, siteSettingsInfo } from './site-settings';
 import { openSites } from '../shared/forget-sites';
 import { isAllowedInternalSender } from '../shared/ipc-guard';
@@ -1611,7 +1612,7 @@ function handleInternal<A extends unknown[], R>(channel: string, hosts: string[]
 function registerInternalIpc(): void {
   const S = ['settings'];
   // Every internal page reads the settings (theme); only the settings page changes them.
-  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader', 'site', 'welcome'], () => settings.get());
+  handleInternal(INTERNAL.settingsGet, ['settings', 'newtab', 'search', 'history', 'bookmarks', 'passwords', 'https-only', 'blocked', 'reader', 'site', 'welcome', 'import'], () => settings.get());
   // The welcome page makes the first choices (language, look, privacy).
   const SW = ['settings', 'welcome'];
   handleInternal(INTERNAL.settingsSet, SW, (_e, patch: Partial<Settings>) => settings.update(patch));
@@ -1619,6 +1620,25 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.restart, SW, () => restartVelo());
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
   handleInternal(INTERNAL.defaultBrowserStatus, S, () => isDefaultBrowser());
+  // Import from other browsers on this computer.
+  const IMPORT = ['import', 'welcome'];
+  handleInternal(INTERNAL.importSources, IMPORT, () => detectSources().map(({ id, browser, key, profileName }) => ({ id, browser, key, profileName })));
+  handleInternal(INTERNAL.importRun, IMPORT, (_e, sourceId: string, wanted: string[]) => wrap(async () => {
+    const source = detectSources().find((x) => x.id === sourceId);
+    if (!source) throw new Error(tr('Profilo non trovato.'));
+    const kinds = (Array.isArray(wanted) ? wanted : []).filter((k): k is ImportKind => ['bookmarks', 'history', 'logins', 'cookies'].includes(k));
+    const data = readSource(source, kinds);
+    const report: ImportReport = { bookmarks: 0, history: 0, logins: 0, cookies: 0, skipped: data.skipped };
+    if (data.bookmarks) report.bookmarks = bookmarks.import(data.bookmarks);
+    if (data.history) report.history = history.importMany(data.history);
+    if (data.logins?.length) {
+      // The rest is imported anyway; passwords wait for the vault (locked, or without a primary password yet).
+      if (passwords.vault.status().state === 'unlocked') report.logins = passwords.vault.importLogins(data.logins);
+      else report.skipped.push({ what: 'logins', count: data.logins.length, reason: tr('le password di Velo sono bloccate o non ancora configurate: aprile dalla pagina Password e importa di nuovo') });
+    }
+    if (data.cookies) report.cookies = await importCookies(electronSession.defaultSession, data.cookies);
+    return report;
+  }));
   // Profiles (separate Velo instances with their own data).
   const color = (c: unknown) => (TAG_COLORS.includes(c as TagColor) ? (c as TagColor) : 'grey');
   handleInternal(INTERNAL.profilesList, S, () => ({ current: currentProfile().id, profiles: listProfiles().map((p) => ({ ...p, name: tr(p.name) })) }));
@@ -1772,7 +1792,7 @@ function registerInternalIpc(): void {
     if (!entry.password) throw new Error(tr('La password è vuota.'));
     return vault().save(origin, String(entry.username ?? ''), String(entry.password));
   }));
-  handleInternal(INTERNAL.pwUpdate, P, (_e, id: string, patch: { username?: string; password?: string; origin?: string }) => wrap(() => vault().update(String(id), patch ?? {})));
+  handleInternal(INTERNAL.pwUpdate, P, (_e, id: string, patch: { username?: string; password?: string; origin?: string; totp?: string | null }) => wrap(() => vault().update(String(id), patch ?? {})));
   handleInternal(INTERNAL.pwRemove, P, (_e, id: string) => wrap(() => vault().remove(String(id))));
   handleInternal(INTERNAL.pwRemoveNever, P, (_e, origin: string) => wrap(() => vault().setNever(String(origin), false)));
   handleInternal(INTERNAL.pwSetPrimary, P, (_e, next: string, current?: string) => wrap(() => vault().setPrimary(String(next ?? ''), String(current ?? ''))));
@@ -1784,6 +1804,21 @@ function registerInternalIpc(): void {
     return vault().exportCsv();
   }));
   handleInternal(INTERNAL.pwGenerate, P, () => generatePassword());
+  // Current two-factor codes of the logins that have a key.
+  handleInternal(INTERNAL.pwTotp, P, () => wrap(() => {
+    passwords.touch();
+    const out: Record<string, { code: string; remaining: number }> = {};
+    for (const l of vault().list()) {
+      const code = l.totp ? currentTotp(l.totp) : null;
+      if (code) out[l.id] = code;
+    }
+    return out;
+  }));
+  handleInternal(INTERNAL.afList, P, () => wrap(() => ({ addresses: vault().addresses(), cards: vault().cards() })));
+  handleInternal(INTERNAL.afSaveAddress, P, (_e, address: Partial<AutofillAddress>) => wrap(() => vault().saveAddress(address && typeof address === 'object' ? address : {})));
+  handleInternal(INTERNAL.afSaveCard, P, (_e, card: Partial<AutofillCard>) => wrap(() => vault().saveCard(card && typeof card === 'object' ? card : {})));
+  handleInternal(INTERNAL.afRemoveAddress, P, (_e, id: string) => wrap(() => vault().removeAddress(String(id))));
+  handleInternal(INTERNAL.afRemoveCard, P, (_e, id: string) => wrap(() => vault().removeCard(String(id))));
   handleInternal(INTERNAL.newtabData, ['newtab'], (event) => {
     const s = settings.get();
     const isPrivate = !event.sender.session.isPersistent();

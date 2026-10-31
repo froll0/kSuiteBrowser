@@ -1,8 +1,8 @@
 import { h } from '../../renderer/dom';
 import { isWeakPassword } from '../../shared/password-gen';
 import { faviconUrl } from '../../shared/top-sites';
-import type { BreachReport, SavedLogin, VaultStatus } from '../../shared/types';
-import { hydrateIcons } from '../../renderer/icons';
+import type { AutofillAddress, AutofillCard, BreachReport, SavedLogin, VaultStatus } from '../../shared/types';
+import { hydrateIcons, icon } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 import { emptyState, iconButton, withIcon } from '../shared/ui';
 import { followTheme } from '../shared/theme';
@@ -25,6 +25,12 @@ const revealed = new Set<string>();
 let editing: string | null = null;
 let adding = false;
 let exporting = false;
+let addresses: AutofillAddress[] = [];
+let cards: AutofillCard[] = [];
+/** Address or card being edited ('new' for a new one). */
+let editingAddress: string | null = null;
+let editingCard: string | null = null;
+let codes: Record<string, { code: string; remaining: number }> = {};
 
 function say(text: string, error = false): void {
   statusEl.textContent = text;
@@ -115,7 +121,8 @@ function editRow(login: SavedLogin | null): HTMLElement {
   const url = login ? null : h('input', { type: 'url', placeholder: 'https://sito.com', 'aria-label': tr('Sito'), required: true });
   const user = h('input', { type: 'text', value: login?.username ?? '', placeholder: tr('Nome utente'), 'aria-label': tr('Nome utente') });
   const pass = h('input', { type: 'text', value: login?.password ?? '', placeholder: 'Password', 'aria-label': 'Password', required: true, spellcheck: 'false' });
-  const form = h('form', { class: 'edit-login' }, url, user, pass,
+  const totp = h('input', { type: 'text', value: login?.totp ?? '', placeholder: tr('Chiave 2FA (facoltativa)'), 'aria-label': tr('Chiave per i codici di verifica (2FA)'), spellcheck: 'false', title: tr('Il codice di configurazione o l’indirizzo otpauth:// che il sito mostra accanto al QR code quando attivi la verifica in due passaggi') });
+  const form = h('form', { class: 'edit-login' }, url, user, pass, totp,
     h('button', { type: 'button', onclick: async () => (pass.value = await pw.generate()) }, tr('Genera')),
     h('button', { class: 'primary', type: 'submit' }, tr('Salva')),
     h('button', { type: 'button', onclick: () => { editing = null; adding = false; render(); } }, tr('Annulla')),
@@ -123,9 +130,13 @@ function editRow(login: SavedLogin | null): HTMLElement {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const res = login
-      ? await pw.update(login.id, { username: user.value, password: pass.value })
+      ? await pw.update(login.id, { username: user.value, password: pass.value, totp: totp.value.trim() || null })
       : await pw.add({ url: url!.value, username: user.value, password: pass.value });
     if (!res.ok) return say(res.error, true);
+    if (!login && totp.value.trim() && res.data && typeof res.data === 'object' && 'id' in res.data) {
+      const set = await pw.update((res.data as SavedLogin).id, { totp: totp.value.trim() });
+      if (!set.ok) return say(set.error, true);
+    }
     say(login ? tr('Accesso aggiornato.') : tr('Accesso aggiunto.'));
     editing = null;
     adding = false;
@@ -152,6 +163,7 @@ function loginRow(login: SavedLogin, reused: Set<string>): HTMLElement {
       : null,
     reused.has(login.password) ? h('span', { class: 'badge warn', title: tr('La stessa password è usata su più siti') }, 'riutilizzata') : null,
     isWeakPassword(login.password) ? h('span', { class: 'badge warn', title: tr('Password corta o facile da indovinare') }, 'debole') : null,
+    login.totp ? totpBadge(login) : null,
     h('span', { class: 'secret', 'aria-label': shown ? 'Password' : tr('Password nascosta') }, shown ? login.password : '••••••••••'),
     h('div', { class: 'actions' },
       iconButton(shown ? 'eyeOff' : 'eye', tr('{0} la password di {1}', shown ? 'Nascondi' : 'Mostra', host), () => { shown ? revealed.delete(login.id) : revealed.add(login.id); render(); }),
@@ -166,6 +178,106 @@ function loginRow(login: SavedLogin, reused: Set<string>): HTMLElement {
       }),
     ),
   );
+}
+
+/** The current two-factor code, updated every second; a click copies it. */
+function totpBadge(login: SavedLogin): HTMLElement {
+  const host = hostOf(login.origin);
+  return h('button', {
+    class: 'totp', 'data-totp': login.id,
+    title: tr('Codice di verifica (2FA) di {0}: clic per copiarlo', host),
+    'aria-label': tr('Codice di verifica di {0}', host),
+    onclick: () => void copy(codes[login.id]?.code ?? '', tr('Codice di verifica')),
+  }, h('span', { class: 'code' }, formatCode(codes[login.id]?.code)), h('span', { class: 'left' }, codes[login.id] ? `${codes[login.id].remaining}s` : ''));
+}
+
+const formatCode = (code?: string) => (code ? code.replace(/^(\d{3})(\d{3,})$/, '$1 $2') : '··· ···');
+
+async function refreshCodes(): Promise<void> {
+  if (status?.state !== 'unlocked' || !logins.some((l) => l.totp) || document.hidden) return;
+  const res = await pw.totp();
+  if (!res.ok) return;
+  codes = res.data;
+  for (const el of content.querySelectorAll<HTMLElement>('[data-totp]')) {
+    const c = codes[el.dataset.totp!];
+    el.querySelector('.code')!.textContent = formatCode(c?.code);
+    el.querySelector('.left')!.textContent = c ? `${c.remaining}s` : '';
+    el.classList.toggle('ending', Boolean(c && c.remaining <= 5));
+  }
+}
+
+// ---------- Addresses and cards ----------
+
+const ADDRESS_LABELS: Array<[keyof Omit<AutofillAddress, 'id'>, string, string]> = [
+  ['name', tr('Nome e cognome'), 'name'], ['organization', tr('Azienda'), 'organization'], ['street', tr('Indirizzo'), 'street-address'],
+  ['postalCode', tr('CAP'), 'postal-code'], ['city', tr('Città'), 'address-level2'], ['region', tr('Provincia o regione'), 'address-level1'],
+  ['country', tr('Paese'), 'country-name'], ['phone', tr('Telefono'), 'tel'], ['email', tr('Email'), 'email'],
+];
+
+function addressForm(address: AutofillAddress | null): HTMLElement {
+  const inputs = ADDRESS_LABELS.map(([key, label]) => [key, h('input', { type: key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text', value: address?.[key] ?? '', placeholder: label, 'aria-label': label, autocomplete: 'off' })] as const);
+  const form = h('form', { class: 'edit-grid' }, ...inputs.map(([, el]) => el),
+    h('div', { class: 'buttons' },
+      h('button', { class: 'primary', type: 'submit' }, tr('Salva')),
+      h('button', { type: 'button', onclick: () => { editingAddress = null; render(); } }, tr('Annulla'))));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await internal.autofill.saveAddress({ id: address?.id, ...Object.fromEntries(inputs.map(([k, el]) => [k, el.value])) });
+    if (!res.ok) return say(res.error, true);
+    editingAddress = null;
+    say(tr('Indirizzo salvato.'));
+    void load();
+  });
+  queueMicrotask(() => inputs[0][1].focus());
+  return h('div', { class: 'entry' }, form);
+}
+
+function cardForm(c: AutofillCard | null): HTMLElement {
+  const name = h('input', { type: 'text', value: c?.name ?? '', placeholder: tr('Titolare'), 'aria-label': tr('Titolare'), autocomplete: 'off' });
+  const number = h('input', { type: 'text', value: c?.number ?? '', placeholder: tr('Numero della carta'), 'aria-label': tr('Numero della carta'), inputmode: 'numeric', autocomplete: 'off', required: true });
+  const exp = h('input', { type: 'text', value: c ? `${String(c.expMonth).padStart(2, '0')}/${String(c.expYear).slice(-2)}` : '', placeholder: tr('MM/AA'), 'aria-label': tr('Scadenza (MM/AA)'), autocomplete: 'off', required: true });
+  const form = h('form', { class: 'edit-grid' }, name, number, exp,
+    h('div', { class: 'buttons' },
+      h('button', { class: 'primary', type: 'submit' }, tr('Salva')),
+      h('button', { type: 'button', onclick: () => { editingCard = null; render(); } }, tr('Annulla'))));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const [mm, yy] = exp.value.split(/[/\-\s]+/);
+    const res = await internal.autofill.saveCard({ id: c?.id, name: name.value, number: number.value, expMonth: Number(mm), expYear: Number(yy) });
+    if (!res.ok) return say(res.error, true);
+    editingCard = null;
+    say(tr('Carta salvata.'));
+    void load();
+  });
+  queueMicrotask(() => number.focus());
+  return h('div', { class: 'entry' }, form);
+}
+
+function addressesSection(): HTMLElement {
+  const rows = addresses.map((a) => editingAddress === a.id ? addressForm(a) : h('div', { class: 'entry' },
+    h('span', { class: 'letter' }, (a.name || a.email || '?').slice(0, 1).toUpperCase()),
+    h('div', { class: 'main' }, h('span', { class: 'strong' }, a.name || a.email), h('span', { class: 'host' }, [a.street, a.postalCode, a.city, a.country].filter(Boolean).join(', '))),
+    h('div', { class: 'actions' },
+      iconButton('pencil', tr('Modifica l’indirizzo'), () => { editingAddress = a.id; render(); }),
+      iconButton('trash', tr('Elimina l’indirizzo'), async () => { await internal.autofill.removeAddress(a.id); void load(); }))));
+  return h('section', { class: 'group', id: 'addresses' },
+    h('h2', {}, tr('Indirizzi'), h('button', { class: 'link add', onclick: () => { editingAddress = 'new'; render(); } }, tr('Aggiungi'))),
+    ...(editingAddress === 'new' ? [addressForm(null)] : []),
+    ...(rows.length ? rows : editingAddress === 'new' ? [] : [emptyState('mapPin', tr('Nessun indirizzo. Quelli salvati compaiono quando fai clic in un modulo di spedizione o di contatto.'))]));
+}
+
+function cardsSection(): HTMLElement {
+  const rows = cards.map((c) => editingCard === c.id ? cardForm(c) : h('div', { class: 'entry' },
+    h('span', { class: 'letter' }, icon('card', 14)),
+    h('div', { class: 'main' }, h('span', { class: 'strong' }, `•••• ${c.number.slice(-4)}`), h('span', { class: 'host' }, `${String(c.expMonth).padStart(2, '0')}/${c.expYear}${c.name ? ` · ${c.name}` : ''}`)),
+    h('div', { class: 'actions' },
+      iconButton('pencil', tr('Modifica la carta'), () => { editingCard = c.id; render(); }),
+      iconButton('trash', tr('Elimina la carta'), async () => { await internal.autofill.removeCard(c.id); void load(); }))));
+  return h('section', { class: 'group', id: 'cards' },
+    h('h2', {}, tr('Carte di pagamento'), h('button', { class: 'link add', onclick: () => { editingCard = 'new'; render(); } }, tr('Aggiungi'))),
+    h('p', { class: 'hint pad' }, tr('Il codice di sicurezza (CVC) non viene mai salvato. Le carte si compilano solo sui siti con connessione sicura.')),
+    ...(editingCard === 'new' ? [cardForm(null)] : []),
+    ...(rows.length ? rows : editingCard === 'new' ? [] : [emptyState('card', tr('Nessuna carta salvata.'))]));
 }
 
 function exportForm(): HTMLElement {
@@ -275,7 +387,7 @@ function unlockedView(): Node[] {
       )),
     ));
   }
-  nodes.push(primarySection());
+  nodes.push(addressesSection(), cardsSection(), primarySection());
   return nodes;
 }
 
@@ -323,13 +435,23 @@ async function load(): Promise<void> {
       logins = list.data;
       never = nv.ok ? nv.data : [];
       breaches = await pw.breaches();
+      const af = await internal.autofill.list();
+      if (af.ok) ({ addresses, cards } = af.data);
+      const c = await pw.totp();
+      codes = c.ok ? c.data : {};
     }
   } else {
     logins = [];
     never = [];
+    addresses = [];
+    cards = [];
+    codes = {};
   }
   render();
+  if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
 }
+
+setInterval(() => void refreshCodes(), 1000);
 
 hydrateIcons();
 search.addEventListener('input', render);

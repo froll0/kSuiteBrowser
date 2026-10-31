@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Importa da un altro browser</title>
+  <link rel="stylesheet" href="page.css" />
+  <link rel="stylesheet" href="import.css" />
+</head>
+<body>
+  <div class="page narrow">
+    <header class="page-header">
+      <h1><span class="title-icon" data-icon="import" data-size="20"></span>Importa da un altro browser</h1>
+    </header>
+    <p class="muted intro">Velo legge i dati direttamente dai browser installati su questo computer: niente passa da Internet. Chiudi prima il browser da cui importi, per avere i dati più recenti.</p>
+    <main id="content"></main>
+    <section>
+      <h2>Da un file</h2>
+      <div class="card">
+        <div class="row"><div class="text"><div class="title">Preferiti da un file HTML</div><div class="desc">Il formato di esportazione di tutti i browser.</div></div><div class="control"><a class="button-link" href="velo://bookmarks/">Apri i preferiti</a></div></div>
+        <div class="row"><div class="text"><div class="title">Password da un file CSV</div><div class="desc">Da Chrome, Firefox, Edge, Safari o da un gestore di password.</div></div><div class="control"><a class="button-link" href="velo://passwords/">Apri le password</a></div></div>
+      </div>
+    </section>
+  </div>
+  <script src="import.js"></script>
+</body>
+</html>

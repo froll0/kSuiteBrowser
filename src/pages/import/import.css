@@ -1,0 +1,7 @@
+.page.narrow { max-width: 760px; }
+.intro { margin: -6px 0 22px; }
+.source .checks { margin: 10px 0 0; }
+.source .result { margin-top: 8px; font-size: 13px; }
+.source .result ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); }
+.browser-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: 10px; background: var(--surface-2); font-weight: 700; color: var(--accent); }
+.source-head { display: flex; align-items: center; gap: 12px; }

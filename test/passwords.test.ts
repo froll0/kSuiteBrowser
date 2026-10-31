@@ -138,3 +138,30 @@ describe('pwned passwords', () => {
     expect(pwnedCount(body, 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')).toBe(0);
   });
 });
+
+describe('addresses, cards and two-factor keys', () => {
+  it('keeps them encrypted in the vault', async () => {
+    const { cleanCardNumber } = await import('../src/main/passwords/vault');
+    expect(cleanCardNumber('4111 1111 1111 1111')).toBe('4111111111111111');
+    expect(cleanCardNumber('4111-1111-1111-1112')).toBeNull();
+    expect(cleanCardNumber('12345')).toBeNull();
+
+    const path = join(mkdtempSync(join(tmpdir(), 'vault-')), 'vault.json');
+    const vault = new Vault(path, fakeKeychain());
+    const login = vault.save('https://example.org', 'anna', 'pw');
+    vault.update(login.id, { totp: 'jbsw y3dp ehpk 3pxp' });
+    expect(() => vault.update(login.id, { totp: 'nope!' })).toThrow();
+    vault.saveAddress({ name: 'Anna Rossi', city: 'Milano' });
+    vault.saveCard({ number: '4111111111111111', expMonth: 5, expYear: 29, name: 'ANNA' });
+    expect(() => vault.saveCard({ number: '4111111111111111', expMonth: 13, expYear: 29 })).toThrow();
+    expect(() => vault.saveAddress({})).toThrow();
+    const raw = readFileSync(path, 'utf8');
+    expect(raw).not.toContain('4111111111111111');
+    expect(raw).not.toContain('Milano');
+    expect(raw).not.toContain('JBSWY3DPEHPK3PXP');
+    const reopened = new Vault(path, fakeKeychain());
+    expect(reopened.list()[0].totp).toBe('JBSWY3DPEHPK3PXP');
+    expect(reopened.addresses()[0]).toMatchObject({ name: 'Anna Rossi', city: 'Milano', street: '' });
+    expect(reopened.cards()[0]).toMatchObject({ number: '4111111111111111', expMonth: 5, expYear: 2029 });
+  });
+});

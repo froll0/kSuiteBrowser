@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { parsePasswordCsv, toCsv } from '../../shared/csv';
-import type { SavedLogin, VaultStatus } from '../../shared/types';
+import type { AutofillAddress, AutofillCard, SavedLogin, VaultStatus } from '../../shared/types';
+import { normalizeTotp } from '../../shared/totp';
 import { deriveKey, newKdfParams, newKey, open, seal, type KdfParams, type Sealed } from './crypto';
 import { tr } from '../../shared/i18n';
 
@@ -26,6 +27,34 @@ interface Payload {
   logins: SavedLogin[];
   /** Origins where the user chose "never save". */
   never: string[];
+  /** Addresses and payment cards for forms (added later: missing in older vaults). */
+  addresses?: AutofillAddress[];
+  cards?: AutofillCard[];
+}
+
+const ADDRESS_FIELDS = ['name', 'organization', 'street', 'postalCode', 'city', 'region', 'country', 'phone', 'email'] as const;
+
+/** Address fields as text, trimmed and limited. */
+export function cleanAddress(input: Partial<AutofillAddress>): Omit<AutofillAddress, 'id'> {
+  const out = {} as Omit<AutofillAddress, 'id'>;
+  for (const k of ADDRESS_FIELDS) out[k] = typeof input[k] === 'string' ? input[k]!.trim().slice(0, k === 'street' ? 300 : 120) : '';
+  return out;
+}
+
+/** Card number with only digits, valid by length and the Luhn check; null otherwise. */
+export function cleanCardNumber(input: string): string | null {
+  const digits = String(input ?? '').replace(/[\s-]/g, '');
+  if (!/^\d{12,19}$/.test(digits)) return null;
+  let sum = 0;
+  for (let i = 0; i < digits.length; i++) {
+    let d = Number(digits[digits.length - 1 - i]);
+    if (i % 2 === 1) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+  }
+  return sum % 10 === 0 ? digits : null;
 }
 
 export class VaultLockedError extends Error {
@@ -158,12 +187,18 @@ export class Vault {
     return login;
   }
 
-  update(id: string, patch: { username?: string; password?: string; origin?: string }): void {
+  update(id: string, patch: { username?: string; password?: string; origin?: string; totp?: string | null }): void {
     const login = this.data().logins.find((l) => l.id === id);
     if (!login) return;
     if (typeof patch.username === 'string') login.username = patch.username;
     if (typeof patch.password === 'string' && patch.password) login.password = patch.password;
     if (typeof patch.origin === 'string') login.origin = originOf(patch.origin) ?? login.origin;
+    if (patch.totp === null || patch.totp === '') login.totp = null;
+    else if (typeof patch.totp === 'string') {
+      const totp = normalizeTotp(patch.totp);
+      if (!totp) throw new Error(tr('La chiave 2FA non è valida: copia il codice di configurazione (o l’indirizzo otpauth://) mostrato dal sito.'));
+      login.totp = totp;
+    }
     login.updatedAt = Date.now();
     this.persist();
   }
@@ -179,6 +214,59 @@ export class Vault {
   remove(id: string): void {
     const data = this.data();
     data.logins = data.logins.filter((l) => l.id !== id);
+    this.persist();
+  }
+
+  // ---------- Addresses and payment cards ----------
+
+  addresses(): AutofillAddress[] {
+    return [...(this.data().addresses ?? [])];
+  }
+
+  cards(): AutofillCard[] {
+    return [...(this.data().cards ?? [])];
+  }
+
+  /** Adds an address, or replaces the one with the same id. */
+  saveAddress(input: Partial<AutofillAddress>): AutofillAddress {
+    const data = this.data();
+    const list = (data.addresses ??= []);
+    const address: AutofillAddress = { id: typeof input.id === 'string' && list.some((a) => a.id === input.id) ? input.id : randomUUID(), ...cleanAddress(input) };
+    if (!ADDRESS_FIELDS.some((k) => address[k])) throw new Error(tr('L’indirizzo è vuoto.'));
+    data.addresses = [...list.filter((a) => a.id !== address.id), address];
+    this.persist();
+    return address;
+  }
+
+  saveCard(input: Partial<AutofillCard>): AutofillCard {
+    const data = this.data();
+    const list = (data.cards ??= []);
+    const number = cleanCardNumber(input.number ?? '');
+    if (!number) throw new Error(tr('Il numero della carta non è valido.'));
+    const expMonth = Number(input.expMonth);
+    const expYear = Number(input.expYear) < 100 ? 2000 + Number(input.expYear) : Number(input.expYear);
+    if (!(expMonth >= 1 && expMonth <= 12) || !(expYear >= 2000 && expYear <= 2100)) throw new Error(tr('La scadenza non è valida.'));
+    const card: AutofillCard = {
+      id: typeof input.id === 'string' && list.some((c) => c.id === input.id) ? input.id : randomUUID(),
+      name: String(input.name ?? '').trim().slice(0, 120),
+      number,
+      expMonth,
+      expYear,
+    };
+    data.cards = [...list.filter((c) => c.id !== card.id), card];
+    this.persist();
+    return card;
+  }
+
+  removeAddress(id: string): void {
+    const data = this.data();
+    data.addresses = (data.addresses ?? []).filter((a) => a.id !== id);
+    this.persist();
+  }
+
+  removeCard(id: string): void {
+    const data = this.data();
+    data.cards = (data.cards ?? []).filter((c) => c.id !== id);
     this.persist();
   }
 
@@ -213,6 +301,27 @@ export class Vault {
     const data = this.data();
     data.never = never ? [...new Set([...data.never, origin])] : data.never.filter((o) => o !== origin);
     this.persist();
+  }
+
+  /** Logins from another browser, saved at once; returns how many were added or updated. */
+  importLogins(rows: Array<{ url: string; username: string; password: string }>, now = Date.now()): number {
+    const data = this.data();
+    let count = 0;
+    for (const row of rows) {
+      const origin = originOf(row.url) ?? originOf(`https://${row.url}`);
+      if (!origin || !row.password) continue;
+      const existing = data.logins.find((l) => l.origin === origin && l.username === row.username);
+      if (existing) {
+        if (existing.password === row.password) continue;
+        existing.password = row.password;
+        existing.updatedAt = now;
+      } else {
+        data.logins.push({ id: randomUUID(), origin, username: row.username, password: row.password, createdAt: now, updatedAt: now, lastUsedAt: null, timesUsed: 0 });
+      }
+      count++;
+    }
+    if (count) this.persist();
+    return count;
   }
 
   /** Imports a CSV export from another browser or password manager; returns how many logins were added or updated. */

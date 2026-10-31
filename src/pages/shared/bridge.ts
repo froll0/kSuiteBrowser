@@ -1,5 +1,5 @@
 import { INTERNAL } from '../../shared/ipc';
-import type { ProfileInfo, TagColor, SiteSettingsInfo, SiteSettingsPatch, AiEvent, AboutInfo, BreachReport, ReaderArticle, SyncCollectionOption, SyncStatus, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
+import type { AutofillAddress, AutofillCard, ImportKindOption, ImportReport, ImportSourceInfo, ProfileInfo, TagColor, SiteSettingsInfo, SiteSettingsPatch, AiEvent, AboutInfo, BreachReport, ReaderArticle, SyncCollectionOption, SyncStatus, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
 import { translateDom, tr, type Locale } from '../../shared/i18n';
 
 interface InternalBridge {
@@ -62,6 +62,10 @@ export const internal = {
   },
   /** Ends the welcome page: opens `url` there, restarting first when the language changed. */
   welcomeFinish: (url: string, restart: boolean) => call<void>(INTERNAL.welcomeFinish, url, restart),
+  importer: {
+    sources: () => call<ImportSourceInfo[]>(INTERNAL.importSources),
+    run: (sourceId: string, kinds: ImportKindOption[]) => call<ApiResult<ImportReport>>(INTERNAL.importRun, sourceId, kinds),
+  },
   profiles: {
     list: () => call<{ current: string; profiles: ProfileInfo[] }>(INTERNAL.profilesList),
     /** Creates a profile and opens it in a new Velo window. */
@@ -113,7 +117,9 @@ export const internal = {
     list: () => call<ApiResult<SavedLogin[]>>(INTERNAL.pwList),
     never: () => call<ApiResult<string[]>>(INTERNAL.pwNever),
     add: (entry: { url: string; username: string; password: string }) => call<ApiResult<SavedLogin>>(INTERNAL.pwAdd, entry),
-    update: (id: string, patch: { username?: string; password?: string }) => call<ApiResult<void>>(INTERNAL.pwUpdate, id, patch),
+    update: (id: string, patch: { username?: string; password?: string; totp?: string | null }) => call<ApiResult<void>>(INTERNAL.pwUpdate, id, patch),
+    /** Current two-factor codes, by login id. */
+    totp: () => call<ApiResult<Record<string, { code: string; remaining: number }>>>(INTERNAL.pwTotp),
     remove: (id: string) => call<ApiResult<void>>(INTERNAL.pwRemove, id),
     removeNever: (origin: string) => call<ApiResult<void>>(INTERNAL.pwRemoveNever, origin),
     setPrimary: (next: string, current?: string) => call<ApiResult<void>>(INTERNAL.pwSetPrimary, next, current),
@@ -123,6 +129,13 @@ export const internal = {
     generate: () => call<string>(INTERNAL.pwGenerate),
     breaches: () => call<BreachReport>(INTERNAL.pwBreaches),
     checkBreaches: () => call<ApiResult<BreachReport>>(INTERNAL.pwBreachCheck),
+  },
+  autofill: {
+    list: () => call<ApiResult<{ addresses: AutofillAddress[]; cards: AutofillCard[] }>>(INTERNAL.afList),
+    saveAddress: (a: Partial<AutofillAddress>) => call<ApiResult<AutofillAddress>>(INTERNAL.afSaveAddress, a),
+    saveCard: (c: Partial<AutofillCard>) => call<ApiResult<AutofillCard>>(INTERNAL.afSaveCard, c),
+    removeAddress: (id: string) => call<ApiResult<void>>(INTERNAL.afRemoveAddress, id),
+    removeCard: (id: string) => call<ApiResult<void>>(INTERNAL.afRemoveCard, id),
   },
   history: {
     search: (query: string, before?: number) => call<HistoryVisit[]>(INTERNAL.historySearch, query, before),

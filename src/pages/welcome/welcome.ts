@@ -126,12 +126,31 @@ const STEPS: Step[] = [
   {
     title: tr('Importa i tuoi dati'),
     lead: tr('Porta in Velo preferiti, cronologia e password dal browser che usavi finora.'),
-    body: () => [
-      card(
-        row(tr('Preferiti'), tr('Da un file HTML esportato da qualsiasi browser.'), h('button', { onclick: () => location.assign('velo://bookmarks/') }, tr('Importa…'))),
-        row(tr('Password'), tr('Da un file CSV esportato da Chrome, Firefox, Edge o da un gestore di password.'), h('button', { onclick: () => location.assign('velo://passwords/') }, tr('Importa…'))),
-      ),
-    ],
+    body: async () => {
+      const sources = await internal.importer.sources();
+      const rows = sources.slice(0, 6).map((source) => {
+        const status = h('div', { class: 'desc' }, tr('Preferiti, cronologia e password'));
+        const button = h('button', {}, tr('Importa'));
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          status.textContent = tr('Importazione…');
+          const res = await internal.importer.run(source.id, ['bookmarks', 'history', 'logins']);
+          if (!res.ok) {
+            status.textContent = res.error;
+            button.disabled = false;
+            return;
+          }
+          const r = res.data;
+          status.textContent = tr('Fatto: {0} preferiti, {1} pagine, {2} password.', r.bookmarks, r.history, r.logins);
+          button.textContent = tr('Importato');
+        });
+        return h('div', { class: 'row' }, h('div', { class: 'text' }, h('div', { class: 'title' }, `${source.browser} · ${source.profileName}`), status), h('div', { class: 'control' }, button));
+      });
+      return [
+        rows.length ? card(...rows) : h('p', { class: 'muted' }, tr('Nessun altro browser trovato su questo computer.')),
+        card(row(tr('Altre possibilità'), tr('Cookie, profili diversi e importazione da file (HTML dei preferiti, CSV delle password).'), h('button', { onclick: () => window.open('velo://import/') }, tr('Apri…')))),
+      ];
+    },
   },
   {
     title: tr('Account cloud (facoltativo)'),

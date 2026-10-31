@@ -545,6 +545,9 @@ async function passwordsSection(): Promise<HTMLElement> {
     row(tr('Offri di salvare le password'), tr('Dopo un accesso compare una barra per salvare nome utente e password.'), toggle('offerToSavePasswords', tr('Offri di salvare le password'))),
     row(tr('Avvisami se salvo una password violata'), tr('Quando salvi una password il browser controlla se compare in violazioni di dati note (Have I Been Pwned): esce solo l’inizio della sua impronta SHA-1, mai la password.'), toggle('breachCheckOnSave', tr('Avvisa per le password violate'))),
     row(tr('Compila automaticamente'), tr('Se per un sito c’è un solo accesso salvato, il modulo viene compilato all’apertura (solo su pagine HTTPS). Altrimenti clicca nel campo per scegliere.'), toggle('autofillPasswords', tr('Compila automaticamente'))),
+    row(tr('Indirizzi e carte di pagamento'), h('span', {}, tr('Proponi gli indirizzi e le carte salvati quando fai clic in un modulo (le carte solo su pagine HTTPS). '), h('a', { href: 'velo://passwords/#addresses' }, tr('Gestisci…'))), toggle('autofillForms', tr('Indirizzi e carte di pagamento'))),
+    row(tr('Codici di verifica (2FA)'), h('span', {}, tr('Aggiungi la chiave 2FA a un accesso salvato: Velo genera i codici e li propone nei campi del codice di verifica. '), h('a', { href: 'velo://passwords/' }, tr('Apri le password…'))), null),
+    row(tr('Importa da un altro browser'), tr('Preferiti, cronologia, password e cookie da Chrome, Edge, Brave, Vivaldi, Opera e Firefox.'), h('a', { class: 'button-link', href: 'velo://import/' }, tr('Importa…'))),
     row(tr('Password salvate'), state, h('a', { href: 'velo://passwords/', class: 'button-link' }, tr('Gestisci password'))),
   );
 }

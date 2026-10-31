@@ -87,6 +87,26 @@ export class HistoryStore {
     return [...map.values()];
   }
 
+  /** Visits from another browser: pages already seen near that time are skipped. Returns how many were added. */
+  importMany(visits: Array<{ url: string; title: string; visitedAt: number }>, now = Date.now()): number {
+    const seen = new Map<string, number[]>();
+    for (const v of this.visits) seen.set(v.url, [...(seen.get(v.url) ?? []), v.visitedAt]);
+    let added = 0;
+    for (const v of visits) {
+      if (!v.url || !(v.visitedAt > now - MAX_AGE_MS) || v.visitedAt > now + 60_000) continue;
+      const times = seen.get(v.url) ?? [];
+      if (times.some((t) => Math.abs(t - v.visitedAt) < MERGE_WINDOW_MS)) continue;
+      this.visits.push({ id: randomUUID(), url: v.url, title: v.title ?? '', visitedAt: v.visitedAt });
+      seen.set(v.url, [...times, v.visitedAt]);
+      added++;
+    }
+    if (!added) return 0;
+    this.visits.sort((a, b) => a.visitedAt - b.visitedAt);
+    if (this.visits.length > MAX_VISITS) this.visits.splice(0, this.visits.length - MAX_VISITS);
+    this.file.changed();
+    return added;
+  }
+
   /** A visit made on another device (sync): kept in time order, merged with a close visit to the same page. */
   importVisit(url: string, title: string, visitedAt: number): void {
     const close = this.visits.find((v) => v.url === url && Math.abs(v.visitedAt - visitedAt) < MERGE_WINDOW_MS);

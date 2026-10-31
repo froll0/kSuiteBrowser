@@ -1,6 +1,8 @@
 import { Menu, ipcMain, safeStorage, type IpcMainEvent, type IpcMainInvokeEvent, type WebFrameMain } from 'electron';
 import { keychainAvailable } from '../keychain';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
+import { parseTotp, totpCode, type Hmac } from '../../shared/totp';
+import type { AutofillAddress, AutofillCard } from '../../shared/types';
 import { join } from 'node:path';
 import { IPC } from '../../shared/ipc';
 import { generatePassword } from '../../shared/password-gen';
@@ -28,6 +30,29 @@ interface TabRef {
 }
 
 /** Filling forms is only offered on secure pages (and local development servers). */
+const hmac: Hmac = (algorithm, key, data) => new Uint8Array(createHmac(algorithm, key).update(data).digest());
+
+/** The current two-factor code of a stored key, or null. */
+export function currentTotp(secret: string | null | undefined, now = Date.now()): { code: string; remaining: number } | null {
+  const params = secret ? parseTotp(secret) : null;
+  return params ? totpCode(params, now, hmac) : null;
+}
+
+/** Values of an address for each kind of form field. */
+export function addressFields(a: AutofillAddress): Record<string, string> {
+  const [given, ...rest] = a.name.trim().split(/\s+/);
+  return {
+    name: a.name, 'given-name': given ?? '', 'family-name': rest.join(' '), organization: a.organization, street: a.street,
+    'postal-code': a.postalCode, city: a.city, region: a.region, country: a.country, tel: a.phone, email: a.email,
+  };
+}
+
+/** Values of a card for each kind of form field. */
+export function cardFields(c: AutofillCard): Record<string, string> {
+  const mm = String(c.expMonth).padStart(2, '0');
+  return { 'cc-name': c.name, 'cc-number': c.number, 'cc-exp': `${mm}/${String(c.expYear).slice(-2)}`, 'cc-exp-month': mm, 'cc-exp-year': String(c.expYear) };
+}
+
 function secureOrigin(origin: string): boolean {
   return origin.startsWith('https://') || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 }
@@ -92,6 +117,49 @@ export class PasswordManager {
     ipcMain.handle('pw:field-click', (event, info: { newPassword?: boolean }) => {
       const ctx = this.context(event);
       if (ctx && ctx.frame === event.sender.mainFrame) this.showFieldMenu(ctx, Boolean(info?.newPassword));
+    });
+
+    // A two-factor code field: offer the codes of the site's logins that have a key.
+    ipcMain.handle('pw:otp-click', (event) => {
+      const ctx = this.context(event);
+      if (!ctx || ctx.frame !== event.sender.mainFrame || !this.vault.tryAutoUnlock()) return;
+      const site = siteOf(ctx.origin);
+      const logins = this.vault.list().filter((l) => l.totp && (l.origin === ctx.origin || (site && siteOf(l.origin) === site)));
+      if (!logins.length) return;
+      const { frame, origin } = ctx;
+      Menu.buildFromTemplate([
+        { label: tr('Codice di verifica (2FA)'), enabled: false },
+        ...logins.map((l) => ({
+          label: `${l.username || tr('(senza nome utente)')} — ${new URL(l.origin).host}`,
+          click: () => {
+            const code = currentTotp(l.totp);
+            if (code && !frame.isDestroyed() && originOf(frame.url) === origin) frame.send('pw:fill-otp', code.code);
+          },
+        })),
+      ]).popup({ window: ctx.tab.window.win });
+    });
+
+    // Addresses and payment cards in forms (cards only on secure pages).
+    ipcMain.handle('af:field-click', (event, info: { kind?: string }) => {
+      const ctx = this.context(event);
+      if (!ctx || ctx.frame !== event.sender.mainFrame || !this.settings.get().autofillForms) return;
+      const kind = info?.kind === 'card' ? 'card' : 'address';
+      if (kind === 'card' && !secureOrigin(ctx.origin)) return;
+      const unlocked = this.vault.tryAutoUnlock();
+      if (!unlocked) {
+        if (this.vault.status().state === 'locked') Menu.buildFromTemplate([{ label: tr('Sblocca le password salvate…'), click: () => ctx.tab.window.send(IPC.evPasswordUnlock, { reason: 'fill' }) }]).popup({ window: ctx.tab.window.win });
+        return;
+      }
+      const { frame, origin } = ctx;
+      const send = (data: Record<string, string>) => {
+        if (!frame.isDestroyed() && originOf(frame.url) === origin) frame.send('af:fill', data);
+      };
+      const items: Electron.MenuItemConstructorOptions[] = kind === 'card'
+        ? this.vault.cards().map((c) => ({ label: `•••• ${c.number.slice(-4)} — ${String(c.expMonth).padStart(2, '0')}/${String(c.expYear).slice(-2)}${c.name ? ` · ${c.name}` : ''}`, click: () => send(cardFields(c)) }))
+        : this.vault.addresses().map((a) => ({ label: [a.name, a.street, a.city].filter(Boolean).join(', ') || a.email, click: () => send(addressFields(a)) }));
+      if (!items.length) return;
+      items.push({ type: 'separator' }, { label: kind === 'card' ? tr('Gestisci carte…') : tr('Gestisci indirizzi…'), click: () => ctx.tab.window.openInternal(`velo://passwords/#${kind === 'card' ? 'cards' : 'addresses'}`) });
+      Menu.buildFromTemplate(items).popup({ window: ctx.tab.window.win });
     });
 
     ipcMain.on('pw:submit', (event, data: { username?: unknown; password?: unknown }) => {

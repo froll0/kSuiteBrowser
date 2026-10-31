@@ -163,6 +163,31 @@ export interface SavedLogin {
   updatedAt: number;
   lastUsedAt: number | null;
   timesUsed: number;
+  /** Two-factor key (base32 or otpauth:// address), see shared/totp.ts. */
+  totp?: string | null;
+}
+
+/** An address for forms (shipping, billing, contact details). */
+export interface AutofillAddress {
+  id: string;
+  name: string;
+  organization: string;
+  street: string;
+  postalCode: string;
+  city: string;
+  region: string;
+  country: string;
+  phone: string;
+  email: string;
+}
+
+/** A payment card for forms. The security code (CVC) is never stored. */
+export interface AutofillCard {
+  id: string;
+  name: string;
+  number: string;
+  expMonth: number;
+  expYear: number;
 }
 
 export interface VaultStatus {
@@ -240,6 +265,25 @@ export interface TabGroup {
   name: string;
   color: TagColor;
   collapsed: boolean;
+}
+
+/** Another browser's profile that can be imported (see main/importer). */
+export interface ImportSourceInfo {
+  id: string;
+  browser: string;
+  key: string;
+  profileName: string;
+}
+
+export type ImportKindOption = 'bookmarks' | 'history' | 'logins' | 'cookies';
+
+export interface ImportReport {
+  bookmarks: number;
+  history: number;
+  logins: number;
+  cookies: number;
+  /** What couldn't be imported and why. */
+  skipped: Array<{ what: ImportKindOption; count: number; reason: string }>;
 }
 
 export type SitePermissionState = 'default' | 'allow' | 'block';

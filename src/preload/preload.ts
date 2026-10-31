@@ -47,6 +47,8 @@ const api = {
   setContentBounds: (rect: Rect & { radius: number }) => invoke<void>(IPC.setContentBounds, rect),
   /** Auto-hiding toolbar: the system window buttons follow the browser bar. */
   setChromeVisible: (visible: boolean) => invoke<void>(IPC.chromeVisible, visible),
+  /** Velo's own window buttons (Linux). */
+  windowControl: (action: 'minimize' | 'maximize' | 'close') => invoke<void>(IPC.windowControl, action),
   toolbarMenu: (item: string | null) => invoke<void>(IPC.toolbarMenu, item),
   /** Turns protected content (Widevine) on and restarts the browser. */
   enableDrm: () => invoke<void>(IPC.drmEnable),
@@ -140,6 +142,9 @@ const api = {
     onDrmOffer: (fn: (offer: { host: string }) => void) => on(IPC.evDrmOffer, fn),
     /** The page took the keyboard focus. */
     onPageFocus: (fn: () => void) => on(IPC.evPageFocus, fn),
+    /** The page was scrolled up (true) or down, for the auto-hiding bar. */
+    onScrollReveal: (fn: (up: boolean) => void) => on(IPC.evScrollReveal, fn),
+    onWindowState: (fn: (state: { maximized: boolean; fullscreen: boolean }) => void) => on(IPC.evWindowState, fn),
   },
 };
 

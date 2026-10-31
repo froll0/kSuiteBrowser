@@ -90,6 +90,21 @@
 body.platform-darwin { --controls-left: 76px; }
 body.platform-win32, body.platform-linux { --controls-right: 138px; }
 
+/* Velo's own window buttons, only on Linux (elsewhere the system draws them). */
+#window-controls { display: none; }
+body.platform-linux #window-controls {
+  position: absolute; top: 0; right: 0; height: var(--row-h); width: var(--controls-right);
+  display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding-right: 8px;
+  -webkit-app-region: no-drag;
+}
+#window-controls button {
+  display: grid; place-items: center; width: 34px; height: 28px; padding: 0;
+  border: none; border-radius: var(--r-sm); background: none; color: var(--text-2);
+  transition: background .12s, color .12s;
+}
+#window-controls button:hover { background: var(--chrome-hover); color: var(--text); }
+#window-controls button.close:hover { background: #e5484d; color: #fff; }
+
 /* ---------- Base ---------- */
 
 * { box-sizing: border-box; }
@@ -236,7 +251,6 @@ body.private #private-badge { display: inline-flex; }
   animation: spin .8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
 
 .new-tab { flex: none; }
 /* Stays visible at the end of the strip when the tabs scroll. */
@@ -464,8 +478,8 @@ body.resizing { cursor: col-resize; }
   overflow: hidden;
 }
 body.panel-open #panel { display: flex; }
-/* Auto-hiding toolbar: the page covers the whole window (the cloud panel would be hidden under it). */
-body.autohide.panel-open #panel { display: none; }
+/* Auto-hiding toolbar: while hidden the bar takes no room, so the cloud panel reaches the top. */
+body.autohide:not(.chrome-shown) #chrome { display: none; }
 
 /* ---------- Find bar ---------- */
 
@@ -617,3 +631,24 @@ progress { width: 100%; height: 6px; accent-color: var(--accent); }
 .icon-btn.send { background: var(--accent); color: var(--on-accent); width: 32px; height: 32px; flex: none; }
 .icon-btn.send:hover:not(:disabled) { background: var(--accent-hover); color: var(--on-accent); }
 .icon-btn.send.stop { background: var(--text-2); }
+
+/* ---------- Motion ---------- */
+/* Tabs grow in when they open and shrink away when they close; bars slide in. */
+.tab.entering { animation: tab-in .18s cubic-bezier(.2, .8, .2, 1); }
+#tabstrip .tab.closing { animation: tab-out-h .14s ease-in forwards; pointer-events: none; }
+#sidetabs-list .tab.closing { animation: tab-out-v .14s ease-in forwards; pointer-events: none; }
+@keyframes tab-in { from { opacity: 0; transform: scale(.94); } }
+@keyframes tab-out-h { to { opacity: 0; max-width: 0; min-width: 0; padding-left: 0; padding-right: 0; margin: 0; } }
+@keyframes tab-out-v { to { opacity: 0; height: 0; min-height: 0; padding-top: 0; padding-bottom: 0; margin: 0; } }
+#infobar:not([hidden]), #findbar:not([hidden]) { animation: bar-in .18s cubic-bezier(.2, .8, .2, 1); }
+@keyframes bar-in { from { opacity: 0; transform: translateY(-6px); } }
+body.autohide.chrome-shown #chrome { animation: chrome-in .14s ease-out; }
+@keyframes chrome-in { from { opacity: 0; } }
+#panel { transition: width .18s ease; }
+.spinner { will-change: transform; }
+
+/* Reduced motion: asked by the system, or chosen in the settings (class set by applyTokens). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+:root.reduce-motion *, :root.reduce-motion *::before, :root.reduce-motion *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }

@@ -1253,6 +1253,14 @@ function registerChromeIpc(): void {
     if (appDef) w.tabs.openApp(appDef.id, appDef.url);
   });
   handle(IPC.setContentBounds, (w, rect: Rect) => w.tabs.setBounds(rect));
+  handle(IPC.windowControl, (w, action: string) => {
+    if (action === 'minimize') w.win.minimize();
+    else if (action === 'maximize') {
+      if (w.win.isFullScreen()) w.win.setFullScreen(false);
+      else if (w.win.isMaximized()) w.win.unmaximize();
+      else w.win.maximize();
+    } else if (action === 'close') w.win.close();
+  });
   handle(IPC.chromeVisible, (w, visible: boolean) => w.setChromeVisible(Boolean(visible)));
   handle(IPC.showAppMenu, (w) => Menu.getApplicationMenu()?.popup({ window: w.win }));
   handle(IPC.showShieldMenu, (w, tabId: number) => showShieldMenu(w, tabId));

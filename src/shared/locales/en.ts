@@ -1174,4 +1174,11 @@ export const en: Record<string, string> = {
   'Lavoro': 'Work',
   'Acquisti': 'Shopping',
   'Banca': 'Banking',
+  'Mostra la barra scorrendo verso l’alto': 'Show the bar when scrolling up',
+  'Con la barra a scomparsa: ricompare quando scorri la pagina verso l’alto e se ne va quando scorri verso il basso.': 'With the auto-hiding bar: it comes back when you scroll the page up and goes away when you scroll down.',
+  'Riduci le animazioni': 'Reduce animations',
+  'Niente transizioni né movimenti nell’interfaccia. Velo le riduce già quando lo chiede il sistema.': 'No transitions or motion in the interface. Velo already reduces them when the system asks for it.',
+  'Ingrandisci': 'Maximize',
+  'Riduci a icona': 'Minimize',
+  'Chiudi': 'Close',
 };

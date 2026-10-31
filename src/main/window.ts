@@ -98,9 +98,13 @@ export class BrowserWindowController {
       autoHideMenuBar: true,
       icon: ctx.paths.appIcon,
       // Tabs live in the title bar; the system draws its window buttons over it.
+      // On Linux the system buttons drawn over the page can't be hidden (or recoloured) reliably: Velo
+      // draws its own, which go away with the auto-hiding bar.
       ...(process.platform === 'darwin'
         ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 14, y: 14 } }
-        : { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay(ctx.settings.get(), isPrivate) }),
+        : process.platform === 'win32'
+          ? { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay(ctx.settings.get(), isPrivate) }
+          : { frame: false }),
       webPreferences: {
         preload: ctx.paths.chromePreload,
         contextIsolation: true,
@@ -108,6 +112,10 @@ export class BrowserWindowController {
         sandbox: true,
       },
     });
+
+    // Velo's own window buttons (Linux) show whether the window is maximized.
+    const sendState = () => this.send(IPC.evWindowState, { maximized: this.win.isMaximized(), fullscreen: this.win.isFullScreen() });
+    for (const event of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen'] as const) this.win.on(event as 'maximize', sendState);
 
     // The browser UI itself must never navigate away from the bundled page.
     this.win.webContents.on('will-navigate', (e) => e.preventDefault());
@@ -200,9 +208,11 @@ export class BrowserWindowController {
       this.win.setWindowButtonPosition({ x: 14, y: Math.round((densityMetrics(this.ctx.settings.get().density).row - 14) / 2) });
       return;
     }
-    const overlay = titleBarOverlay(this.ctx.settings.get(), this.isPrivate);
-    // Hidden bar: invisible buttons over the page (some systems keep a minimum height).
-    this.win.setTitleBarOverlay(this.chromeVisible ? overlay : { color: '#00000000', symbolColor: '#00000000', height: 1 });
+    if (process.platform === 'win32') {
+      const overlay = titleBarOverlay(this.ctx.settings.get(), this.isPrivate);
+      // Hidden bar: invisible buttons over the page (some systems keep a minimum height).
+      this.win.setTitleBarOverlay(this.chromeVisible ? overlay : { color: '#00000000', symbolColor: '#00000000', height: 1 });
+    }
     this.win.setBackgroundColor(frameColors(this.ctx.settings.get(), this.isPrivate).backdrop);
   }
 
@@ -419,6 +429,14 @@ export class BrowserWindowController {
     contents.on('login', (event, _details, info, callback) => {
       event.preventDefault();
       owner().requestAuth(contents, info, callback);
+    });
+    // The auto-hiding bar can come back when the page is scrolled up (and go when scrolled down): the tab
+    // preload reports the direction (see preload/page.ts).
+    contents.ipc.on('page:scroll-direction', (event, up: unknown) => {
+      const s = this.ctx.settings.get();
+      if (!s.autoHideToolbar || !s.revealToolbarOnScrollUp || event.senderFrame !== contents.mainFrame) return;
+      const w = owner();
+      if (w.tabs.activeContents() === contents) w.send(IPC.evScrollReveal, up === true);
     });
     // The auto-hiding bar goes away when the page takes the focus.
     contents.on('focus', () => {

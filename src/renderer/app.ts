@@ -43,6 +43,26 @@ const findCase = $<HTMLInputElement>('find-case');
 
 hydrateIcons();
 
+// ---------- Window buttons (Linux: drawn by Velo, so they hide with the auto-hiding bar) ----------
+
+const winMax = $<HTMLButtonElement>('win-max');
+$('win-min').append(icon('minus', 16));
+$('win-close').append(icon('close', 16));
+function renderWindowState(state: { maximized: boolean; fullscreen: boolean }): void {
+  const restore = state.maximized || state.fullscreen;
+  winMax.replaceChildren(icon(restore ? 'copy' : 'stop', 13));
+  winMax.title = restore ? tr('Ripristina') : tr('Ingrandisci');
+  winMax.setAttribute('aria-label', winMax.title);
+}
+renderWindowState({ maximized: false, fullscreen: false });
+$('win-min').addEventListener('click', () => void ks.windowControl('minimize'));
+winMax.addEventListener('click', () => void ks.windowControl('maximize'));
+$('win-close').addEventListener('click', () => void ks.windowControl('close'));
+$('topbar').addEventListener('dblclick', (e) => {
+  if (document.body.classList.contains('platform-linux') && e.target === e.currentTarget) void ks.windowControl('maximize');
+});
+ks.events.onWindowState(renderWindowState);
+
 // ---------- Toolbar buttons ----------
 // Created once; the settings decide which ones are shown, in which group and in which order.
 
@@ -216,7 +236,18 @@ function hideHoverCard(): void {
 
 window.addEventListener('blur', hideHoverCard);
 
+/** Tabs already drawn: only new ones get the opening animation. */
+let drawnTabs = new Set<number>();
+
+/** Closes a tab after its closing animation (at once with reduced motion). */
+function closeTab(id: number, el: HTMLElement | null): void {
+  if (!el || reducedMotion()) return void ks.tabs.close(id);
+  el.classList.add('closing');
+  window.setTimeout(() => void ks.tabs.close(id), 130);
+}
+
 function renderTabs(): void {
+  const firstDraw = drawnTabs.size === 0;
   const els = tabs.map((t) => {
       const audio = t.audible || t.muted
         ? iconButton(t.muted ? 'volumeOff' : 'volume', {
@@ -239,14 +270,15 @@ function renderTabs(): void {
         tabIcon(t),
         t.pinned ? null : h('span', { class: 'tab-title' }, t.title),
         audio,
-        t.pinned ? null : iconButton('close', { class: 'tab-close', title: tr('Chiudi scheda (Ctrl+W)'), 'aria-label': tr('Chiudi scheda'), onclick: (e: Event) => { e.stopPropagation(); void ks.tabs.close(t.id); } }),
+        t.pinned ? null : iconButton('close', { class: 'tab-close', title: tr('Chiudi scheda (Ctrl+W)'), 'aria-label': tr('Chiudi scheda'), onclick: (e: Event) => { e.stopPropagation(); closeTab(t.id, (e.currentTarget as HTMLElement).closest('.tab')); } }),
       );
+      if (!firstDraw && !drawnTabs.has(t.id)) el.classList.add('entering');
       el.addEventListener('click', () => void ks.tabs.activate(t.id));
       el.addEventListener('mouseenter', () => hoverTab(t.id, el));
       el.addEventListener('mouseleave', unhoverTab);
       el.addEventListener('mousedown', hideHoverCard);
       el.addEventListener('auxclick', (e) => {
-        if ((e as MouseEvent).button === 1) void ks.tabs.close(t.id);
+        if ((e as MouseEvent).button === 1) closeTab(t.id, el);
       });
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -287,6 +319,7 @@ function renderTabs(): void {
     sideList.replaceChildren();
     tabstrip.replaceChildren(...els, iconButton('plus', { class: 'icon-btn small new-tab', title: tr('Nuova scheda (Ctrl+T)'), 'aria-label': tr('Nuova scheda'), onclick: () => void ks.tabs.create() }, 18));
   }
+  drawnTabs = new Set(tabs.map((t) => t.id));
   tabsHost().querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
@@ -915,16 +948,56 @@ function syncBounds(): void {
   if (autoHide.on) {
     // The page keeps the size of the whole window: when the bar comes back it slides down (and right,
     // past the side tabs) without changing size, so it doesn't lay itself out again. A thin strip at the
-    // top stays uncovered: the pointer reaching it brings the bar back.
-    const size = { width: Math.round(innerWidth), height: Math.round(innerHeight - AUTOHIDE_STRIP) };
-    void ks.setContentBounds(autoHide.shown ? { x: r.left, y: r.top, ...size, radius: 0 } : { x: 0, y: AUTOHIDE_STRIP, ...size, radius: 0 });
+    // top stays uncovered: the pointer reaching it brings the bar back. The cloud panel keeps its place.
+    const panelEl = $('panel');
+    const right = document.body.classList.contains('panel-open') ? panelEl.getBoundingClientRect().left - 4 : innerWidth;
+    const height = Math.round(innerHeight - AUTOHIDE_STRIP);
+    const target = autoHide.shown
+      ? { x: r.left, y: r.top, width: Math.round(right - r.left), height, radius: 0 }
+      : { x: 0, y: AUTOHIDE_STRIP, width: Math.round(right), height, radius: 0 };
+    slideBounds(target);
     return;
   }
+  cancelSlide();
   const radius = parseFloat(getComputedStyle(root).getPropertyValue('--r-canvas')) || 0;
   void ks.setContentBounds({ x: r.left, y: r.top, width: r.width, height: r.height, radius });
 }
 
 // ---------- Auto-hiding toolbar ----------
+
+/** No animations: the system asks for it, or the user chose it in the settings. */
+const systemReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const reducedMotion = () => systemReducedMotion.matches || Boolean(currentSettings?.reduceMotion);
+
+type Bounds = { x: number; y: number; width: number; height: number; radius: number };
+let slide = { frame: 0, current: null as Bounds | null };
+
+function cancelSlide(): void {
+  cancelAnimationFrame(slide.frame);
+  slide.current = null;
+}
+
+/** Moves the page to `target`, sliding over a few frames when the bar appears or goes away. */
+function slideBounds(target: Bounds): void {
+  cancelAnimationFrame(slide.frame);
+  const from = slide.current;
+  if (!from || reducedMotion() || (from.y === target.y && from.x === target.x)) {
+    slide.current = target;
+    void ks.setContentBounds(target);
+    return;
+  }
+  const start = performance.now();
+  const DURATION = 140;
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / DURATION);
+    const ease = 1 - Math.pow(1 - t, 3);
+    const lerp = (a: number, b: number) => Math.round(a + (b - a) * ease);
+    slide.current = { x: lerp(from.x, target.x), y: lerp(from.y, target.y), width: lerp(from.width, target.width), height: target.height, radius: 0 };
+    void ks.setContentBounds(slide.current);
+    if (t < 1) slide.frame = requestAnimationFrame(step);
+  };
+  slide.frame = requestAnimationFrame(step);
+}
 
 const AUTOHIDE_STRIP = 3;
 const autoHide = { on: false, shown: false, hovering: false, timer: 0 as unknown as ReturnType<typeof setTimeout> };
@@ -958,9 +1031,10 @@ function applyAutoHide(on: boolean): void {
 }
 
 // The bar's own page only gets the pointer where no page covers it: the top strip, or the bar once shown.
-document.addEventListener('mousemove', () => {
+document.addEventListener('mousemove', (e) => {
   autoHide.hovering = true;
-  if (autoHide.on) setChromeShown(true);
+  // The cloud panel stays visible beside the page: only the top edge brings the bar back.
+  if (autoHide.on && (autoHide.shown || e.clientY <= AUTOHIDE_STRIP + 2)) setChromeShown(true);
 });
 document.documentElement.addEventListener('mouseleave', () => {
   autoHide.hovering = false;
@@ -975,6 +1049,17 @@ window.addEventListener('blur', () => {
 });
 document.addEventListener('focusout', () => {
   if (autoHide.on) scheduleHide();
+});
+// Scrolling the page up brings the bar back for a moment; scrolling down sends it away (optional).
+ks.events.onScrollReveal((up) => {
+  if (!autoHide.on) return;
+  if (up) {
+    setChromeShown(true);
+    scheduleHide(1800);
+  } else if (!autoHide.hovering) {
+    const busy = document.hasFocus() && document.activeElement && document.activeElement !== document.body;
+    if (!busy) setChromeShown(false);
+  }
 });
 ks.events.onPageFocus(() => {
   if (!autoHide.on) return;

@@ -37,6 +37,8 @@ export const TOOLBAR_ITEM_IDS = Object.keys(TOOLBAR_ITEMS) as ToolbarItem[];
 
 export interface AppearanceSettings {
   theme: 'system' | 'light' | 'dark';
+  /** No animations (optional so old callers and tests keep working). */
+  reduceMotion?: boolean;
   accentColor: string;
   palette: Palette;
   backdrop: Backdrop;
@@ -210,6 +212,8 @@ export function tokens(s: AppearanceSettings, dark: boolean, isPrivate = false):
   const flush = s.canvasStyle === 'flush';
 
   return {
+    // Read by applyTokens: turns animations off in every surface (browser UI, popups, internal pages).
+    '--reduce-motion': s.reduceMotion ? '1' : '0',
     '--font': UI_FONTS[s.uiFont]?.stack ?? UI_FONTS.inter.stack,
     '--fs': `${s.uiFontSize}px`,
 
@@ -263,6 +267,7 @@ export function tokens(s: AppearanceSettings, dark: boolean, isPrivate = false):
 export function applyTokens(root: HTMLElement, vars: Record<string, string>, dark: boolean): void {
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
   root.style.colorScheme = dark ? 'dark' : 'light';
+  root.classList.toggle('reduce-motion', vars['--reduce-motion'] === '1');
 }
 
 export function isDark(theme: AppearanceSettings['theme'], systemDark: boolean): boolean {

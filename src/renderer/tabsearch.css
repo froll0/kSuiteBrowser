@@ -44,3 +44,9 @@ img.icon { border-radius: 3px; object-fit: contain; }
 mark { background: color-mix(in srgb, #ffd54a 45%, transparent); color: inherit; border-radius: 3px; }
 .empty { padding: 28px 12px; text-align: center; color: var(--muted); }
 svg.i { display: block; }
+
+/* Reduced motion: asked by the system, or chosen in the settings (class set by applyTokens). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+:root.reduce-motion *, :root.reduce-motion *::before, :root.reduce-motion *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }

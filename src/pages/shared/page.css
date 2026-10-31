@@ -136,6 +136,12 @@ code { font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-r
 a { color: var(--accent); }
 .small { font-size: 12px; }
 
+/* Shared text styles, so every internal page reads the same. */
+h3 { font-size: 15px; font-weight: 650; margin: 20px 0 10px; }
+.badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+kbd { font: 600 12px/1 inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); color: var(--text-2); }
+input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
+
 /* Cards of settings (settings, site settings, welcome) */
 section { scroll-margin-top: 20px; margin-bottom: 34px; }
 section h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 12px; }
@@ -212,3 +218,9 @@ section h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; margin:
 .status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin: 0; }
 .status:empty { display: none; }
 @media (max-width: 700px) { .edit { grid-template-columns: 1fr; } .entry .host { display: none; } .page { padding: 20px 16px 60px; } }
+
+/* Reduced motion: asked by the system, or chosen in the settings (class set by applyTokens). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+:root.reduce-motion *, :root.reduce-motion *::before, :root.reduce-motion *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }

@@ -38,3 +38,19 @@ if (window.location.protocol === 'velo:' && window === window.top) {
     },
   });
 }
+
+// Scroll direction of the page (only up or down, only when it changes), for the auto-hiding bar that
+// comes back when scrolling up. The main process ignores it unless that option is on.
+if (window === window.top) {
+  let last: boolean | null = null;
+  let lastAt = 0;
+  window.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaY) < 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    const up = e.deltaY < 0;
+    const now = Date.now();
+    if (up === last && now - lastAt < 1500) return;
+    last = up;
+    lastAt = now;
+    ipcRenderer.send('page:scroll-direction', up);
+  }, { passive: true, capture: true });
+}

@@ -90,7 +90,11 @@ jobs:
       - name: Dictionaries (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: node scripts/fetch-dictionaries.mjs
-      - run: npm run dist -- --publish never
+      # An empty secret arrives as an empty variable, which electron-builder reads as a path: unset those.
+      - shell: bash
+        run: |
+          for v in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do if [ -z "${!v}" ]; then unset "$v"; fi; done
+          npm run dist -- --publish never
         env:
           # Code signing turns on by itself once the certificates are in the repository secrets:
           # CSC_LINK + CSC_KEY_PASSWORD (Windows .pfx or macOS .p12, base64), and for macOS notarization
@@ -129,7 +133,12 @@ jobs:
       # A pushed tag must match package.json; a manual run takes the version from package.json itself.
       - run: node scripts/check-release.mjs "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || steps.version.outputs.tag }}"
       # On a manual run the release creates the tag on the commit being built.
-      - run: gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "Velo $TAG" --generate-notes
+      # A draft left by a failed run is replaced (a published release is never touched: create fails).
+      - run: |
+          if [ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null)" = "true" ]; then
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes
+          fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" --title "Velo $TAG" --generate-notes
         env:
           TAG: ${{ steps.version.outputs.tag }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -168,7 +177,11 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: node scripts/fetch-dictionaries.mjs
       # Uploads installers plus latest*.yml (read by the in-app updater) to the draft release.
-      - run: npm run dist -- --publish always
+      # An empty secret arrives as an empty variable, which electron-builder reads as a path: unset those.
+      - shell: bash
+        run: |
+          for v in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do if [ -z "${!v}" ]; then unset "$v"; fi; done
+          npm run dist -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}

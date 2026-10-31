@@ -1,5 +1,7 @@
 import type { FingerprintProtection } from './fingerprint';
 import type { LanguageSetting } from './i18n';
+
+export type SecurityLevel = 'standard' | 'safer' | 'safest';
 import type { AppIconStyle, Backdrop, CanvasStyle, Density, NewTabBackground, Palette, RailPosition, TabsLayout, ToolbarItem, UiFont } from './appearance';
 import type { SearchEngineId, WebSearchEngineId } from './url';
 import type { SecureDnsChoice } from './secure-dns';
@@ -294,6 +296,12 @@ export interface Settings {
   drmOptIn: boolean;
   /** Fingerprinting protection: altered per site (standard) or uniform (strict). */
   fingerprintProtection: FingerprintProtection;
+  /**
+   * Security level (as in Tor Browser): 'safer' turns off the JavaScript JIT and WebAssembly, JavaScript
+   * on unencrypted (http) sites, WebGL and autoplay; 'safest' also JavaScript everywhere and remote fonts,
+   * with strict fingerprinting protection. Sites without protections are exempt (not from the JIT).
+   */
+  securityLevel: SecurityLevel;
   /** What WebRTC may reveal about the network (see shared/webrtc.ts). */
   webRtcProtection: WebRtcProtection;
   /** Remove utm_*, fbclid, gclid… from the addresses of the pages opened. */

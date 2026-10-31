@@ -135,7 +135,13 @@ quindi funzionano senza sorprese.
 - **Protezione dal tracciamento** con il motore Ghostery (EasyList, EasyPrivacy, liste uBlock Origin), liste aggiornate ogni settimana:
   *Standard* (pubblicità e tracker) o *Rigorosa* (anche banner dei cookie e altri fastidi)
 - **Pulsante scudo** nella barra: quante richieste sono state bloccate e disattivazione delle protezioni per un singolo sito
-- **Blocco dei cookie di terze parti** sulle richieste di rete
+- **Blocco dei cookie di terze parti**, sia sulle richieste di rete sia per gli script degli iframe (`document.cookie`):
+  un tracker incorporato non può riconoscerti da un sito all'altro. I servizi incorporati che ne hanno bisogno
+  (accessi, commenti) possono chiedertelo; vale dal riavvio. Lo storage dei siti incorporati (`localStorage`,
+  IndexedDB) è separato per sito
+- **Dimentica i siti alla chiusura** (facoltativo): quando chiudi l'ultima scheda di un sito, i suoi cookie e i suoi
+  dati vengono cancellati; i *siti da ricordare* (impostazioni o pulsante scudo) restano
+- **Livelli di sicurezza** *Standard*, *Più sicuro*, *Il più sicuro*, vedi [sotto](#livelli-di-sicurezza)
 - **Do Not Track e Global Privacy Control** (`DNT: 1`, `Sec-GPC: 1`)
 - **Modalità solo HTTPS**: le pagine `http://` vengono caricate in `https://`; se il sito non lo supporta compare un avviso con "Continua con HTTP" (le reti locali sono escluse)
 - **DNS cifrato** (DNS over HTTPS): automatico (Quad9 con riserva sul DNS della rete), oppure solo Quad9 (Svizzera), Mullvad, Cloudflare o un indirizzo a scelta,
@@ -144,7 +150,8 @@ quindi funzionano senza sorprese.
   nascosto dietro una VPN) o massima (nessun collegamento diretto); le chiamate di kMeet funzionano sempre
 - **Protezione dall'impronta digitale** (fingerprinting), vedi [sotto](#protezione-dallimpronta-digitale)
 - **Link puliti**: i parametri di tracciamento (`utm_…`, `fbclid`, `gclid`, `msclkid`, `si` di YouTube…) vengono tolti dagli
-  indirizzi prima di aprire la pagina; "Copia link senza tracciamento" nel menu contestuale dei link
+  indirizzi prima di aprire la pagina, e i link che passano da una pagina di rimbalzo solo per registrare il clic
+  (`l.facebook.com`, `google.com/url`, `out.reddit.com`, `youtube.com/redirect`…) portano subito alla destinazione; "Copia link senza tracciamento" nel menu contestuale dei link
 - **Protezione da phishing e malware**: i siti che rubano password e dati e i file di malware conosciuti vengono bloccati
   con una pagina di avviso, usando gli elenchi pubblici del progetto malware-filter (gli stessi di uBlock Origin),
   aggiornati due volte al giorno e controllati **sul computer**: nessun indirizzo viene inviato ad altri
@@ -232,7 +239,9 @@ Chromium, il motore delle pagine, non invia statistiche; i contatti con Google v
 | DNS cifrato «automatico» | sceglieva il DNS del sistema, spesso `dns.google` | Quad9, con riserva sul DNS della rete |
 
 All'avvio, senza aprire siti, Velo contatta solo: le liste di blocco dei tracker e degli indirizzi pericolosi (GitHub,
-GitLab), Quad9 per il DNS cifrato e, se lo colleghi, Infomaniak..
+GitLab), Quad9 per il DNS cifrato e, se lo colleghi, Infomaniak. La CI lo verifica a ogni modifica
+(`scripts/net-audit.mjs`): avvia Velo con un profilo nuovo, registra il traffico con il log di rete di Chromium e
+fallisce se compare qualsiasi altro host.
 
 ## Protezione dall'impronta digitale
 
@@ -249,8 +258,29 @@ come la scheda audio elabora un suono, quanti processori hai, lo schermo, i cara
 
 In entrambe le modalità i *client hints* che descrivono il dispositivo in dettaglio (versione esatta, build del sistema,
 architettura, modello) non vengono mai inviati. La protezione vale anche negli iframe, con la chiave del sito principale
-(un tracker incorporato in due siti vede due dispositivi diversi). Le funzioni sostituite appaiono native (`toString` compreso). Dal
-pulsante scudo si possono spegnere tutte le protezioni per un sito.
+(un tracker incorporato in due siti vede due dispositivi diversi) e nei Web Worker (anche condivisi), dove viene iniettata
+prima del codice del worker con la stessa chiave della pagina. Le funzioni sostituite appaiono native (`toString`
+compreso). Dal pulsante scudo si possono spegnere tutte le protezioni per un sito.
+
+In modalità rigorosa due persone diverse ottengono gli stessi valori (verificato con due profili: stessa immagine
+canvas, stessi processori, memoria, lingua e dimensioni dello schermo).
+
+## Livelli di sicurezza
+
+Come in Tor Browser, Impostazioni › Privacy e sicurezza › *Livello di sicurezza* spegne le funzioni del web usate più
+spesso negli attacchi:
+
+| | Standard | Più sicuro | Il più sicuro |
+| --- | --- | --- | --- |
+| Compilatore JIT di JavaScript e WebAssembly | sì | no (dal riavvio) | no (dal riavvio) |
+| JavaScript | sì | solo sui siti cifrati (https) | no |
+| WebGL e WebGPU (anche nei worker) | sì | no | no |
+| Audio e video automatici | sì | solo dopo un clic (dal riavvio) | solo dopo un clic (dal riavvio) |
+| Caratteri scaricati dai siti | sì | sì | no |
+| Protezione dall'impronta | come impostata | come impostata | rigorosa |
+
+JavaScript viene spento con una regola `script-src 'none'` aggiunta alle pagine, che non possono rimuoverla. Un sito
+di cui ti fidi si esclude dal pulsante scudo (resta spento il JIT, che vale per tutto il browser).
 
 ## Lingue
 
@@ -367,14 +397,26 @@ Su Linux Widevine funziona senza firma VMP (con qualità video limitata da alcun
 L'installer attiva i *fuse* di Electron: niente `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` o `--inspect`,
 codice caricato solo dall'archivio `app.asar` (verificato su Windows e macOS), cookie cifrati su disco.
 
+- Tutte le pagine girano nella sandbox di Chromium (`app.enableSandbox()`) e nessuna può incorporare un `<webview>`.
+- Velo non supporta estensioni: codice di terzi non può leggere le pagine. Le estensioni installate con le versioni
+  precedenti vengono cancellate al primo avvio, con i loro dati (`src/main/purge.ts`).
+- Le pagine interne (`velo://`) rispondono ai comandi privilegiati solo dal proprio frame principale, non possono
+  essere incorporate, non caricano script esterni né fanno richieste di rete (CSP), e non servono file fuori dalla
+  propria cartella: controlli coperti da test (`test/security.test.ts`).
+- Ogni settimana la CI controlla se esiste una versione più recente dell'Electron di castlabs (che porta le correzioni
+  di sicurezza di Chromium) e apre una issue (`.github/workflows/electron-check.yml`); Dependabot segue le altre
+  dipendenze.
+- Firma del codice pronta: basta aggiungere ai *secrets* del repository `CSC_LINK` e `CSC_KEY_PASSWORD` (certificato
+  Windows o macOS) e, per la notarizzazione Apple, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`.
+
 ## Limiti noti
 
-- Il blocco dei cookie di terze parti agisce sulle richieste di rete: uno script dentro un iframe di terze parti
-  può ancora usare `document.cookie` all'interno di quell'iframe.
 - Il browser si basa su Electron, che riceve gli aggiornamenti di sicurezza di Chromium con qualche settimana di ritardo:
-  aggiorna regolarmente le dipendenze (`npm update electron`).
-- La protezione dall'impronta digitale agisce nelle pagine e nei loro iframe, non nei Web Worker: uno script che
-  disegna su un `OffscreenCanvas` dentro un worker legge valori reali.
+  la CI avvisa quando c'è una versione nuova, ma l'aggiornamento va fatto (e pubblicato) a mano.
+- La protezione dall'impronta non copre i *service worker* (girano fuori dalle schede).
+- Il «CNAME cloaking» (tracker nascosti dietro un sottodominio del sito) non viene smascherato: servirebbe leggere i
+  record DNS, che Electron non espone.
+- «Dimentica i siti alla chiusura» non svuota la cache delle immagini e dei file (è comune a tutti i siti).
 
 - Barra a scomparsa su Linux: i pulsanti della finestra (riduci, ingrandisci, chiudi) restano appena visibili in alto
   a destra quando la barra è nascosta; il pannello cloud non compare in questa modalità.

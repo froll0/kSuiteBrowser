@@ -40,6 +40,11 @@ export class PrivacyGuard {
       const wcId = details.webContentsId;
 
       // Known phishing and malware sites never load, in the page or in a frame.
+      // Highest security level: fonts downloaded by pages (a common attack surface) are not loaded.
+      if (details.resourceType === 'font' && s.securityLevel === 'safest' && /^https?:/i.test(details.url) && !this.isExempt(this.pageUrl(wcId, details.referrer))) {
+        return callback({ cancel: true });
+      }
+
       if ((details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') && s.threatProtection) {
         const kind = this.threatCheck(details.url);
         if (kind) {
@@ -121,6 +126,13 @@ export class PrivacyGuard {
         headers['Content-Security-Policy'] = [[...csp.split(';').map((d) => d.trim()), ...existing].join(';')];
         changed = true;
       }
+      // Security levels: no JavaScript in this document (a separate policy, so the site's own still applies).
+      if ((details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') && this.scriptsOffFor(details.url, pageUrl)) {
+        const existing = Object.entries(headers).filter(([k]) => k.toLowerCase() === 'content-security-policy').flatMap(([, v]) => v);
+        deleteHeader(headers, 'Content-Security-Policy');
+        headers['Content-Security-Policy'] = [...existing, "script-src 'none'; object-src 'none'"];
+        changed = true;
+      }
       callback(changed ? { responseHeaders: headers } : {});
     });
   }
@@ -135,6 +147,13 @@ export class PrivacyGuard {
   }
 
   /** The user turned protections off for this site (tracker and third-party cookie blocking). */
+  /** Security levels: JavaScript is off everywhere ('safest') or on unencrypted pages ('safer'). */
+  scriptsOffFor(documentUrl: string, pageUrl: string | null): boolean {
+    const level = this.settings.get().securityLevel;
+    if (level === 'standard' || !/^https?:/i.test(documentUrl) || this.isExempt(pageUrl)) return false;
+    return level === 'safest' || /^http:/i.test(documentUrl);
+  }
+
   isExempt(pageUrl: string | null): boolean {
     const site = pageUrl ? siteOf(pageUrl) : null;
     return site !== null && this.settings.get().protectionExceptions.includes(site);

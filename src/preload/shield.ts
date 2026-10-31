@@ -15,7 +15,7 @@ import type { ShieldConfig } from '../shared/fingerprint';
 
 
 if (/^https?:$/.test(location.protocol)) {
-  let config: ShieldConfig = { mode: 'standard', seed: 1, cores: 4 };
+  let config: ShieldConfig = { mode: 'standard', seed: 1, cores: 4, webgl: true };
   try {
     config = ipcRenderer.sendSync('shield:config') as ShieldConfig;
   } catch {
@@ -90,7 +90,7 @@ function installShield(bridge: ShieldBridge, config: ShieldConfig): void {
       },
     );
 
-    if (config.mode === 'off') return;
+    if (config.mode === 'off' && config.webgl) return;
 
       // A same-origin frame (about:blank, srcdoc) gets no preload: protected as soon as the page reaches it.
       for (const ctor of [w.HTMLIFrameElement, w.HTMLFrameElement, w.HTMLObjectElement]) {
@@ -103,6 +103,20 @@ function installShield(bridge: ShieldBridge, config: ShieldConfig): void {
           });
         }
       }
+
+    // ---------- Security levels: no WebGL (a large attack surface, and a strong fingerprint) ----------
+    if (!config.webgl) {
+      for (const proto of [w.HTMLCanvasElement?.prototype, w.OffscreenCanvas?.prototype]) {
+        wrap<(type: string, ...rest: unknown[]) => unknown>(proto ?? {}, 'getContext', (original) =>
+          function (this: unknown, type: string, ...rest: unknown[]) {
+            return /^(experimental-)?webgl2?$|^webgpu$/i.test(String(type)) ? null : original.call(this, type, ...rest);
+          },
+        );
+      }
+      if (w.Navigator?.prototype && 'gpu' in w.Navigator.prototype) getter(w.Navigator.prototype, 'gpu', () => undefined);
+    }
+
+    if (config.mode === 'off') return;
 
     // ---------- Deterministic noise ----------
     /** 32-bit hash of the site key and some numbers (stable for the same inputs). */

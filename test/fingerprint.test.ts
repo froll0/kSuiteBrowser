@@ -28,8 +28,9 @@ describe('fingerprinting protection', () => {
     expect(shieldConfig({ ...base, site: 'a.com', setting: 'strict' }).cores).toBe(4);
   });
 
-  it('turns off on the sites without protections, but never in Tor windows', () => {
+  it('turns off on the sites without protections, whatever the security level', () => {
     expect(shieldConfig({ ...base, site: 'bank.it', exceptions: ['bank.it'] }).mode).toBe('off');
-    expect(shieldConfig({ ...base, site: 'bank.it', exceptions: ['bank.it'], forceStrict: true }).mode).toBe('strict');
+    expect(shieldConfig({ ...base, site: 'bank.it', exceptions: ['bank.it'], forceStrict: true, blockWebGL: true })).toMatchObject({ mode: 'off', webgl: true });
+    expect(shieldConfig({ ...base, site: 'news.it', forceStrict: true, blockWebGL: true })).toMatchObject({ mode: 'strict', webgl: false });
   });
 });

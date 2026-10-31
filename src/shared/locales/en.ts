@@ -1052,4 +1052,13 @@ export const en: Record<string, string> = {
   'Siti da ricordare': 'Sites to remember',
   'esempio.it': 'example.com',
   'Aggiungi un sito da ricordare': 'Add a site to remember',
+  'livello di sicurezza javascript jit webassembly webgl caratteri exploit': 'security level javascript jit webassembly webgl fonts exploit',
+  'Livello di sicurezza': 'Security level',
+  'Spegne le funzioni del web usate più spesso negli attacchi, a costo di rendere alcuni siti meno funzionanti. Dal pulsante scudo puoi escludere un sito di cui ti fidi. JIT e riproduzione automatica cambiano dal riavvio, il resto ricaricando le pagine. ': 'Turns off the web features most often used in attacks, at the cost of some sites working less well. From the shield button you can exempt a site you trust. JIT and autoplay change after a restart, the rest when pages reload. ',
+  'Standard': 'Standard',
+  'Tutte le funzioni del web sono attive.': 'All web features are on.',
+  'Più sicuro': 'Safer',
+  'JavaScript senza compilatore JIT né WebAssembly (più lento ma molto più difficile da attaccare), JavaScript spento sui siti non cifrati (http), niente WebGL, audio e video partono solo con un clic.': 'JavaScript without the JIT compiler or WebAssembly (slower but much harder to attack), JavaScript off on unencrypted (http) sites, no WebGL, audio and video start only with a click.',
+  'Il più sicuro': 'Safest',
+  'In più: JavaScript spento su tutti i siti, nessun carattere scaricato dai siti e protezione rigorosa dall’impronta. Molti siti funzioneranno solo in parte.': 'Also: JavaScript off on all sites, no fonts downloaded from sites and strict fingerprinting protection. Many sites will only partly work.',
 };

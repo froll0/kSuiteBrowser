@@ -68,6 +68,12 @@ if (!startupSetting('drmOptIn')) app.commandLine.appendSwitch('disable-component
 // embedded frames (document.cookie), the way trackers otherwise follow you across sites. Partitioned
 // cookies (CHIPS) and the Storage Access API (asked to the user) still work for legitimate embeds.
 if (startupSetting('blockThirdPartyCookies')) app.commandLine.appendSwitch('test-third-party-cookie-phaseout');
+// Higher security levels: no JavaScript JIT compiler (the source of most browser exploits) and so no
+// WebAssembly; audio and video start only after a click on the page.
+if (startupSetting('securityLevel') !== 'standard') {
+  app.commandLine.appendSwitch('js-flags', '--jitless');
+  app.commandLine.appendSwitch('autoplay-policy', 'document-user-activation-required');
+}
 registerInternalScheme();
 // Every renderer runs in Chromium's sandbox, whatever its own options say (unless --no-sandbox is
 // given explicitly: only for development and tests running as root, where Chromium needs it).
@@ -509,6 +515,8 @@ function shieldConfigFor(ses: Session, topUrl: string): ShieldConfig {
     exceptions: s.protectionExceptions,
     sessionKey: key,
     cpus: cpus().length || 4,
+    forceStrict: s.securityLevel === 'safest',
+    blockWebGL: s.securityLevel !== 'standard',
   });
 }
 

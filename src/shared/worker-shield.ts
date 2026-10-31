@@ -6,7 +6,7 @@ import type { ShieldConfig } from './fingerprint';
  * key as the page: the same noise for the same site. Serialized, so it may only use what is inside it.
  */
 export function installWorkerShield(config: ShieldConfig): void {
-  if (config.mode === 'off') return;
+  if (config.mode === 'off' && config.webgl) return;
   const g = globalThis as unknown as Record<string, any>;
   const strict = config.mode === 'strict';
 
@@ -31,6 +31,15 @@ export function installWorkerShield(config: ShieldConfig): void {
   wrap(Function.prototype, 'toString', () => function (this: unknown) {
     return nativeToString.call(disguised.get(this as object) ?? this);
   });
+
+  // Security levels: no WebGL or WebGPU in workers either.
+  if (!config.webgl) {
+    wrap(g.OffscreenCanvas?.prototype, 'getContext', (original) => function (this: unknown, type: string, ...rest: unknown[]) {
+      return /^(experimental-)?webgl2?$|^webgpu$/i.test(String(type)) ? null : original.call(this, type, ...rest);
+    });
+    getter(g.WorkerNavigator?.prototype, 'gpu', () => undefined);
+  }
+  if (config.mode === 'off') return;
 
   const hash = (...n: number[]) => {
     let h = config.seed >>> 0;

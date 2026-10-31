@@ -9,6 +9,8 @@ export interface ShieldConfig {
   seed: number;
   /** CPU count to report. */
   cores: number;
+  /** WebGL available to the page (off at the higher security levels). */
+  webgl: boolean;
 }
 
 /** Client hints that describe the device in detail: never sent (the low-entropy ones stay). */
@@ -36,18 +38,18 @@ export function shieldConfig(opts: {
   sessionKey: Buffer;
   /** Strict whatever the setting (the highest security level). */
   forceStrict?: boolean;
+  /** No WebGL (the higher security levels). */
+  blockWebGL?: boolean;
   /** Real CPU count. */
   cpus: number;
 }): ShieldConfig {
   const digest = createHash('sha256').update(opts.sessionKey).update('\0').update(opts.site ?? '').digest();
   const seed = digest.readUInt32LE(0) || 1;
-  const mode: FingerprintProtection = opts.forceStrict
-    ? 'strict'
-    : opts.site && opts.exceptions.includes(opts.site)
-      ? 'off'
-      : opts.setting;
+  // A site the user exempted from the protections stays exempt, whatever the level.
+  const exempt = Boolean(opts.site && opts.exceptions.includes(opts.site));
+  const mode: FingerprintProtection = exempt ? 'off' : opts.forceStrict ? 'strict' : opts.setting;
   // Standard: a plausible count between 2 and the real one (at least 2..4), different per site.
   const top = Math.max(4, opts.cpus);
   const cores = mode === 'strict' ? 4 : mode === 'off' ? opts.cpus : 2 + (digest.readUInt32LE(4) % (top - 1));
-  return { mode, seed, cores };
+  return { mode, seed, cores, webgl: exempt || !opts.blockWebGL };
 }

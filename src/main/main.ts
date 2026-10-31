@@ -1,4 +1,5 @@
-// Must stay first: the interface language is chosen before the other modules load.
+// Must stay first: the profile folder, then the interface language, are chosen before the other modules load.
+import './profile-boot';
 import './locale-boot';
 import {
   BrowserWindow, Menu, app, dialog, ipcMain, nativeTheme, session as electronSession, shell,
@@ -15,7 +16,7 @@ import { siteOf } from '../shared/privacy-rules';
 import { matchesAll } from '../shared/search-match';
 import { buildSuggestions } from '../shared/suggest';
 import type {
-  PaletteChoice, PaletteData, SiteSettingsPatch, AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
+  TabGroup, TagColor, TabLayout, PaletteChoice, PaletteData, SiteSettingsPatch, AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
 } from '../shared/types';
 import { TOOLBAR_ITEMS, TOOLBAR_ITEM_IDS, type ToolbarItem } from '../shared/appearance';
 import { searchAnswerMessages } from '../shared/ai-prompts';
@@ -52,16 +53,15 @@ import { BookmarksStore } from './stores/bookmarks';
 import { FaviconStore } from './stores/favicons';
 import { HistoryStore } from './stores/history';
 import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } from './window';
-import { adoptLegacyProfile } from './legacy';
-import { DEFAULT_SETTINGS, sanitizeSettings } from '../shared/settings-schema';
+import { DEFAULT_SETTINGS, TAG_COLORS, TAG_COLOR_INFO, sanitizeSettings } from '../shared/settings-schema';
 import { purgeRemovedFeatures } from './purge';
 import { SiteForgetter } from './forget';
+import { createProfile, currentProfile, listProfiles, openProfile, removeProfile, updateProfile } from './profiles';
 import { applySiteSettings, clearSiteData, normalizeSiteHost, siteSettingsInfo } from './site-settings';
 import { openSites } from '../shared/forget-sites';
 import { isAllowedInternalSender } from '../shared/ipc-guard';
-import { locale, resolveLocale, tr } from '../shared/i18n';
+import { locale, plural, resolveLocale, tr } from '../shared/i18n';
 
-adoptLegacyProfile();
 // Widevine comes from Google's component updater: unless the user turned protected content on, it
 // stays off and the browser makes no request to Google's update servers.
 // Protected content: the component updater (Widevine, from Google) runs only when asked for.
@@ -119,7 +119,8 @@ let ai: AiService;
 let forgetter: SiteForgetter | null = null;
 
 /** A tab to open: `open` ones (links from other apps) load and come to the front, the others start asleep. */
-type SavedTab = { url: string; pinned?: boolean; title?: string; open?: boolean };
+type SavedTab = { url: string; pinned?: boolean; title?: string; open?: boolean; groupId?: string | null; workspace?: string; container?: string | null };
+type SavedWindow = { tabs: SavedTab[]; layout?: Partial<TabLayout> };
 const blocker = new TrackerBlocker();
 const threats = new ThreatProtection();
 const readerCache = new ReaderCache();
@@ -162,6 +163,8 @@ app.on('will-quit', () => {
 });
 
 app.on('before-quit', (event) => {
+  // Changes of the last second (the save waits a moment) are kept too.
+  if (!quitting && settings) saveSessionNow();
   quitting = true;
   const s = settings?.get();
   // Sites to forget: the ones still open, unless their tabs come back at the next start.
@@ -172,7 +175,9 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   dataCleared = true;
   void Promise.all([
-    s.clearCookiesOnExit || s.clearCacheOnExit ? clearBrowsingData(electronSession.defaultSession, { cookies: s.clearCookiesOnExit, cache: s.clearCacheOnExit }) : null,
+    ...(s.clearCookiesOnExit || s.clearCacheOnExit
+      ? persistentSessions().map((ses) => clearBrowsingData(ses, { cookies: s.clearCookiesOnExit, cache: s.clearCacheOnExit }))
+      : []),
     ...forget.map((site) => forgetter!.forget(site)),
   ])
     .catch((err) => console.error('[privacy] pulizia alla chiusura non riuscita:', err))
@@ -320,8 +325,8 @@ async function start(): Promise<void> {
   // Links opened from other apps are added to the restored session, like other browsers do.
   const restored = settings.get().startup === 'restore' ? readSavedSession() : [];
   if (restored.length) {
-    restored[restored.length - 1].push(...pendingUrls);
-    for (const tabs of restored) openWindow(false, tabs);
+    restored[restored.length - 1].tabs.push(...pendingUrls);
+    for (const w of restored) openWindow(false, w.tabs, { layout: w.layout });
   } else {
     // First start: the welcome page (shown once, also if it's closed before the end).
     const first = settings.get().onboarded ? [] : [{ url: 'velo://welcome/', open: true }];
@@ -366,6 +371,27 @@ function setupSession(ses: Session, isPrivate: boolean): void {
   }
 }
 
+// ---------- Containers ----------
+
+const containerSessions = new Map<string, Session>();
+
+/** Session of a container: its own cookies, storage and cache on disk, with the same protections. */
+function containerSession(id: string): Session | undefined {
+  if (!settings.get().containers.some((c) => c.id === id)) return undefined;
+  let ses = containerSessions.get(id);
+  if (!ses) {
+    ses = electronSession.fromPartition(`persist:container-${id}`);
+    setupSession(ses, false);
+    containerSessions.set(id, ses);
+  }
+  return ses;
+}
+
+/** The sessions saved on disk: the normal one and those of the containers (also unused ones). */
+function persistentSessions(): Session[] {
+  return [electronSession.defaultSession, ...settings.get().containers.map((c) => containerSession(c.id)).filter((x): x is Session => Boolean(x))];
+}
+
 const windowContext: WindowContext = {
   get settings() {
     return settings;
@@ -381,6 +407,7 @@ const windowContext: WindowContext = {
   },
   applyZoom: (wc) => applyZoom(wc),
   shieldConfigFor: (ses, url) => shieldConfigFor(ses, url),
+  containerSession: (id) => containerSession(id),
   stepZoom: (w, wc, direction) => changeZoom(w, wc, direction),
   guardFor: (ses) => guards.get(ses),
   ownerOf: (contents) => [...windows].find((w) => w.tabs.idOf(contents) !== null) ?? null,
@@ -408,7 +435,7 @@ const windowContext: WindowContext = {
 function openWindow(
   isPrivate: boolean,
   tabs: SavedTab[] | null,
-  options: { session?: Session; bounds?: Partial<Electron.Rectangle> } = {},
+  options: { session?: Session; bounds?: Partial<Electron.Rectangle>; layout?: Partial<TabLayout> } = {},
 ): BrowserWindowController {
   let ses = options.session ?? electronSession.defaultSession;
   if (isPrivate && !options.session) {
@@ -416,7 +443,7 @@ function openWindow(
     ses = electronSession.fromPartition(`private-${++privateCounter}`);
     setupSession(ses, true);
   }
-  const controller = new BrowserWindowController(windowContext, ses, isPrivate, tabs, options.bounds);
+  const controller = new BrowserWindowController(windowContext, ses, isPrivate, tabs, options.bounds, options.layout);
   windows.add(controller);
   lastFocused = controller;
   controller.win.on('focus', () => (lastFocused = controller));
@@ -483,6 +510,8 @@ function tabContextMenu(w: BrowserWindowController, tabId: number): void {
       click: () => w.tabs.sleepTab(tabId),
     },
     { type: 'separator' },
+    ...tabOrganizeItems(w, tabId, state),
+    { type: 'separator' },
     { label: tr('Sposta in una nuova finestra'), enabled: ids.length > 1, click: () => moveTab(w, tabId, 'new') },
     ...(others.length
       ? [{ label: tr('Sposta nella finestra'), submenu: others.map((o) => ({ label: o.tabs.states().find((t) => t.active)?.title.slice(0, 50) ?? tr('Finestra'), click: () => moveTab(w, tabId, o) })) }]
@@ -494,6 +523,44 @@ function tabContextMenu(w: BrowserWindowController, tabId: number): void {
     { type: 'separator' },
     { label: tr('Riapri scheda chiusa'), enabled: w.tabs.hasClosed(), click: () => w.tabs.reopenClosed() },
   ]).popup({ window: w.win });
+}
+
+/** Groups, workspaces and containers in the tab menu. */
+function tabOrganizeItems(w: BrowserWindowController, tabId: number, state: TabState): Electron.MenuItemConstructorOptions[] {
+  const groups = w.tabs.groupList();
+  const items: Electron.MenuItemConstructorOptions[] = [];
+  if (!state.pinned) {
+    items.push(state.groupId
+      ? { label: tr('Rimuovi dal gruppo'), click: () => w.tabs.setGroup(tabId, null) }
+      : { label: tr('Aggiungi a un nuovo gruppo'), click: () => w.tabs.createGroup([tabId]) });
+    const others = groups.filter((g) => g.id !== state.groupId);
+    if (others.length) items.push({ label: tr('Aggiungi al gruppo'), submenu: others.map((g) => ({ label: groupLabel(g), click: () => w.tabs.setGroup(tabId, g.id) })) });
+  }
+  if (!w.isPrivate) {
+    const spaces = settings.get().workspaces;
+    items.push({
+      label: tr('Sposta nello spazio di lavoro'),
+      submenu: [
+        ...spaces.map((x) => ({ label: tr(x.name), type: 'radio' as const, checked: x.id === state.workspace, click: () => w.tabs.moveToWorkspace(tabId, x.id) })),
+        { type: 'separator' as const },
+        {
+          label: tr('Nuovo spazio di lavoro'),
+          click: () => {
+            w.tabs.moveToWorkspace(tabId, newWorkspace(w, false));
+            w.tabs.activate(tabId);
+          },
+        },
+      ],
+    });
+    items.push({
+      label: tr('Riapri in un contenitore'),
+      submenu: [
+        { label: tr('Nessun contenitore'), type: 'radio' as const, checked: !state.container, click: () => reopenInContainer(w, tabId, null) },
+        ...settings.get().containers.map((c) => ({ label: tr(c.name), type: 'radio' as const, checked: state.container === c.id, click: () => reopenInContainer(w, tabId, c.id) })),
+      ],
+    });
+  }
+  return items;
 }
 
 /** Copies the dictionaries shipped with the Linux build where Chromium looks for them. */
@@ -591,7 +658,7 @@ function saveSessionNow(): void {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
   {
-    const data = [...windows].filter((w) => !w.isPrivate).map((w) => w.tabs.saved()).filter((tabs) => tabs.length > 0);
+    const data = [...windows].filter((w) => !w.isPrivate).map((w) => ({ tabs: w.tabs.saved(), layout: w.tabLayout() })).filter((w) => w.tabs.length > 0);
     if (data.length === 0) return;
     try {
       writeFileSync(sessionFile(), JSON.stringify({ windows: data }), { mode: 0o600 });
@@ -601,20 +668,33 @@ function saveSessionNow(): void {
   }
 }
 
-function readSavedSession(): SavedTab[][] {
+function readSavedSession(): SavedWindow[] {
   try {
     const parsed = JSON.parse(readFileSync(sessionFile(), 'utf8')) as { windows?: unknown };
     if (!Array.isArray(parsed.windows)) return [];
+    const id = (v: unknown) => (typeof v === 'string' && /^[a-z0-9-]{1,40}$/.test(v) ? v : null);
     return parsed.windows
-      .filter(Array.isArray)
-      .map((tabs: unknown[]) =>
-        tabs
-          // Older sessions stored plain URLs.
+      // Older sessions stored a list of tabs per window (and before that plain URLs).
+      .map((w: unknown) => (Array.isArray(w) ? { tabs: w } : (w as { tabs?: unknown; layout?: Partial<TabLayout> })))
+      .filter((w) => w && Array.isArray(w.tabs))
+      .map((w) => {
+        const groups = Array.isArray(w.layout?.groups)
+          ? w.layout.groups.filter((g) => g && id(g.id)).map((g) => ({ id: g.id, name: String(g.name ?? '').slice(0, 40), color: TAG_COLORS.includes(g.color) ? g.color : 'grey', collapsed: Boolean(g.collapsed) }))
+          : [];
+        const tabs = (w.tabs as unknown[])
           .map((t) => (typeof t === 'string' ? { url: t } : (t as SavedTab)))
           .filter((t) => t && typeof t.url === 'string' && /^(https?|velo|file):/i.test(t.url))
-          .map((t) => ({ url: t.url, pinned: Boolean(t.pinned), title: typeof t.title === 'string' ? t.title.slice(0, 300) : undefined })),
-      )
-      .filter((tabs) => tabs.length > 0);
+          .map((t) => ({
+            url: t.url,
+            pinned: Boolean(t.pinned),
+            title: typeof t.title === 'string' ? t.title.slice(0, 300) : undefined,
+            groupId: id(t.groupId),
+            workspace: id(t.workspace) ?? undefined,
+            container: id(t.container),
+          }));
+        return { tabs, layout: { groups, workspace: id(w.layout?.workspace) ?? undefined } };
+      })
+      .filter((w) => w.tabs.length > 0);
   } catch {
     return [];
   }
@@ -656,6 +736,17 @@ function onSettingsChanged(next: Settings, previous: Settings): void {
       if (wc) applyZoom(wc);
     }
     refreshAllTabs();
+  }
+
+  // Deleted workspaces: their tabs move to the first one. Deleted containers: their tabs reopen without
+  // a container and their cookies and data are erased.
+  const gone = <T extends { id: string }>(before: T[], after: T[]) => before.filter((x) => !after.some((y) => y.id === x.id)).map((x) => x.id);
+  for (const id of gone(previous.workspaces, next.workspaces)) for (const w of windows) w.tabs.dropWorkspace(id, next.workspaces[0].id);
+  for (const id of gone(previous.containers, next.containers)) {
+    for (const w of windows) for (const t of w.tabs.states().filter((x) => x.container === id)) reopenInContainer(w, t.id, null);
+    const ses = containerSessions.get(id) ?? electronSession.fromPartition(`persist:container-${id}`);
+    containerSessions.delete(id);
+    void ses.clearStorageData().then(() => ses.clearCache()).catch(() => {});
   }
 
   broadcast(IPC.evSettings, next);
@@ -830,6 +921,19 @@ function appActions(): AppMenuActions {
     pinTab: () => withActiveTab((w, id) => w.tabs.setPinned(id, !w.tabs.states().find((t) => t.id === id)?.pinned)),
     muteTab: () => withActiveTab((w, id) => w.tabs.setMuted(id, !w.tabs.states().find((t) => t.id === id)?.muted)),
     commandPalette: () => toggleCommandPalette(current()),
+    groupTab: () => withActiveTab((w, id) => w.tabs.createGroup([id])),
+    newContainerTab: () => {
+      const w = current();
+      if (w) showContainerMenu(w);
+    },
+    nextWorkspace: () => cycleWorkspace(1),
+    previousWorkspace: () => cycleWorkspace(-1),
+    switchProfile: () => current()?.openSettings('profiles'),
+    profileItems: () => {
+      const here = currentProfile().id;
+      return listProfiles().map((p) => ({ label: tr(p.name), type: 'radio', checked: p.id === here, click: () => (p.id === here ? current()?.focus() : openProfile(p.id)) }));
+    },
+    importData: () => current()?.openInternal('velo://import/'),
     siteSettings: () => withActiveTab((w, id) => openSiteSettings(w, w.tabs.states().find((t) => t.id === id)?.url ?? '')),
     toggleBookmarksBar: () => settings.update({ showBookmarksBar: !settings.get().showBookmarksBar }),
     toggleAutoHide: () => settings.update({ autoHideToolbar: !settings.get().autoHideToolbar }),
@@ -854,6 +958,101 @@ function appActions(): AppMenuActions {
 
 function buildMenu(): Menu {
   return buildAppMenu(appActions(), settings.get().shortcuts);
+}
+
+// ---------- Groups, workspaces, containers ----------
+
+const colorLabel = (c: TagColor) => tr(TAG_COLOR_INFO[c].name);
+const groupLabel = (g: TabGroup) => g.name || tr('Gruppo {0}', colorLabel(g.color).toLowerCase());
+
+function cycleWorkspace(step: 1 | -1): void {
+  const w = current();
+  if (!w || w.isPrivate) return;
+  const list = settings.get().workspaces;
+  const at = list.findIndex((x) => x.id === w.tabs.currentWorkspace());
+  w.tabs.switchWorkspace(list[(at + step + list.length) % list.length].id);
+}
+
+/** A new workspace named "Spazio N", shown at once unless `show` is false. Returns its id. */
+function newWorkspace(w: BrowserWindowController, show = true): string {
+  const list = settings.get().workspaces;
+  let n = list.length + 1;
+  while (list.some((x) => x.name === tr('Spazio {0}', n))) n++;
+  const used = new Set(list.map((x) => x.color));
+  const color = TAG_COLORS.find((c) => !used.has(c) && c !== 'grey') ?? 'grey';
+  const id = `ws-${randomBytes(4).toString('hex')}`;
+  settings.update({ workspaces: [...list, { id, name: tr('Spazio {0}', n), color }] });
+  if (show) w.tabs.switchWorkspace(id);
+  return id;
+}
+
+function showWorkspaceMenu(w: BrowserWindowController, anchor?: Rect): void {
+  const currentId = w.tabs.currentWorkspace();
+  const counts = new Map<string, number>();
+  for (const t of w.tabs.states()) counts.set(t.workspace, (counts.get(t.workspace) ?? 0) + 1);
+  const items: Electron.MenuItemConstructorOptions[] = settings.get().workspaces.map((x) => ({
+    label: tr(x.name),
+    sublabel: counts.get(x.id) ? plural(counts.get(x.id)!, 'Una scheda', '{n} schede') : tr('Nessuna scheda'),
+    type: 'radio',
+    checked: x.id === currentId,
+    click: () => w.tabs.switchWorkspace(x.id),
+  }));
+  items.push(
+    { type: 'separator' },
+    { label: tr('Nuovo spazio di lavoro'), click: () => newWorkspace(w) },
+    { label: tr('Gestisci spazi di lavoro…'), click: () => w.openSettings('workspaces') },
+  );
+  const menu = Menu.buildFromTemplate(items);
+  menu.popup(anchor ? { window: w.win, x: Math.round(anchor.x), y: Math.round(anchor.y + anchor.height) } : { window: w.win });
+}
+
+function showContainerMenu(w: BrowserWindowController, anchor?: Rect): void {
+  if (w.isPrivate) return;
+  const items: Electron.MenuItemConstructorOptions[] = [
+    { label: tr('Nuova scheda in un contenitore'), enabled: false },
+    ...settings.get().containers.map((c) => ({ label: `${tr(c.name)} · ${colorLabel(c.color)}`, click: () => w.newTab(undefined, { container: c.id }) })),
+    { type: 'separator' },
+    { label: tr('Gestisci contenitori…'), click: () => w.openSettings('workspaces') },
+  ];
+  Menu.buildFromTemplate(items).popup(anchor ? { window: w.win, x: Math.round(anchor.x), y: Math.round(anchor.y + anchor.height) } : { window: w.win });
+}
+
+function showGroupMenu(w: BrowserWindowController, groupId: string): void {
+  const group = w.tabs.groupList().find((g) => g.id === groupId);
+  if (!group) return;
+  const tabsOf = w.tabs.groupTabs(groupId);
+  Menu.buildFromTemplate([
+    { label: groupLabel(group), enabled: false },
+    { label: tr('Rinomina…'), click: () => w.send(IPC.evGroupRename, groupId) },
+    { label: tr('Colore'), submenu: TAG_COLORS.map((c) => ({ label: colorLabel(c), type: 'radio' as const, checked: group.color === c, click: () => w.tabs.updateGroup(groupId, { color: c }) })) },
+    { label: group.collapsed ? tr('Espandi') : tr('Comprimi'), click: () => w.tabs.updateGroup(groupId, { collapsed: !group.collapsed }) },
+    { type: 'separator' },
+    {
+      label: tr('Nuova scheda nel gruppo'),
+      click: () => {
+        const last = tabsOf[tabsOf.length - 1];
+        const t = w.tabs.states().find((x) => x.id === last);
+        w.tabs.create(newTabUrl(), { groupId, container: t?.container ?? null });
+      },
+    },
+    { label: tr('Separa le schede'), click: () => w.tabs.ungroup(groupId) },
+    {
+      label: tr('Chiudi il gruppo'),
+      click: () => {
+        for (const id of tabsOf) w.tabs.close(id);
+        if (w.tabs.count() === 0) w.win.close();
+      },
+    },
+  ]).popup({ window: w.win });
+}
+
+/** Opens the page of a tab again in another container (its cookies differ, so it really reloads). */
+function reopenInContainer(w: BrowserWindowController, tabId: number, container: string | null): void {
+  const state = w.tabs.states().find((t) => t.id === tabId);
+  if (!state || state.container === container) return;
+  const index = w.tabs.ids().indexOf(tabId);
+  w.tabs.create(state.url || newTabUrl(), { index: index + 1, container, groupId: state.groupId, workspace: state.workspace });
+  w.tabs.close(tabId);
 }
 
 function withActiveTab(fn: (w: BrowserWindowController, tabId: number) => void): void {
@@ -1227,7 +1426,10 @@ function registerChromeIpc(): void {
     const w = [...windows].find((c) => c.suggestions.contents === event.sender);
     if (w && Number.isInteger(index)) w.suggestions.choose(index);
   });
-  handle(IPC.windowInfo, (w) => ({ isPrivate: w.isPrivate, windowId: w.win.id, platform: process.platform }));
+  handle(IPC.windowInfo, (w) => {
+    const profile = currentProfile();
+    return { isPrivate: w.isPrivate, windowId: w.win.id, platform: process.platform, profile: profile.id === 'default' ? null : { ...profile, name: tr(profile.name) } };
+  });
   handle(IPC.tabsMove, (w, id: number, index: number) => w.tabs.move(id, Number(index)));
   handle(IPC.tabsMenu, (w, id: number) => tabContextMenu(w, id));
   handle(IPC.tabsMute, (w, id: number) => {
@@ -1240,6 +1442,16 @@ function registerChromeIpc(): void {
     if (from) moveTab(from, Number(tabId), w, Number(index));
   });
   handle(IPC.tabsList, (w) => w.tabs.states());
+  handle(IPC.tabLayout, (w) => w.tabLayout());
+  handle(IPC.groupMenu, (w, groupId: string) => showGroupMenu(w, String(groupId)));
+  handle(IPC.groupUpdate, (w, groupId: string, patch: { name?: string; collapsed?: boolean }) => {
+    if (patch && typeof patch === 'object') w.tabs.updateGroup(String(groupId), { name: typeof patch.name === 'string' ? patch.name : undefined, collapsed: typeof patch.collapsed === 'boolean' ? patch.collapsed : undefined });
+  });
+  handle(IPC.workspaceMenu, (w, anchor?: Rect) => showWorkspaceMenu(w, anchor && typeof anchor.x === 'number' ? anchor : undefined));
+  handle(IPC.workspaceSwitch, (w, id: string) => {
+    if (settings.get().workspaces.some((x) => x.id === id)) w.tabs.switchWorkspace(id);
+  });
+  handle(IPC.containerMenu, (w, anchor?: Rect) => showContainerMenu(w, anchor && typeof anchor.x === 'number' ? anchor : undefined));
   handle(IPC.tabsCreate, (w, url?: string) => w.newTab(url ? resolveOmniboxInput(url, settings.get().searchEngine) : undefined));
   handle(IPC.tabsClose, (w, id: number) => w.closeTab(id));
   handle(IPC.tabsActivate, (w, id: number) => w.tabs.activate(id));
@@ -1407,6 +1619,24 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.restart, SW, () => restartVelo());
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
   handleInternal(INTERNAL.defaultBrowserStatus, S, () => isDefaultBrowser());
+  // Profiles (separate Velo instances with their own data).
+  const color = (c: unknown) => (TAG_COLORS.includes(c as TagColor) ? (c as TagColor) : 'grey');
+  handleInternal(INTERNAL.profilesList, S, () => ({ current: currentProfile().id, profiles: listProfiles().map((p) => ({ ...p, name: tr(p.name) })) }));
+  handleInternal(INTERNAL.profileCreate, S, (_e, name: string, c: string) => {
+    const profile = createProfile(String(name ?? ''), color(c));
+    Menu.setApplicationMenu(buildMenu());
+    openProfile(profile.id);
+    return profile;
+  });
+  handleInternal(INTERNAL.profileUpdate, S, (_e, id: string, patch: { name?: string; color?: string }) => {
+    updateProfile(String(id), { name: typeof patch?.name === 'string' ? patch.name : undefined, color: patch?.color ? color(patch.color) : undefined });
+    Menu.setApplicationMenu(buildMenu());
+  });
+  handleInternal(INTERNAL.profileRemove, S, (_e, id: string) => wrap(() => {
+    removeProfile(String(id));
+    Menu.setApplicationMenu(buildMenu());
+  }));
+  handleInternal(INTERNAL.profileOpen, S, (_e, id: string) => openProfile(String(id)));
   handleInternal(INTERNAL.shortcutsInfo, S, () => ({
     platform: process.platform,
     commands: COMMANDS.map((c) => ({ id: c.id, label: tr(c.label), group: tr(c.group), keys: shortcutFor(c.id, settings.get().shortcuts), defaultKeys: c.keys })),
@@ -1480,7 +1710,9 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.updateOpenRelease, S, () => updates.openRelease());
   handleInternal(INTERNAL.clearData, S, (event, selection: BrowsingDataSelection) =>
     wrap(async () => {
-      await clearBrowsingData(event.sender.session, selection);
+      // The normal windows and every container (a private window clears only itself).
+      const targets = event.sender.session === electronSession.defaultSession ? persistentSessions() : [event.sender.session];
+      for (const ses of targets) await clearBrowsingData(ses, selection);
       if (selection.history) history.clearSince(0);
       if (selection.downloads) downloads.clear();
       if (selection.permissions) settings.update({ sitePermissions: [] });

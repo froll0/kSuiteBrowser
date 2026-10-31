@@ -4,7 +4,7 @@ import { IPC } from '../shared/ipc';
 import type {
   AiChatRequest, AiEvent, AiStatus, AuthPrompt, Bookmark, FindResult, PasswordPrompt, Suggestion, UpdateStatus,
   ApiResult, CalendarEvent, DriveFile, DriveListing, DownloadItemState, MailOverview,
-  NewEvent, OutgoingMail, Profile, Rect, Settings, TabState, TokenStatus,
+  NewEvent, OutgoingMail, Profile, ProfileInfo, Rect, Settings, TabLayout, TabState, TokenStatus,
 } from '../shared/types';
 
 // Interface language, before the page's scripts run (see shared/i18n.ts).
@@ -22,6 +22,13 @@ function on<T>(channel: string, listener: (payload: T) => void): () => void {
 const api = {
   tabs: {
     list: () => invoke<TabState[]>(IPC.tabsList),
+    /** Groups and workspace of this window. */
+    layout: () => invoke<TabLayout>(IPC.tabLayout),
+    groupMenu: (groupId: string) => invoke<void>(IPC.groupMenu, groupId),
+    groupUpdate: (groupId: string, patch: { name?: string; collapsed?: boolean }) => invoke<void>(IPC.groupUpdate, groupId, patch),
+    workspaceMenu: (anchor?: Rect) => invoke<void>(IPC.workspaceMenu, anchor),
+    switchWorkspace: (id: string) => invoke<void>(IPC.workspaceSwitch, id),
+    containerMenu: (anchor?: Rect) => invoke<void>(IPC.containerMenu, anchor),
     create: (url?: string) => invoke<void>(IPC.tabsCreate, url),
     close: (id: number) => invoke<void>(IPC.tabsClose, id),
     activate: (id: number) => invoke<void>(IPC.tabsActivate, id),
@@ -59,7 +66,7 @@ const api = {
   tabSearch: (anchor?: Rect) => invoke<void>(IPC.tabSearch, anchor),
   mediaMenu: () => invoke<void>(IPC.mediaMenu),
   openSettingsPage: (section?: string) => invoke<void>(IPC.openSettingsPage, section),
-  windowInfo: () => invoke<{ isPrivate: boolean; windowId: number; platform: string }>(IPC.windowInfo),
+  windowInfo: () => invoke<{ isPrivate: boolean; windowId: number; platform: string; profile: ProfileInfo | null }>(IPC.windowInfo),
   suggest: {
     query: (input: string) => invoke<Suggestion[]>(IPC.suggest, input),
     show: (items: Suggestion[], rect: Rect, selected: number) => invoke<void>(IPC.suggestShow, items, rect, selected),
@@ -121,6 +128,9 @@ const api = {
   },
   events: {
     onTabs: (fn: (tabs: TabState[]) => void) => on(IPC.evTabs, fn),
+    onTabLayout: (fn: (layout: TabLayout) => void) => on(IPC.evTabLayout, fn),
+    /** "Rename" was chosen in a group's menu. */
+    onGroupRename: (fn: (groupId: string) => void) => on(IPC.evGroupRename, fn),
     onDownloads: (fn: (items: DownloadItemState[]) => void) => on(IPC.evDownloads, fn),
     onFocusAddress: (fn: () => void) => on(IPC.evFocusAddress, fn),
     onTogglePanel: (fn: () => void) => on(IPC.evTogglePanel, fn),

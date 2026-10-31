@@ -9,6 +9,8 @@ import { ZOOM_STEPS } from '../../shared/zoom';
 import { hydrateIcons, logoMark } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 import { LOCALES, LOCALE_NAMES, localeTag, tr } from '../../shared/i18n';
+import { TAG_COLORS, TAG_COLOR_INFO } from '../../shared/settings-schema';
+import type { Container, TagColor, Workspace } from '../../shared/types';
 import { acceleratorFromEvent, displayShortcut, shortcutConflicts } from '../../shared/commands';
 
 const AI_PAGE = 'https://www.infomaniak.com/it/hosting/ai-services';
@@ -1095,6 +1097,85 @@ async function aboutSection(): Promise<HTMLElement> {
 
 // ---------- Page ----------
 
+// ---------- Workspaces, containers, profiles ----------
+
+function colorSelect(value: TagColor, label: string, onChange: (c: TagColor) => void): HTMLSelectElement {
+  const select = h('select', { 'aria-label': label, class: 'color-select' }, ...TAG_COLORS.map((c) => h('option', { value: c, selected: c === value }, tr(TAG_COLOR_INFO[c].name))));
+  const paint = () => select.style.setProperty('--tag', TAG_COLOR_INFO[select.value as TagColor].light);
+  select.addEventListener('change', () => {
+    paint();
+    onChange(select.value as TagColor);
+  });
+  paint();
+  return select;
+}
+
+/** Editable list of named, coloured items (workspaces, containers). */
+function tagRows<T extends Workspace | Container>(items: T[], what: string, save: (next: T[]) => void, removeNote: string): HTMLElement[] {
+  const rows = items.map((item, i) => {
+    const name = h('input', { type: 'text', value: tr(item.name), 'aria-label': tr('Nome'), maxlength: '40' });
+    name.addEventListener('change', () => save(items.map((x, j) => (j === i ? { ...x, name: name.value.trim() || x.name } : x))));
+    const remove = items.length > 1
+      ? h('button', { class: 'link', title: removeNote, onclick: () => save(items.filter((_, j) => j !== i)) }, tr('Elimina'))
+      : null;
+    return h('div', { class: 'row tag-row', 'data-search': `${what} ${item.name}`.toLowerCase() },
+      h('div', { class: 'control grow' }, name, colorSelect(item.color, tr('Colore'), (color) => save(items.map((x, j) => (j === i ? { ...x, color } : x)))), remove));
+  });
+  return rows;
+}
+
+function workspacesSection(): HTMLElement {
+  const newId = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+  const addWorkspace = h('button', { onclick: () => void update({ workspaces: [...settings.workspaces, { id: newId('ws'), name: tr('Spazio {0}', settings.workspaces.length + 1), color: 'green' }] }).then(render) }, tr('Aggiungi spazio di lavoro'));
+  const addContainer = h('button', { onclick: () => void update({ containers: [...settings.containers, { id: newId('c'), name: tr('Contenitore {0}', settings.containers.length + 1), color: 'purple' }] }).then(render) }, tr('Aggiungi contenitore'));
+  return section(
+    'workspaces',
+    tr('Spazi di lavoro e contenitori'),
+    row(tr('Spazi di lavoro'), tr('Ogni finestra mostra le schede di uno spazio alla volta: passa da uno all’altro dal pulsante a sinistra delle schede o con Ctrl+Alt+← →. Le schede degli altri spazi restano aperte.'), addWorkspace),
+    ...tagRows(settings.workspaces, tr('spazi di lavoro'), (next) => void update({ workspaces: next }).then(render), tr('Le sue schede passano al primo spazio di lavoro.')),
+    row(tr('Contenitori'), tr('Le schede di un contenitore hanno cookie, accessi e dati propri: puoi essere connesso a due account dello stesso sito, e i siti di un contenitore non vedono quello che fai negli altri. Si aprono con il clic destro sul pulsante + o dal menu della scheda.'), addContainer),
+    ...tagRows(settings.containers, tr('contenitori'), (next) => void update({ containers: next }).then(render), tr('Le sue schede si riaprono senza contenitore e i suoi cookie e dati vengono cancellati.')),
+  );
+}
+
+async function profilesSection(): Promise<HTMLElement> {
+  const { current, profiles } = await internal.profiles.list();
+  const rows = profiles.map((p) => {
+    const name = h('input', { type: 'text', value: p.name, 'aria-label': tr('Nome'), maxlength: '40' });
+    name.addEventListener('change', () => void internal.profiles.update(p.id, { name: name.value }));
+    const message = h('span', { class: 'message error', role: 'alert' });
+    const remove = p.id !== 'default' && p.id !== current
+      ? h('button', {
+          class: 'link danger-link',
+          onclick: async () => {
+            if (!confirm(tr('Eliminare il profilo «{0}» con tutti i suoi dati (cronologia, password, cookie)? Non si può annullare.', p.name))) return;
+            const res = await internal.profiles.remove(p.id);
+            if (res.ok) void render();
+            else message.textContent = res.error;
+          },
+        }, tr('Elimina'))
+      : null;
+    return h('div', { class: 'row tag-row', 'data-search': `${tr('profili')} ${p.name}`.toLowerCase() },
+      h('div', { class: 'control grow' },
+        name,
+        colorSelect(p.color, tr('Colore'), (color) => void internal.profiles.update(p.id, { color })),
+        p.id === current ? h('span', { class: 'tag' }, tr('In uso')) : h('button', { onclick: () => void internal.profiles.open(p.id) }, tr('Apri')),
+        remove, message));
+  });
+  const newName = h('input', { type: 'text', placeholder: tr('Nome del nuovo profilo'), 'aria-label': tr('Nome del nuovo profilo'), maxlength: '40' });
+  const create = h('form', { class: 'control' }, newName, h('button', { type: 'submit' }, tr('Crea e apri')));
+  create.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void internal.profiles.create(newName.value, 'purple').then(() => render());
+  });
+  return section(
+    'profiles',
+    tr('Profili'),
+    row(tr('Profili separati'), tr('Ogni profilo è un Velo a sé, con cronologia, preferiti, password, cookie e impostazioni propri: per esempio uno per il lavoro e uno personale, o uno per ogni persona che usa il computer.'), create),
+    ...rows,
+  );
+}
+
 // ---------- Keyboard shortcuts ----------
 
 async function shortcutsSection(): Promise<HTMLElement> {
@@ -1160,7 +1241,7 @@ async function render(): Promise<void> {
   if (settings.theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
   const scroll = content.scrollTop || document.scrollingElement?.scrollTop || 0;
-  const sections = [await generalSection(), appearanceSection(), layoutSection(), zoomSection(), await shortcutsSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await accountSection(), syncSection(), await aiSection(), await aboutSection()];
+  const sections = [await generalSection(), appearanceSection(), layoutSection(), zoomSection(), await shortcutsSection(), workspacesSection(), await profilesSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await accountSection(), syncSection(), await aiSection(), await aboutSection()];
   content.replaceChildren(...sections);
   hydrateIcons(content);
   applyFilter();

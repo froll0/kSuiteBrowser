@@ -6,6 +6,8 @@ export type AppMenuActions = Record<CommandId, () => void> & {
   selectTab(index: number): void;
   findNext(backwards: boolean): void;
   autoHide(): boolean;
+  /** One entry per profile, to open it. */
+  profileItems(): MenuItemConstructorOptions[];
 };
 
 export function buildAppMenu(a: AppMenuActions, shortcuts: Record<string, string>): Menu {
@@ -47,6 +49,11 @@ export function buildAppMenu(a: AppMenuActions, shortcuts: Record<string, string
         cmd('newPrivateWindow'),
         cmd('closeTab'),
         cmd('reopenClosed'),
+        cmd('newContainerTab'),
+        {
+          label: tr('Profili'),
+          submenu: [...a.profileItems(), { type: 'separator' }, cmd('switchProfile', { label: tr('Gestisci profili…') })],
+        },
         { type: 'separator' },
         cmd('savePageAs'),
         cmd('print'),
@@ -57,6 +64,7 @@ export function buildAppMenu(a: AppMenuActions, shortcuts: Record<string, string
         cmd('openSettings'),
         cmd('customize'),
         cmd('openPasswords'),
+        cmd('importData'),
         cmd('clearData'),
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit', label: tr('Esci') },
@@ -93,6 +101,8 @@ export function buildAppMenu(a: AppMenuActions, shortcuts: Record<string, string
         cmd('searchTabs'),
         cmd('nextTab'),
         cmd('previousTab'),
+        cmd('nextWorkspace'),
+        cmd('previousWorkspace'),
         ...alias('nextTab', 'CmdOrCtrl+PageDown'),
         ...alias('previousTab', 'CmdOrCtrl+PageUp'),
         ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ label: tr('Scheda {0}', n), accelerator: `CmdOrCtrl+${n}`, click: () => a.selectTab(n - 1), visible: false })),

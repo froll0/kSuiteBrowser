@@ -37,6 +37,16 @@ export interface TabState {
   /** Played sound since the page loaded: shown in the media controls. */
   media: boolean;
   lastActiveAt: number;
+  groupId: string | null;
+  workspace: string;
+  /** Container of the tab (its own cookies and data), null for none. */
+  container: string | null;
+}
+
+/** Window-level state of the tab strip: groups and the workspace shown. */
+export interface TabLayout {
+  groups: TabGroup[];
+  workspace: string;
 }
 
 export interface UpdateStatus {
@@ -212,6 +222,13 @@ export interface Workspace {
 
 /** Tabs sharing their own cookies and site data, kept apart from the other tabs (e.g. work and personal). */
 export interface Container {
+  id: string;
+  name: string;
+  color: TagColor;
+}
+
+/** A profile: a separate Velo with its own data (default: the usual one). */
+export interface ProfileInfo {
   id: string;
   name: string;
   color: TagColor;

@@ -150,3 +150,9 @@ label.check input { accent-color: var(--accent); }
 button.keys { min-width: 120px; justify-content: center; }
 button.keys kbd { font: 600 12px/1 inherit; }
 button.keys.recording { border-color: var(--accent); box-shadow: var(--focus); color: var(--accent); }
+
+.row.tag-row { padding: 10px 20px; }
+.row .control.grow { flex: 1; flex-wrap: wrap; }
+.row .control.grow input[type=text] { flex: 1 1 200px; width: auto; }
+select.color-select { border-left: 6px solid var(--tag); }
+.danger-link { color: var(--danger) !important; }

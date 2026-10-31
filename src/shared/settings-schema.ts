@@ -1,4 +1,4 @@
-import type { Container, TagColor, Workspace, AskablePermission, PermissionDefault, ReaderTheme, ReaderWidth, Settings, SitePermission } from './types';
+import type { Container, ProfileInfo, TagColor, Workspace, AskablePermission, PermissionDefault, ReaderTheme, ReaderWidth, Settings, SitePermission } from './types';
 import type { SecureDnsChoice } from './secure-dns';
 import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from './url';
 import { ZOOM_STEPS } from './zoom';
@@ -12,6 +12,22 @@ export const SLEEP_MINUTES = [0, 15, 30, 60, 120, 240] as const;
 export const ASKABLE_PERMISSIONS: readonly AskablePermission[] = ['media', 'notifications', 'geolocation'];
 
 export const TAG_COLORS: readonly TagColor[] = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'];
+
+/** Names and shades of the tag colours (the dark shade is lighter, for dark themes). */
+export const TAG_COLOR_INFO: Record<TagColor, { name: string; light: string; dark: string }> = {
+  grey: { name: 'Grigio', light: '#5f6673', dark: '#a3a9b4' },
+  blue: { name: 'Blu', light: '#1f6feb', dark: '#6ea8ff' },
+  red: { name: 'Rosso', light: '#d1242f', dark: '#ff7b72' },
+  yellow: { name: 'Giallo', light: '#a66a00', dark: '#f2c14e' },
+  green: { name: 'Verde', light: '#1a7f37', dark: '#56d364' },
+  pink: { name: 'Rosa', light: '#bf3989', dark: '#f778ba' },
+  purple: { name: 'Viola', light: '#8250df', dark: '#bc8cff' },
+  cyan: { name: 'Azzurro', light: '#0a7ea4', dark: '#4fd1e8' },
+  orange: { name: 'Arancione', light: '#c2510c', dark: '#ffa657' },
+};
+
+/** The usual profile (see main/profiles.ts). */
+export const DEFAULT_PROFILE: ProfileInfo = { id: 'default', name: 'Principale', color: 'blue' };
 
 export const DEFAULT_WORKSPACES: Workspace[] = [{ id: 'default', name: 'Generale', color: 'blue' }];
 

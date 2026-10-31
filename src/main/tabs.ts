@@ -1,5 +1,6 @@
 import { BrowserWindow, WebContentsView, dialog, type NavigationEntry, type Session, type WebContents } from 'electron';
-import type { Rect, TabState } from '../shared/types';
+import type { Rect, TabGroup, TabState, TagColor } from '../shared/types';
+import { randomUUID } from 'node:crypto';
 import { readerOriginal } from './reader';
 import { locale, tr } from '../shared/i18n';
 
@@ -18,6 +19,12 @@ export interface Tab {
   pinned: boolean;
   /** URL that failed to load while the error page is shown. */
   failedUrl: string | null;
+  /** Group in the tab strip, if any (groups belong to the window). */
+  groupId: string | null;
+  /** Workspace of the window the tab belongs to. */
+  workspace: string;
+  /** Container whose cookies and data the page uses (null = the window's session). */
+  container: string | null;
   owner: TabManager;
 }
 
@@ -33,6 +40,8 @@ export interface SleepState {
 export interface ClosedTab {
   url: string;
   pinned: boolean;
+  container: string | null;
+  workspace: string;
   entries: NavigationEntry[];
   index: number;
 }
@@ -43,6 +52,8 @@ export interface TabManagerHooks {
   onWebContentsCreated(contents: WebContents, tabs: TabManager): void;
   /** Extra per-tab state shown in the toolbar: shield, zoom badge, bookmark star. */
   extraState(contents: WebContents | null, url: string): Pick<TabState, 'blocked' | 'protectionActive' | 'zoom' | 'bookmarked' | 'readerable'>;
+  /** Address of a new empty tab (a workspace without tabs gets one). */
+  newTabUrl(): string;
   /** Page to show instead of the generic error page (e.g. the HTTPS-only warning), with the URL to display. */
   failurePage?(contents: WebContents, url: string, code: number): { load: string; display: string } | null;
 }
@@ -51,6 +62,8 @@ export interface TabManagerOptions {
   session: Session;
   /** Preload for tabs; it only exposes an API to internal velo:// pages. */
   preload: string;
+  /** Session of a container (tabs with their own cookies and data); undefined when it doesn't exist. */
+  containerSession?(id: string): Session | undefined;
 }
 
 export interface CreateOptions {
@@ -65,7 +78,14 @@ export interface CreateOptions {
   asleep?: boolean;
   /** Title to show while asleep. */
   title?: string;
+  groupId?: string | null;
+  /** Default: the window's current workspace. */
+  workspace?: string;
+  container?: string | null;
 }
+
+/** Colours given in turn to new groups. */
+const GROUP_COLORS: TagColor[] = ['blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange', 'grey'];
 
 /** True when the page has form fields changed by the user: sleeping would lose them. */
 const HAS_EDITS = `(() => {
@@ -90,6 +110,10 @@ export class TabManager {
   private readonly closed: ClosedTab[] = [];
   /** Tab showing an element in full screen (HTML fullscreen API), if any. */
   fullscreenId: number | null = null;
+  /** Groups of the tab strip. */
+  private groups: TabGroup[] = [];
+  /** Workspace shown in the window: only its tabs are in the tab strip. */
+  private workspace = 'default';
 
   constructor(
     readonly window: BrowserWindow,
@@ -118,9 +142,13 @@ export class TabManager {
       appId: options.appId ?? null,
       pinned: Boolean(options.pinned),
       failedUrl: null,
+      groupId: !options.pinned && options.groupId && this.groups.some((g) => g.id === options.groupId) ? options.groupId : null,
+      workspace: options.workspace ?? this.workspace,
+      container: options.container && this.options.containerSession?.(options.container) ? options.container : null,
       owner: this,
     };
-    this.insert(tab, options.index);
+    const groupEnd = tab.groupId ? this.groupEnd(tab.groupId) : -1;
+    this.insert(tab, options.index ?? (groupEnd >= 0 ? groupEnd + 1 : undefined));
     if (options.asleep) {
       tab.sleep = { url, title: options.title || url, entries: options.history?.entries ?? [], index: options.history?.index ?? 0, muted: false };
     } else {
@@ -140,7 +168,7 @@ export class TabManager {
   private attachView(tab: Tab): WebContentsView {
     const view = new WebContentsView({
       webPreferences: {
-        session: this.options.session,
+        session: this.sessionOf(tab),
         preload: this.options.preload,
         sandbox: true,
         contextIsolation: true,
@@ -216,6 +244,11 @@ export class TabManager {
     return view;
   }
 
+  /** Session of a tab's page: its container's, or the window's. */
+  sessionOf(tab: Pick<Tab, 'container'>): Session {
+    return (tab.container && this.options.containerSession?.(tab.container)) || this.options.session;
+  }
+
   /** Brings a sleeping tab back: same history, same position in it. */
   private wake(tab: Tab): void {
     const state = tab.sleep;
@@ -274,10 +307,11 @@ export class TabManager {
     const tab = this.detach(id);
     if (!tab) return;
     const wc = tab.view?.webContents;
+    const keep = { pinned: tab.pinned, container: tab.container, workspace: tab.workspace };
     const closed: ClosedTab | null = tab.sleep
-      ? { url: tab.sleep.url, pinned: tab.pinned, entries: tab.sleep.entries, index: tab.sleep.index }
+      ? { url: tab.sleep.url, ...keep, entries: tab.sleep.entries, index: tab.sleep.index }
       : wc
-        ? { url: tab.failedUrl ?? wc.getURL(), pinned: tab.pinned, entries: wc.navigationHistory.getAllEntries(), index: wc.navigationHistory.getActiveIndex() }
+        ? { url: tab.failedUrl ?? wc.getURL(), ...keep, entries: wc.navigationHistory.getAllEntries(), index: wc.navigationHistory.getActiveIndex() }
         : null;
     if (closed?.url && !closed.url.startsWith('data:')) {
       this.closed.push(closed);
@@ -290,7 +324,7 @@ export class TabManager {
   reopenClosed(): boolean {
     const last = this.closed.pop();
     if (!last) return false;
-    this.create(last.url, { pinned: last.pinned, history: { entries: last.entries, index: last.index } });
+    this.create(last.url, { pinned: last.pinned, container: last.container, workspace: last.workspace, history: { entries: last.entries, index: last.index } });
     return true;
   }
 
@@ -298,13 +332,14 @@ export class TabManager {
     const tab = this.find(id);
     if (!tab) return;
     const index = this.tabs.indexOf(tab) + 1;
+    const same = { index, groupId: tab.groupId, container: tab.container, workspace: tab.workspace };
     if (tab.sleep) {
-      this.create(tab.sleep.url, { index, history: { entries: tab.sleep.entries, index: tab.sleep.index } });
+      this.create(tab.sleep.url, { ...same, history: { entries: tab.sleep.entries, index: tab.sleep.index } });
       return;
     }
     const wc = tab.view!.webContents;
     this.create(tab.failedUrl ?? wc.getURL(), {
-      index,
+      ...same,
       history: { entries: wc.navigationHistory.getAllEntries(), index: wc.navigationHistory.getActiveIndex() },
     });
   }
@@ -318,16 +353,22 @@ export class TabManager {
     if (tab.view && !this.window.isDestroyed()) this.window.contentView.removeChildView(tab.view);
     if (this.activeId === id) {
       this.activeId = null;
-      const next = this.tabs[index] ?? this.tabs[index - 1];
+      // The neighbour in the same workspace (the strip shows only those), else any other tab.
+      const same = (t: Tab | undefined) => t && t.workspace === tab.workspace;
+      const after = this.tabs.slice(index).find(same);
+      const before = [...this.tabs.slice(0, index)].reverse().find(same);
+      const next = after ?? before ?? [...this.tabs].sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
       if (next) this.activate(next.id);
     }
     this.emit();
     return tab;
   }
 
-  /** Takes a tab detached from another window. */
+  /** Takes a tab detached from another window (in this window's workspace, outside groups). */
   adopt(tab: Tab, index?: number): void {
     tab.owner = this;
+    tab.groupId = null;
+    tab.workspace = this.workspace;
     this.insert(tab, index);
     this.activate(tab.id);
   }
@@ -338,6 +379,14 @@ export class TabManager {
     if (!tab) return;
     this.tabs.splice(this.tabs.indexOf(tab), 1);
     this.insert(tab, toIndex);
+    // Dropped between two tabs of a group: it joins it; moved away from its group: it leaves it.
+    const at = this.tabs.indexOf(tab);
+    const prev = this.tabs[at - 1];
+    const next = this.tabs[at + 1];
+    if (!tab.pinned) {
+      if (prev?.groupId && prev.groupId === next?.groupId) tab.groupId = prev.groupId;
+      else if (tab.groupId && prev?.groupId !== tab.groupId && next?.groupId !== tab.groupId) tab.groupId = null;
+    }
     this.emit();
   }
 
@@ -346,6 +395,7 @@ export class TabManager {
     if (!tab || tab.pinned === pinned) return;
     this.tabs.splice(this.tabs.indexOf(tab), 1);
     tab.pinned = pinned;
+    if (pinned) tab.groupId = null;
     this.insert(tab, pinned ? this.tabs.filter((t) => t.pinned).length : undefined);
     this.emit();
   }
@@ -366,6 +416,10 @@ export class TabManager {
       if (previous.view) this.window.contentView.removeChildView(previous.view);
     }
     tab.lastActiveAt = Date.now();
+    // A tab of another workspace brings its workspace; one of a collapsed group opens the group.
+    this.workspace = tab.workspace;
+    const group = tab.groupId ? this.groups.find((g) => g.id === tab.groupId) : undefined;
+    if (group?.collapsed) group.collapsed = false;
     if (tab.sleep) this.wake(tab);
     if (this.fullscreenId !== null && this.fullscreenId !== id) this.exitPageFullscreen();
     this.activeId = id;
@@ -377,15 +431,143 @@ export class TabManager {
 
   /** Activates the tab at a position (Ctrl+1…8); -1 is the last tab (Ctrl+9). */
   activateIndex(index: number): void {
-    const tab = index < 0 ? this.tabs[this.tabs.length - 1] : this.tabs[index];
+    const shown = this.shown();
+    const tab = index < 0 ? shown[shown.length - 1] : shown[index];
     if (tab) this.activate(tab.id);
   }
 
   cycle(step: 1 | -1): void {
-    if (this.tabs.length < 2 || this.activeId === null) return;
-    const index = this.tabs.findIndex((t) => t.id === this.activeId);
-    const next = this.tabs[(index + step + this.tabs.length) % this.tabs.length];
+    const shown = this.shown();
+    if (shown.length < 2 || this.activeId === null) return;
+    const index = shown.findIndex((t) => t.id === this.activeId);
+    const next = shown[(index + step + shown.length) % shown.length];
     this.activate(next.id);
+  }
+
+  /** Tabs of the current workspace, in strip order (tabs of collapsed groups included). */
+  private shown(): Tab[] {
+    return this.tabs.filter((t) => t.workspace === this.workspace);
+  }
+
+  // ---------- Workspaces ----------
+
+  currentWorkspace(): string {
+    return this.workspace;
+  }
+
+  /** Shows another workspace: its last used tab, or a new tab when it has none. */
+  switchWorkspace(id: string): void {
+    if (!id) return;
+    this.workspace = id;
+    const tabs = this.shown();
+    if (tabs.length === 0) {
+      this.create(this.hooks.newTabUrl(), { workspace: id });
+      return;
+    }
+    if (!tabs.some((t) => t.id === this.activeId)) this.activate([...tabs].sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0].id);
+    else this.emit();
+  }
+
+  /** Moves a tab to another workspace (it leaves its group). */
+  moveToWorkspace(id: number, workspace: string): void {
+    const tab = this.find(id);
+    if (!tab || tab.workspace === workspace) return;
+    const wasActive = tab.id === this.activeId;
+    tab.workspace = workspace;
+    tab.groupId = null;
+    if (wasActive) {
+      const rest = this.shown().filter((t) => t.id !== id).sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+      if (rest[0]) this.activate(rest[0].id);
+      else this.create(this.hooks.newTabUrl(), { workspace: this.workspace });
+    } else {
+      this.emit();
+    }
+  }
+
+  /** A workspace was deleted: its tabs move to `fallback`. */
+  dropWorkspace(id: string, fallback: string): void {
+    for (const t of this.tabs) if (t.workspace === id) t.workspace = fallback;
+    if (this.workspace === id) this.workspace = fallback;
+    this.emit();
+  }
+
+  // ---------- Groups ----------
+
+  groupList(): TabGroup[] {
+    return this.groups.map((g) => ({ ...g }));
+  }
+
+  /** Index of the last tab of a group, -1 when it has none. */
+  private groupEnd(groupId: string): number {
+    for (let i = this.tabs.length - 1; i >= 0; i--) if (this.tabs[i].groupId === groupId) return i;
+    return -1;
+  }
+
+  /** Puts tabs in a new group, next to the first of them. */
+  createGroup(tabIds: number[], name = ''): string | null {
+    const members = this.tabs.filter((t) => tabIds.includes(t.id) && !t.pinned);
+    if (!members.length) return null;
+    const used = new Set(this.groups.map((g) => g.color));
+    const color = GROUP_COLORS.find((c) => !used.has(c)) ?? GROUP_COLORS[this.groups.length % GROUP_COLORS.length];
+    const group: TabGroup = { id: randomUUID().slice(0, 8), name: name.slice(0, 40), color, collapsed: false };
+    this.groups.push(group);
+    const at = this.tabs.indexOf(members[0]);
+    this.tabs = this.tabs.filter((t) => !members.includes(t));
+    this.tabs.splice(Math.min(at, this.tabs.length), 0, ...members);
+    for (const t of members) {
+      t.groupId = group.id;
+      t.workspace = members[0].workspace;
+    }
+    this.emit();
+    return group.id;
+  }
+
+  /** Adds a tab to a group (null: takes it out), placing it at the group's end. */
+  setGroup(tabId: number, groupId: string | null): void {
+    const tab = this.find(tabId);
+    if (!tab || tab.pinned || tab.groupId === groupId) return;
+    if (groupId && !this.groups.some((g) => g.id === groupId)) return;
+    const previous = tab.groupId;
+    this.tabs.splice(this.tabs.indexOf(tab), 1);
+    const end = this.groupEnd(groupId ?? previous ?? '');
+    tab.groupId = groupId;
+    this.tabs.splice(end >= 0 ? end + 1 : this.tabs.length, 0, tab);
+    this.emit();
+  }
+
+  updateGroup(id: string, patch: Partial<Pick<TabGroup, 'name' | 'color' | 'collapsed'>>): void {
+    const group = this.groups.find((g) => g.id === id);
+    if (!group) return;
+    if (typeof patch.name === 'string') group.name = patch.name.trim().slice(0, 40);
+    if (patch.color && GROUP_COLORS.includes(patch.color)) group.color = patch.color;
+    if (typeof patch.collapsed === 'boolean') {
+      group.collapsed = patch.collapsed;
+      // Collapsing the group of the page in front: show the nearest tab outside it.
+      const active = this.active();
+      if (group.collapsed && active?.groupId === id) {
+        const outside = this.shown().filter((t) => t.groupId !== id).sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
+        if (outside) return this.activate(outside.id);
+        group.collapsed = false;
+      }
+    }
+    this.emit();
+  }
+
+  /** Takes every tab out of a group (the tabs stay). */
+  ungroup(id: string): void {
+    for (const t of this.tabs) if (t.groupId === id) t.groupId = null;
+    this.emit();
+  }
+
+  /** Tab ids of a group. */
+  groupTabs(id: string): number[] {
+    return this.tabs.filter((t) => t.groupId === id).map((t) => t.id);
+  }
+
+  /** Groups and workspace of a restored session. */
+  restoreLayout(groups: TabGroup[], workspace: string | undefined): void {
+    this.groups = groups.map((g) => ({ ...g }));
+    if (workspace) this.workspace = workspace;
   }
 
   private radius = 0;
@@ -492,7 +674,7 @@ export class TabManager {
   reopenClosedAt(index: number): boolean {
     const [entry] = Number.isInteger(index) && index >= 0 ? this.closed.splice(index, 1) : [];
     if (!entry) return false;
-    this.create(entry.url, { pinned: entry.pinned, history: { entries: entry.entries, index: entry.index } });
+    this.create(entry.url, { pinned: entry.pinned, container: entry.container, workspace: entry.workspace, history: { entries: entry.entries, index: entry.index } });
     return true;
   }
 
@@ -511,10 +693,10 @@ export class TabManager {
   }
 
   /** Tabs to reopen at the next start. */
-  saved(): Array<{ url: string; pinned: boolean; title: string }> {
+  saved(): Array<{ url: string; pinned: boolean; title: string; groupId: string | null; workspace: string; container: string | null }> {
     return this.states()
       .filter((t) => t.url && !t.url.startsWith('data:'))
-      .map((t) => ({ url: t.url, pinned: t.pinned, title: t.title }));
+      .map((t) => ({ url: t.url, pinned: t.pinned, title: t.title, groupId: t.groupId, workspace: t.workspace, container: t.container }));
   }
 
   /** Closes every tab; used when the window goes away. */
@@ -545,6 +727,9 @@ export class TabManager {
           reader: false,
           media: false,
           lastActiveAt: t.lastActiveAt,
+          groupId: t.groupId,
+          workspace: t.workspace,
+          container: t.container,
           ...this.hooks.extraState(null, sleep.url),
         };
       }
@@ -569,6 +754,9 @@ export class TabManager {
         reader: original !== null,
         media: t.mediaSeen || wc.isCurrentlyAudible(),
         lastActiveAt: t.id === this.activeId ? Date.now() : t.lastActiveAt,
+        groupId: t.groupId,
+        workspace: t.workspace,
+        container: t.container,
         ...this.hooks.extraState(wc, url),
       };
     });
@@ -587,6 +775,8 @@ export class TabManager {
   }
 
   emit(): void {
+    // Groups without tabs go away.
+    this.groups = this.groups.filter((g) => this.tabs.some((t) => t.groupId === g.id));
     if (!this.window.isDestroyed()) this.hooks.onChange(this.states());
   }
 }

@@ -1,5 +1,5 @@
 import { INTERNAL } from '../../shared/ipc';
-import type { SiteSettingsInfo, SiteSettingsPatch, AiEvent, AboutInfo, BreachReport, ReaderArticle, SyncCollectionOption, SyncStatus, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
+import type { ProfileInfo, TagColor, SiteSettingsInfo, SiteSettingsPatch, AiEvent, AboutInfo, BreachReport, ReaderArticle, SyncCollectionOption, SyncStatus, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
 import { translateDom, tr, type Locale } from '../../shared/i18n';
 
 interface InternalBridge {
@@ -62,6 +62,14 @@ export const internal = {
   },
   /** Ends the welcome page: opens `url` there, restarting first when the language changed. */
   welcomeFinish: (url: string, restart: boolean) => call<void>(INTERNAL.welcomeFinish, url, restart),
+  profiles: {
+    list: () => call<{ current: string; profiles: ProfileInfo[] }>(INTERNAL.profilesList),
+    /** Creates a profile and opens it in a new Velo window. */
+    create: (name: string, color: TagColor) => call<ProfileInfo>(INTERNAL.profileCreate, name, color),
+    update: (id: string, patch: { name?: string; color?: TagColor }) => call<void>(INTERNAL.profileUpdate, id, patch),
+    remove: (id: string) => call<ApiResult<void>>(INTERNAL.profileRemove, id),
+    open: (id: string) => call<void>(INTERNAL.profileOpen, id),
+  },
   shortcuts: {
     info: () => call<{ platform: string; commands: Array<{ id: string; label: string; group: string; keys: string; defaultKeys: string }> }>(INTERNAL.shortcutsInfo),
     capture: (on: boolean) => call<void>(INTERNAL.shortcutsCapture, on),

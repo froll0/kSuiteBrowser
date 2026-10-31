@@ -2,7 +2,8 @@ import { applyTokens, isDark, SIDE_TABS_RANGE, tokens, TOOLBAR_ITEMS, type Toolb
 import { INFOMANIAK_APPS } from '../shared/infomaniak-apps';
 import { faviconUrl } from '../shared/top-sites';
 import { inlineCompletion } from '../shared/suggest';
-import type { Bookmark, Settings, Suggestion, TabState } from '../shared/types';
+import type { Bookmark, Settings, Suggestion, TabLayout, TabState, TagColor } from '../shared/types';
+import { TAG_COLOR_INFO } from '../shared/settings-schema';
 import { ks } from './bridge';
 import { h } from './dom';
 import { hydrateIcons, icon, logoMark, type IconName } from './icons';
@@ -111,6 +112,11 @@ function placeToolbar(settings: Settings): void {
 }
 
 let tabs: TabState[] = [];
+let layout: TabLayout = { groups: [], workspace: 'default' };
+let profileName: string | null = null;
+/** Tabs of the workspace shown (the others stay open but out of the strip). */
+const shownTabs = () => tabs.filter((t) => t.workspace === layout.workspace);
+const tagColor = (c: TagColor) => TAG_COLOR_INFO[c][root.style.colorScheme === 'dark' ? 'dark' : 'light'];
 let unread: number | null = null;
 let currentSettings: Settings | null = null;
 let bookmarks: Bookmark[] = [];
@@ -202,6 +208,15 @@ function dropIndex(e: MouseEvent): number {
   return i === -1 ? els.length : i;
 }
 
+/** Position in the window's whole tab list for a drop before the `visual`-th tab drawn in the strip. */
+function fullIndex(visual: number): number {
+  const els = [...tabsHost().querySelectorAll<HTMLElement>('.tab')];
+  const before = els[visual];
+  if (before) return tabs.findIndex((t) => String(t.id) === before.dataset.id);
+  const last = els[els.length - 1];
+  return last ? tabs.findIndex((t) => String(t.id) === last.dataset.id) + 1 : tabs.length;
+}
+
 function clearDropMarks(): void {
   for (const el of document.querySelectorAll('.drop-before, .drop-after')) el.classList.remove('drop-before', 'drop-after');
 }
@@ -246,9 +261,74 @@ function closeTab(id: number, el: HTMLElement | null): void {
   window.setTimeout(() => void ks.tabs.close(id), 130);
 }
 
+/** Label of a group in the strip: its name, or a coloured dot. Click: fold; double click: rename. */
+function groupChip(groupId: string, count: number): HTMLElement {
+  const g = layout.groups.find((x) => x.id === groupId)!;
+  const label = g.name || tr('Gruppo {0}', tr(TAG_COLOR_INFO[g.color].name).toLowerCase());
+  const chip = h('button', {
+    class: `group-chip${g.name ? '' : ' unnamed'}${g.collapsed ? ' collapsed' : ''}`,
+    'data-group': g.id,
+    title: g.collapsed ? tr('{0} — {1} schede compresse: clic per espandere', label, count) : tr('{0} — clic per comprimere, doppio clic per rinominare', label),
+    'aria-label': label,
+    'aria-expanded': String(!g.collapsed),
+  }, h('span', { class: 'label' }, g.name), g.collapsed ? h('span', { class: 'count' }, String(count)) : null);
+  chip.style.setProperty('--group-color', tagColor(g.color));
+  chip.addEventListener('click', () => void ks.tabs.groupUpdate(g.id, { collapsed: !g.collapsed }));
+  chip.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    renameGroup(g.id);
+  });
+  chip.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    void ks.tabs.groupMenu(g.id);
+  });
+  return chip;
+}
+
+/** Inline name field on a group's label. */
+function renameGroup(groupId: string): void {
+  const chip = tabsHost().querySelector<HTMLElement>(`.group-chip[data-group="${CSS.escape(groupId)}"]`);
+  const g = layout.groups.find((x) => x.id === groupId);
+  if (!chip || !g) return;
+  const input = h('input', { class: 'group-name', type: 'text', value: g.name, placeholder: tr('Nome del gruppo'), 'aria-label': tr('Nome del gruppo'), maxlength: '40' });
+  input.style.setProperty('--group-color', tagColor(g.color));
+  let done = false;
+  const save = (keep: boolean) => {
+    if (done) return;
+    done = true;
+    if (keep) void ks.tabs.groupUpdate(groupId, { name: input.value });
+    else renderTabs();
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') save(true);
+    else if (e.key === 'Escape') save(false);
+  });
+  input.addEventListener('blur', () => save(true));
+  chip.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+/** Button with the current workspace, when there are several. */
+function workspaceButton(): HTMLElement | null {
+  const spaces = currentSettings?.workspaces ?? [];
+  if (isPrivateWindow || spaces.length < 2) return null;
+  const ws = spaces.find((x) => x.id === layout.workspace) ?? spaces[0];
+  const button = h('button', {
+    class: 'workspace-btn',
+    title: tr('Spazio di lavoro: {0} (Ctrl+Alt+← →)', tr(ws.name)),
+    'aria-label': tr('Spazio di lavoro: {0}', tr(ws.name)),
+  }, h('span', { class: 'ws-dot' }, tr(ws.name).slice(0, 1).toUpperCase()), h('span', { class: 'ws-name' }, tr(ws.name)));
+  button.style.setProperty('--ws-color', tagColor(ws.color));
+  button.addEventListener('click', () => void ks.tabs.workspaceMenu(anchorOf(button)));
+  return button;
+}
+
 function renderTabs(): void {
   const firstDraw = drawnTabs.size === 0;
-  const els = tabs.map((t) => {
+  const visible = shownTabs();
+  const groupOf = (id: string | null) => (id ? layout.groups.find((g) => g.id === id) : undefined);
+  const els = visible.map((t) => {
       const audio = t.audible || t.muted
         ? iconButton(t.muted ? 'volumeOff' : 'volume', {
             class: 'tab-audio',
@@ -273,6 +353,20 @@ function renderTabs(): void {
         t.pinned ? null : iconButton('close', { class: 'tab-close', title: tr('Chiudi scheda (Ctrl+W)'), 'aria-label': tr('Chiudi scheda'), onclick: (e: Event) => { e.stopPropagation(); closeTab(t.id, (e.currentTarget as HTMLElement).closest('.tab')); } }),
       );
       if (!firstDraw && !drawnTabs.has(t.id)) el.classList.add('entering');
+      const group = groupOf(t.groupId);
+      if (group) {
+        el.classList.add('in-group');
+        el.dataset.group = group.id;
+        el.style.setProperty('--group-color', tagColor(group.color));
+        if (group.collapsed && !t.active) el.classList.add('folded');
+      }
+      const container = t.container ? currentSettings?.containers.find((c) => c.id === t.container) : undefined;
+      if (container) {
+        el.classList.add('in-container');
+        el.style.setProperty('--container-color', tagColor(container.color));
+        el.title = `${el.title}\n${tr('Contenitore: {0}', tr(container.name))}`;
+        el.append(h('span', { class: 'container-bar', 'aria-hidden': 'true' }));
+      }
       el.addEventListener('click', () => void ks.tabs.activate(t.id));
       el.addEventListener('mouseenter', () => hoverTab(t.id, el));
       el.addEventListener('mouseleave', unhoverTab);
@@ -305,22 +399,41 @@ function renderTabs(): void {
       });
       return el;
     });
+  // A label before the first tab of each group.
+  const withChips: HTMLElement[] = [];
+  els.forEach((el, i) => {
+    const id = el.dataset.group;
+    if (id && els[i - 1]?.dataset.group !== id) withChips.push(groupChip(id, visible.filter((t) => t.groupId === id).length));
+    if (!el.classList.contains('folded')) withChips.push(el);
+  });
+  const workspace = workspaceButton();
   if (vertical()) {
     // Pinned tabs as a grid of icons on top, then the list, then "new tab".
     const newRow = h('button', { class: 'new-tab-row', title: tr('Nuova scheda (Ctrl+T)'), onclick: () => void ks.tabs.create() }, h('span', {}, tr('Nuova scheda')));
     newRow.prepend(icon('plus', 16));
     tabstrip.replaceChildren();
     sideList.replaceChildren(
+      ...(workspace ? [workspace] : []),
       h('div', { class: 'pinned-grid' }, ...els.filter((el) => el.classList.contains('pinned'))),
-      ...els.filter((el) => !el.classList.contains('pinned')),
+      ...withChips.filter((el) => !el.classList.contains('pinned')),
       newRow,
     );
   } else {
     sideList.replaceChildren();
-    tabstrip.replaceChildren(...els, iconButton('plus', { class: 'icon-btn small new-tab', title: tr('Nuova scheda (Ctrl+T)'), 'aria-label': tr('Nuova scheda'), onclick: () => void ks.tabs.create() }, 18));
+    tabstrip.replaceChildren(...(workspace ? [workspace] : []), ...withChips, newTabButton());
   }
   drawnTabs = new Set(tabs.map((t) => t.id));
   tabsHost().querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+/** "+" opens a tab; a right click offers the containers. */
+function newTabButton(): HTMLButtonElement {
+  const button = iconButton('plus', { class: 'icon-btn small new-tab', title: tr('Nuova scheda (Ctrl+T) — clic destro per un contenitore'), 'aria-label': tr('Nuova scheda'), onclick: () => void ks.tabs.create() }, 18);
+  button.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (!isPrivateWindow) void ks.tabs.containerMenu(anchorOf(button));
+  });
+  return button;
 }
 
 // With more tabs than fit, the mouse wheel scrolls the tab strip.
@@ -350,7 +463,7 @@ for (const host of [tabstrip, sideList]) {
     if (!raw) return;
     e.preventDefault();
     const { windowId: from, tabId } = JSON.parse(raw) as { windowId: number; tabId: number };
-    let index = dropIndex(e);
+    let index = fullIndex(dropIndex(e));
     if (from === windowId) {
       const current = tabs.findIndex((t) => t.id === tabId);
       if (current !== -1 && current < index) index--;
@@ -389,7 +502,7 @@ function renderToolbar(): void {
   const defaultZoom = currentSettings?.defaultZoom ?? 100;
   zoomBtn.hidden = !tab || tab.zoom === defaultZoom;
   zoomBtn.textContent = tab ? `${tab.zoom}%` : '';
-  const suffix = document.body.classList.contains('private') ? tr('Velo (privata)') : 'Velo';
+  const suffix = document.body.classList.contains('private') ? tr('Velo (privata)') : profileName ? `Velo (${profileName})` : 'Velo';
   document.title = tab ? `${tab.title} — ${suffix}` : suffix;
 }
 
@@ -457,6 +570,11 @@ function renderSidebar(): void {
   );
 }
 
+ks.events.onTabLayout((next) => {
+  layout = next;
+  renderTabs();
+});
+ks.events.onGroupRename((groupId) => renameGroup(groupId));
 ks.events.onTabs((next) => {
   tabs = next;
   renderTabs();
@@ -877,6 +995,8 @@ ks.events.onSettings(async (settings) => {
   document.body.classList.toggle('bookmarks-bar', settings.showBookmarksBar);
   applyAppearance(settings);
   renderToolbar();
+  // Names and colours of workspaces and containers may have changed.
+  renderTabs();
   const status = await ks.token.status();
   if (status.configured !== tokenConfigured) {
     tokenConfigured = status.configured;
@@ -1073,10 +1193,19 @@ window.addEventListener('resize', syncBounds);
 // ---------- Boot ----------
 
 async function boot(): Promise<void> {
-  const [settings, status, initialTabs, info, bookmarkList] = await Promise.all([
-    ks.settings.get(), ks.token.status(), ks.tabs.list(), ks.windowInfo(), ks.bookmarks.list(),
+  const [settings, status, initialTabs, info, bookmarkList, initialLayout] = await Promise.all([
+    ks.settings.get(), ks.token.status(), ks.tabs.list(), ks.windowInfo(), ks.bookmarks.list(), ks.tabs.layout(),
   ]);
   tabs = initialTabs;
+  layout = initialLayout;
+  // Another profile than the usual one: its name in the title and a badge, like private windows.
+  if (info.profile) {
+    profileName = info.profile.name;
+    const badge = $('profile-badge');
+    badge.hidden = false;
+    badge.append(h('span', {}, info.profile.name));
+    badge.style.setProperty('--profile-color', TAG_COLOR_INFO[info.profile.color as TagColor].light);
+  }
   windowId = info.windowId;
   document.body.classList.add(`platform-${info.platform}`);
   currentSettings = settings;

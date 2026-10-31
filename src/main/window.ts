@@ -2,7 +2,7 @@ import { BrowserWindow, app, dialog, nativeTheme, type Session, type WebContents
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { IPC } from '../shared/ipc';
-import type { DriveFile, PopupLook, Settings } from '../shared/types';
+import type { DriveFile, PopupLook, Settings, TabLayout } from '../shared/types';
 import { chromeColors, densityMetrics, isDark, tokens, type ChromeColors } from '../shared/appearance';
 import { attachContextMenu } from './context-menu';
 import { popupTitle } from '../shared/url';
@@ -31,6 +31,8 @@ export interface WindowContext {
   bookmarks: BookmarksStore;
   /** Undefined once a private session is gone (its window is closing). */
   guardFor(session: Session): PrivacyGuard | undefined;
+  /** Session of a container (created on first use), undefined for an unknown container. */
+  containerSession(id: string): Session | undefined;
   /** Fingerprinting protection for a page address in a session (also used for its workers). */
   shieldConfigFor(session: Session, pageUrl: string): ShieldConfig;
   /** Applies the zoom saved for the page's site (or the default zoom). */
@@ -84,8 +86,10 @@ export class BrowserWindowController {
     readonly session: Session,
     readonly isPrivate: boolean,
     /** null: start without tabs (a tab moved from another window is about to arrive). */
-    initialTabs: Array<{ url: string; pinned?: boolean; title?: string; open?: boolean }> | null,
+    initialTabs: Array<{ url: string; pinned?: boolean; title?: string; open?: boolean; groupId?: string | null; workspace?: string; container?: string | null }> | null,
     bounds?: Partial<Electron.Rectangle>,
+    /** Groups and workspace of a restored window. */
+    layout?: Partial<TabLayout>,
   ) {
     this.win = new BrowserWindow({
       width: 1400,
@@ -129,9 +133,11 @@ export class BrowserWindowController {
           if (this.lastActive !== this.activeTabIdFrom(states)) this.statusBubble?.hide();
           this.lastActive = this.activeTabIdFrom(states);
           this.send(IPC.evTabs, states);
+          this.send(IPC.evTabLayout, this.tabLayout());
           ctx.onTabsChanged(this);
         },
         onWebContentsCreated: (contents) => this.setupPage(contents),
+        newTabUrl: () => (ctx.settings.get().newTabPage === 'newtab' ? NEWTAB_URL : ctx.settings.get().homePage),
         extraState: (contents, url) => ({
           blocked: contents ? (guardOf(contents)?.blockedCount(contents.id) ?? 0) : 0,
           protectionActive: guardOf(contents)?.protectionActiveFor(url || null) ?? false,
@@ -149,8 +155,12 @@ export class BrowserWindowController {
           return http ? { load: `velo://https-only/?url=${encodeURIComponent(http)}`, display: http } : null;
         },
       },
-      { session, preload: ctx.paths.pagePreload },
+      // Containers live in normal windows only: a private window keeps everything in its own memory.
+      { session, preload: ctx.paths.pagePreload, containerSession: (id) => (isPrivate ? undefined : ctx.containerSession(id)) },
     );
+
+    // A window opened without a session (or with a tab moved to it) starts in the first workspace.
+    this.tabs.restoreLayout([], ctx.settings.get().workspaces[0].id);
 
     this.suggestions = new SuggestionsPopup(this.win, { html: ctx.paths.suggestHtml, preload: ctx.paths.suggestPreload }, (item) => {
       if (item.kind === 'tab' && item.tabId !== undefined && ctx.switchToTab(this, item.tabId)) return;
@@ -171,11 +181,18 @@ export class BrowserWindowController {
     this.applyTitleBarTheme();
     this.win.webContents.once('did-finish-load', () => {
       if (initialTabs === null) return;
-      const tabs = initialTabs.length ? initialTabs : [{ url: ctx.settings.get().homePage }];
+      // Workspaces deleted since the session was saved: their tabs go to the first one.
+      const known = new Set(ctx.settings.get().workspaces.map((w) => w.id));
+      const workspaceOf = (id: string | undefined) => (id && known.has(id) ? id : ctx.settings.get().workspaces[0].id);
+      this.tabs.restoreLayout(layout?.groups ?? [], workspaceOf(layout?.workspace));
+      const tabs: typeof initialTabs = (initialTabs.length ? initialTabs : [{ url: ctx.settings.get().homePage }]).map((t) => ({ ...t, workspace: workspaceOf(t.workspace) }));
       // Restored tabs start asleep and load when first shown: the window opens fast even with many tabs.
       const opened = tabs.some((t) => t.open);
       const front = opened ? tabs.map((t) => Boolean(t.open)).lastIndexOf(true) : Math.max(0, tabs.findIndex((t) => !t.pinned));
-      const ids = tabs.map((t, i) => this.tabs.create(t.url, { pinned: t.pinned, background: true, asleep: i !== front && !t.open, title: t.title }));
+      const ids = tabs.map((t, i) => this.tabs.create(t.url, {
+        pinned: t.pinned, background: true, asleep: i !== front && !t.open, title: t.title,
+        groupId: t.groupId, workspace: t.workspace, container: t.container,
+      }));
       if (ids[front] !== undefined) this.tabs.activate(ids[front]);
     });
     this.win.on('closed', () => {
@@ -230,6 +247,18 @@ export class BrowserWindowController {
     this.win.focus();
   }
 
+  /** Groups and workspace of the tab strip. */
+  tabLayout(): TabLayout {
+    return { groups: this.tabs.groupList(), workspace: this.tabs.currentWorkspace() };
+  }
+
+  /** Links opened from a page stay in its container and group. */
+  sameAs(contents: WebContents): { container?: string | null; groupId?: string | null } {
+    const id = this.tabs.idOf(contents);
+    const t = id === null ? undefined : this.tabs.states().find((x) => x.id === id);
+    return t ? { container: t.container, groupId: t.groupId } : {};
+  }
+
   /** Position right after the tab of `contents`, where links opened from it go. */
   indexAfter(contents: WebContents): number | undefined {
     const id = this.tabs.idOf(contents);
@@ -257,11 +286,11 @@ export class BrowserWindowController {
     return this.tabs.activeContents();
   }
 
-  newTab(url?: string, options: { afterActive?: boolean } = {}): void {
+  newTab(url?: string, options: { afterActive?: boolean; container?: string | null } = {}): void {
     const s = this.ctx.settings.get();
     const active = this.activeTabId();
     const index = options.afterActive && active !== null ? this.tabs.ids().indexOf(active) + 1 : undefined;
-    this.tabs.create(url ?? (s.newTabPage === 'newtab' ? NEWTAB_URL : s.homePage), { index });
+    this.tabs.create(url ?? (s.newTabPage === 'newtab' ? NEWTAB_URL : s.homePage), { index, container: options.container });
     if (!url) this.focusChrome(IPC.evFocusAddress);
   }
 
@@ -479,7 +508,7 @@ export class BrowserWindowController {
           },
         };
       }
-      owner().tabs.create(url, { background: disposition === 'background-tab', index: owner().indexAfter(contents) });
+      owner().tabs.create(url, { background: disposition === 'background-tab', index: owner().indexAfter(contents), ...owner().sameAs(contents) });
       return { action: 'deny' };
     });
     contents.on('did-create-window', (popup) => this.setupPopup(popup));
@@ -495,7 +524,7 @@ export class BrowserWindowController {
     });
 
     attachContextMenu(contents, {
-      openInNewTab: (url) => owner().tabs.create(url, { background: true, index: owner().indexAfter(contents) }),
+      openInNewTab: (url) => owner().tabs.create(url, { background: true, index: owner().indexAfter(contents), ...owner().sameAs(contents) }),
       saveUrlToDrive: (url) => void owner().runDriveAction(tr('Salvataggio su kDrive'), () => this.ctx.services.saveUrlToDrive(contents.session, url)),
       savePageToDrive: (wc) => void owner().savePageToDrive(wc),
       mailLink: (url, title) => owner().composeMail(url, title),

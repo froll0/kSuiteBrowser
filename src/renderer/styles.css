@@ -652,3 +652,54 @@ body.autohide.chrome-shown #chrome { animation: chrome-in .14s ease-out; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 :root.reduce-motion *, :root.reduce-motion *::before, :root.reduce-motion *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+
+/* ---------- Tab groups, containers, workspaces ---------- */
+/* A group: a coloured label before its tabs and a line under them. */
+.group-chip {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  height: 22px; max-width: 160px; padding: 0 9px; margin: 0 2px;
+  border: none; border-radius: var(--r-pill);
+  background: var(--group-color); color: #fff; font-size: 12px; font-weight: 600;
+  -webkit-app-region: no-drag;
+}
+.group-chip .label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.group-chip.unnamed { width: 14px; height: 14px; padding: 0; margin: 0 4px; }
+.group-chip.unnamed.collapsed { width: auto; height: 20px; padding: 0 7px; }
+.group-chip .count { font-size: 11px; opacity: .9; }
+.group-chip:hover { filter: brightness(1.08); }
+.group-name {
+  flex: none; width: 130px; height: 24px; padding: 0 8px; margin: 0 2px;
+  border: 2px solid var(--group-color); border-radius: var(--r-pill);
+  background: var(--surface); color: var(--text); font-size: 12px; outline: none;
+  -webkit-app-region: no-drag;
+}
+.tab.in-group::before {
+  content: ''; position: absolute; left: 6px; right: 6px; bottom: 1px; height: 2px;
+  border-radius: 1px; background: var(--group-color);
+}
+#sidetabs-list .tab.in-group::before { left: 2px; right: auto; top: 6px; bottom: 6px; width: 3px; height: auto; }
+#sidetabs-list .group-chip { align-self: flex-start; margin: 6px 4px 2px; }
+/* A container: a small coloured bar on the tab's icon side. */
+.container-bar { position: absolute; left: 4px; top: 7px; bottom: 7px; width: 3px; border-radius: 2px; background: var(--container-color); }
+#sidetabs-list .container-bar { left: auto; right: 3px; }
+/* The workspace shown, when there are several. */
+.workspace-btn {
+  display: inline-flex; align-items: center; gap: 7px; flex: none;
+  height: var(--tab-h); max-width: 150px; padding: 0 10px 0 6px; margin-right: 4px;
+  border: none; border-radius: var(--r-md); background: none; color: var(--text-2); font-weight: 600; font-size: 12.5px;
+  -webkit-app-region: no-drag;
+}
+.workspace-btn:hover { background: var(--chrome-hover); color: var(--text); }
+.ws-dot { display: grid; place-items: center; width: 20px; height: 20px; flex: none; border-radius: 6px; background: var(--ws-color); color: #fff; font-size: 11px; font-weight: 700; }
+.ws-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+body.layout-inline .ws-name { display: none; }
+#sidetabs-list .workspace-btn { width: 100%; justify-content: flex-start; margin: 0 0 4px; }
+body.side-collapsed .ws-name { display: none; }
+
+/* Another profile than the usual one. */
+#profile-badge {
+  display: inline-flex; align-items: center; gap: 5px; flex: none; max-width: 140px;
+  height: 24px; padding: 0 10px 0 8px; border-radius: var(--r-pill);
+  background: var(--profile-color); color: #fff; font-size: 12px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; -webkit-app-region: no-drag;
+}

@@ -23,6 +23,33 @@ quindi funzionano senza sorprese.
 
 ## Funzioni
 
+**Organizzazione e comandi**
+- **Pagina di benvenuto** al primo avvio: lingua, aspetto, livello di protezione, importazione dagli altri browser e
+  account facoltativo, in cinque passaggi saltabili
+- **Tavolozza dei comandi** (`Ctrl+K`): cerca tra comandi, schede aperte, sezioni delle impostazioni e preferiti; Invio
+  esegue, e se nulla corrisponde apre l'indirizzo o cerca il testo
+- **Scorciatoie personalizzabili** (Impostazioni › *Scorciatoie*): ogni comando del menu prende la scorciatoia che vuoi,
+  con avviso se è già usata; `Ctrl+1…9` restano fisse
+- **Gruppi di schede**: etichetta colorata con nome (doppio clic per rinominare), clic per comprimere, schede trascinabili
+  dentro e fuori dal gruppo; menu del gruppo per colore, nuova scheda, separazione, chiusura
+- **Spazi di lavoro**: ogni finestra mostra le schede di uno spazio alla volta (pulsante a sinistra delle schede o
+  `Ctrl+Alt+←/→`); le schede degli altri spazi restano aperte e vengono ripristinate con la sessione
+- **Contenitori** (Personale, Lavoro, Acquisti, Banca, o i tuoi): schede con cookie, accessi e dati propri, per essere
+  connesso a due account dello stesso sito o tenere separati i siti; clic destro sul `+` o "Riapri in un contenitore"
+  nel menu della scheda; una barretta colorata indica il contenitore
+- **Profili** (Impostazioni › *Profili*, menu File › Profili): un Velo separato per ogni profilo, con cronologia,
+  preferiti, password, cookie e impostazioni propri; il nome compare nella barra e nel titolo della finestra
+- **Impostazioni del sito** (`velo://site`, dal lucchetto o dalla tavolozza): permessi, protezioni, eccezione HTTP, zoom,
+  cookie e "ricorda questo sito" in un solo posto, più l'elenco dei siti con impostazioni particolari
+
+**Importazione dagli altri browser** (`velo://import`, anche dalla pagina di benvenuto)
+- **Preferiti, cronologia, password e cookie** letti direttamente dai profili di Chrome, Edge, Brave, Vivaldi, Opera,
+  Chromium e Firefox su questo computer, senza passare da Internet (anche con il browser aperto: Velo ne legge una copia)
+- Le password e i cookie di Chromium vengono decifrati con la chiave che il sistema custodisce per quel browser
+  (portachiavi di macOS, che chiede il permesso; Secret Service o chiave predefinita su Linux; DPAPI su Windows); quelle
+  di Firefox con la sua chiave locale (NSS), se non c'è una password principale
+- Resta l'importazione da file: preferiti in HTML, password in CSV
+
 **Interfaccia su misura** (Impostazioni › *Aspetto* e *Disposizione*, oppure clic destro sulla barra degli strumenti)
 - Stile «tela sospesa»: la pagina è una tela con gli angoli arrotondati appoggiata su uno sfondo tinto con il tuo colore;
   niente linee di separazione, una sola riga sopra la pagina
@@ -40,7 +67,11 @@ quindi funzionano senza sorprese.
 - Indirizzo abbreviato (senza `https://` e `www.`) finché non lo modifichi, oppure sempre completo
 - **Barra a scomparsa** (Ctrl+Maiusc+F, o in *Disposizione*): la pagina occupa tutta la finestra; schede e barra degli
   indirizzi ricompaiono portando il puntatore sul bordo in alto (o con Ctrl+L) e spariscono quando torni alla pagina,
-  che scorre sotto la barra senza ridimensionarsi
+  che scorre sotto la barra senza ridimensionarsi; facoltativamente ricompare anche scorrendo la pagina verso l'alto.
+  Il pannello cloud resta visibile accanto alla pagina; su Linux i pulsanti della finestra li disegna Velo e spariscono
+  con la barra
+- **Animazioni** discrete (schede che si aprono e si chiudono, barre, tavolozza) che si spengono quando il sistema chiede
+  di ridurre il movimento o con *Riduci le animazioni* nelle impostazioni
 - Nuova scheda con sfondo semplice, tinto o sfumato e blocchi a scelta (saluto, siti più visitati, app)
 - Anteprima dal vivo nelle impostazioni; tutto si applica subito, anche alle pagine del browser e ai popup
 
@@ -117,6 +148,11 @@ quindi funzionano senza sorprese.
 - Dopo un accesso compare una barra per **salvare o aggiornare** la password (con "Mai per questo sito")
 - **Compilazione automatica** quando per un sito c'è un solo accesso (solo su HTTPS); altrimenti clic nel campo e scelta dal menu, che il sito non può imitare perché è nativo
 - **Password sicure suggerite** nei moduli di registrazione (20 caratteri casuali)
+- **Codici di verifica (2FA)**: aggiungi a un accesso la chiave TOTP (il codice di configurazione o l'indirizzo
+  `otpauth://` che il sito mostra col QR code); il codice compare nella pagina delle password con il conto alla
+  rovescia e viene proposto nei campi del codice di verifica (anche quelli a una casella per cifra)
+- **Indirizzi e carte di pagamento**, cifrati come le password: clic in un modulo di spedizione o di pagamento e scelta
+  dal menu; le carte solo sulle pagine HTTPS, il codice di sicurezza (CVC) non viene mai salvato
 - Pagina di gestione: ricerca, mostra/copia, modifica, eliminazione, avvisi per password **riutilizzate** o **deboli**, siti esclusi
 - **Importazione CSV** da Chrome, Edge, Firefox, Safari, Bitwarden, 1Password; **esportazione CSV** (richiede la password principale)
 - **Password compromesse**: "Controlla ora" nella pagina delle password verifica se compaiono in violazioni di dati note
@@ -301,8 +337,13 @@ Requisiti: Node.js 22+.
 npm install
 npm start          # compila e avvia
 npm test           # test unitari (client API, omnibox, utilità)
+npm run e2e        # test end-to-end nel vero Velo (Playwright + Electron; su Linux senza schermo: xvfb-run -a npm run e2e)
 npm run typecheck
 ```
+
+A ogni modifica la CI esegue typecheck, test unitari, build, i test end-to-end (benvenuto, tavolozza, scorciatoie,
+impostazioni del sito, barra a scomparsa, contenitori, gruppi, spazi di lavoro, profili, importazione da Chromium,
+codici 2FA, indirizzi e carte, pulizia del profilo, link di rimbalzo, siti dimenticati) e la verifica di rete.
 
 ### Creare l'installer
 
@@ -411,6 +452,15 @@ codice caricato solo dall'archivio `app.asar` (verificato su Windows e macOS), c
 
 ## Limiti noti
 
+- Mancano le **passkey** (WebAuthn salvate nel gestore di Velo): servono le API di sistema che Electron non espone.
+- Importazione: le password di **Chrome 127+ su Windows** sono legate all'app (cifratura "app-bound") e non si possono
+  leggere da fuori: Velo lo dice e propone l'esportazione in CSV. Con la password principale di Firefox attiva le password
+  di Firefox vanno esportate in CSV.
+- Le chiavi 2FA, gli indirizzi e le carte non vengono ancora sincronizzati su kDrive (solo password, preferiti, cronologia e schede).
+- Indirizzi e carte si compilano solo nella pagina principale, non nei moduli di pagamento dentro un iframe di un altro
+  sito (Stripe e simili).
+- I contenitori condividono i permessi dei siti (fotocamera, posizione…) e «Dimentica i siti alla chiusura» riguarda
+  solo le schede senza contenitore.
 - Il browser si basa su Electron, che riceve gli aggiornamenti di sicurezza di Chromium con qualche settimana di ritardo:
   la CI avvisa quando c'è una versione nuova, ma l'aggiornamento va fatto (e pubblicato) a mano.
 - La protezione dall'impronta non copre i *service worker* (girano fuori dalle schede).
@@ -418,8 +468,6 @@ codice caricato solo dall'archivio `app.asar` (verificato su Windows e macOS), c
   record DNS, che Electron non espone.
 - «Dimentica i siti alla chiusura» non svuota la cache delle immagini e dei file (è comune a tutti i siti).
 
-- Barra a scomparsa su Linux: i pulsanti della finestra (riduci, ingrandisci, chiudi) restano appena visibili in alto
-  a destra quando la barra è nascosta; il pannello cloud non compare in questa modalità.
 - Il caricamento diretto su kDrive è limitato a 1 GB per file (per file più grandi usa l'app web).
 - Il pannello Mail usa la casella principale associata al token.
 - L'app non è ancora firmata digitalmente: Windows mostra l'avviso di SmartScreen e macOS chiede conferma all'apertura

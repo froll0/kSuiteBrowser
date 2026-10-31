@@ -40,6 +40,23 @@ jobs:
       - run: npm run build
       - run: xvfb-run -a node scripts/net-audit.mjs 40
 
+  # The real browser driven end to end (Playwright + Electron): welcome page, command palette,
+  # shortcuts, site settings, auto-hiding bar, containers, groups, workspaces, profiles, import from
+  # Chromium, 2FA codes, address and card autofill, privacy (purge, bounce links, forgotten sites).
+  e2e:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: xvfb-run -a npm run e2e
+
   # Manual run: installers as workflow artifacts, nothing is published.
   package:
     needs: check

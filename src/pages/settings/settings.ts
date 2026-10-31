@@ -46,6 +46,11 @@ function row(title: string, desc: string | Node | null, control: Node | null, op
   );
 }
 
+/** "Riavvia ora" for the settings that apply at the next start. */
+function restartLink(): HTMLElement {
+  return h('a', { href: '#', onclick: (e: Event) => { e.preventDefault(); void internal.restart(); } }, tr('Riavvia ora'));
+}
+
 function toggle(key: { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings], label: string): HTMLElement {
   const input = h('input', { type: 'checkbox', role: 'switch', 'aria-label': label, checked: settings[key] });
   input.addEventListener('change', () => void update({ [key]: input.checked } as Partial<Settings>));
@@ -636,7 +641,25 @@ function privacySection(): HTMLElement {
         { value: 'off', title: tr('Disattivata'), desc: tr('I siti leggono i valori reali.') },
       ], (v) => void update({ fingerprintProtection: v }), true),
     ),
-    row(tr('Blocca i cookie di terze parti'), tr('I contenuti di altri siti incorporati in una pagina (pulsanti social, pubblicità, tracker) non ricevono né impostano cookie tramite la rete: è il modo principale in cui ti seguono da un sito all’altro. I servizi del tuo account cloud, se collegato, non sono toccati.'), toggle('blockThirdPartyCookies', tr('Blocca cookie di terze parti'))),
+    row(
+      tr('Blocca i cookie di terze parti'),
+      h('span', {}, tr('I contenuti di altri siti incorporati in una pagina (pulsanti social, pubblicità, tracker) non leggono né scrivono cookie, né dalla rete né con gli script: è il modo principale in cui ti seguono da un sito all’altro. Un servizio incorporato che ne ha davvero bisogno (accessi, commenti) può chiedertelo. Vale dal riavvio. '), restartLink()),
+      toggle('blockThirdPartyCookies', tr('Blocca cookie di terze parti')),
+    ),
+    row(tr('Dimentica i siti quando chiudi le loro schede'), tr('Quando nessuna scheda mostra più un sito, i suoi cookie e i dati salvati vengono cancellati: al ritorno il sito non ti riconosce. Dovrai rifare l’accesso, tranne che sui siti da ricordare (anche dal pulsante scudo).'), toggle('forgetSitesOnClose', tr('Dimentica i siti alla chiusura'))),
+    h('div', { class: 'row stack', 'data-search': tr('siti da ricordare dimentica cookie accesso') },
+      h('div', { class: 'title' }, tr('Siti da ricordare')),
+      hostList(settings.rememberedSites, tr('Nessuno.'), (host) => void update({ rememberedSites: settings.rememberedSites.filter((x) => x !== host) }).then(render)),
+      (() => {
+        const input = h('input', { type: 'text', placeholder: tr('esempio.it'), 'aria-label': tr('Aggiungi un sito da ricordare') });
+        const add = () => {
+          const host = input.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
+          if (host && !settings.rememberedSites.includes(host)) void update({ rememberedSites: [...settings.rememberedSites, host] }).then(render);
+        };
+        input.addEventListener('keydown', (e) => e.key === 'Enter' && add());
+        return h('div', { class: 'control' }, input, h('button', { onclick: add }, tr('Aggiungi')));
+      })(),
+    ),
     row(tr('Chiedi ai siti di non tracciarti'), tr('Invia i segnali “Do Not Track” e Global Privacy Control (GPC). In alcuni Paesi il GPC ha valore legale.'), toggle('doNotTrack', tr('Invia DNT e GPC'))),
     drmRow(),
     dnsRow(),

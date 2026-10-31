@@ -26,6 +26,20 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # Privacy: an idle Velo may only contact the block lists and the encrypted DNS (never Google).
+  network-audit:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: xvfb-run -a node scripts/net-audit.mjs 40
+
   # Manual run: installers as workflow artifacts, nothing is published.
   package:
     needs: check

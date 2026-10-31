@@ -21,7 +21,7 @@ import { TOOLBAR_ITEMS, TOOLBAR_ITEM_IDS, type ToolbarItem } from '../shared/app
 import { searchAnswerMessages } from '../shared/ai-prompts';
 import { permissionLabel } from '../shared/external-protocols';
 import { secureDnsConfig } from '../shared/secure-dns';
-import { shieldConfig } from '../shared/fingerprint';
+import { shieldConfig, type ShieldConfig } from '../shared/fingerprint';
 import { webRtcPolicy } from '../shared/webrtc';
 import { generatePassword } from '../shared/password-gen';
 import { framedIconSvg, letterIconSvg, topSites } from '../shared/top-sites';
@@ -52,17 +52,26 @@ import { FaviconStore } from './stores/favicons';
 import { HistoryStore } from './stores/history';
 import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } from './window';
 import { adoptLegacyProfile } from './legacy';
+import { DEFAULT_SETTINGS, sanitizeSettings } from '../shared/settings-schema';
 import { purgeRemovedFeatures } from './purge';
+import { SiteForgetter } from './forget';
+import { openSites } from '../shared/forget-sites';
 import { isAllowedInternalSender } from '../shared/ipc-guard';
 import { locale, resolveLocale, tr } from '../shared/i18n';
 
 adoptLegacyProfile();
 // Widevine comes from Google's component updater: unless the user turned protected content on, it
 // stays off and the browser makes no request to Google's update servers.
-if (!drmOptedIn()) app.commandLine.appendSwitch('disable-component-update');
+// Protected content: the component updater (Widevine, from Google) runs only when asked for.
+if (!startupSetting('drmOptIn')) app.commandLine.appendSwitch('disable-component-update');
+// Third-party cookies blocked in Chromium itself: not only on the network but also for scripts in
+// embedded frames (document.cookie), the way trackers otherwise follow you across sites. Partitioned
+// cookies (CHIPS) and the Storage Access API (asked to the user) still work for legitimate embeds.
+if (startupSetting('blockThirdPartyCookies')) app.commandLine.appendSwitch('test-third-party-cookie-phaseout');
 registerInternalScheme();
-// Every renderer runs in Chromium's sandbox, whatever its own options say.
-app.enableSandbox();
+// Every renderer runs in Chromium's sandbox, whatever its own options say (unless --no-sandbox is
+// given explicitly: only for development and tests running as root, where Chromium needs it).
+if (!app.commandLine.hasSwitch('no-sandbox')) app.enableSandbox();
 // No page may embed a <webview> (a full browser inside the page) or open windows Velo doesn't manage.
 app.on('web-contents-created', (_e, contents) => {
   contents.on('will-attach-webview', (event) => event.preventDefault());
@@ -97,6 +106,7 @@ let favicons: FaviconStore;
 let notifications: NotificationCenter;
 let updates: UpdateService;
 let ai: AiService;
+let forgetter: SiteForgetter | null = null;
 
 /** A tab to open: `open` ones (links from other apps) load and come to the front, the others start asleep. */
 type SavedTab = { url: string; pinned?: boolean; title?: string; open?: boolean };
@@ -144,10 +154,17 @@ app.on('will-quit', () => {
 app.on('before-quit', (event) => {
   quitting = true;
   const s = settings?.get();
-  if (!s || dataCleared || (!s.clearCookiesOnExit && !s.clearCacheOnExit)) return;
+  // Sites to forget: the ones still open, unless their tabs come back at the next start.
+  const forget = s && s.forgetSitesOnClose && s.startup !== 'restore' && forgetter
+    ? [...openSites([...windows].filter((w) => !w.isPrivate).flatMap((w) => w.tabs.states().map((t) => t.url)))].filter((site) => !s.rememberedSites.includes(site))
+    : [];
+  if (!s || dataCleared || (!s.clearCookiesOnExit && !s.clearCacheOnExit && forget.length === 0)) return;
   event.preventDefault();
   dataCleared = true;
-  void clearBrowsingData(electronSession.defaultSession, { cookies: s.clearCookiesOnExit, cache: s.clearCacheOnExit })
+  void Promise.all([
+    s.clearCookiesOnExit || s.clearCacheOnExit ? clearBrowsingData(electronSession.defaultSession, { cookies: s.clearCookiesOnExit, cache: s.clearCacheOnExit }) : null,
+    ...forget.map((site) => forgetter!.forget(site)),
+  ])
     .catch((err) => console.error('[privacy] pulizia alla chiusura non riuscita:', err))
     .finally(() => app.quit());
 });
@@ -241,6 +258,9 @@ async function start(): Promise<void> {
   passwords.vault.onChange(() => sync.soon());
   sync.start();
   passwords.register();
+  forgetter = new SiteForgetter(electronSession.defaultSession, settings, () =>
+    [...windows].filter((w) => !w.isPrivate).flatMap((w) => w.tabs.states().map((t) => t.url)),
+  );
   notifications = new NotificationCenter(settings, services, {
     openApp: (appId) => {
       const appDef = INFOMANIAK_APPS.find((a) => a.id === appId);
@@ -347,6 +367,7 @@ const windowContext: WindowContext = {
     return bookmarks;
   },
   applyZoom: (wc) => applyZoom(wc),
+  shieldConfigFor: (ses, url) => shieldConfigFor(ses, url),
   stepZoom: (w, wc, direction) => changeZoom(w, wc, direction),
   guardFor: (ses) => guards.get(ses),
   ownerOf: (contents) => [...windows].find((w) => w.tabs.idOf(contents) !== null) ?? null,
@@ -357,10 +378,14 @@ const windowContext: WindowContext = {
   },
   paths: PATHS,
   onTabsChanged: (w) => {
-    if (!w.isPrivate) scheduleSessionSave();
+    if (!w.isPrivate) {
+      scheduleSessionSave();
+      forgetter?.update();
+    }
   },
   onClosed: (w) => {
     windows.delete(w);
+    if (!w.isPrivate) forgetter?.update();
     if (lastFocused === w) lastFocused = null;
     // Keep the last window's tabs for the next start (closing it quits the app).
     if (!w.isPrivate && !quitting && normalWindow()) scheduleSessionSave();
@@ -473,13 +498,27 @@ function installBundledDictionaries(): void {
   }
 }
 
-/** Protected content setting, read before the app is ready (the component updater is set up then). */
-function drmOptedIn(): boolean {
+/** Fingerprinting protection of a page (and its frames and workers), from the address of the top page. */
+function shieldConfigFor(ses: Session, topUrl: string): ShieldConfig {
+  let key = fingerprintKeys.get(ses);
+  if (!key) fingerprintKeys.set(ses, (key = randomBytes(32)));
+  const s = settings.get();
+  return shieldConfig({
+    setting: s.fingerprintProtection,
+    site: /^https?:/i.test(topUrl) ? siteOf(topUrl) : null,
+    exceptions: s.protectionExceptions,
+    sessionKey: key,
+    cpus: cpus().length || 4,
+  });
+}
+
+/** A setting read before the app is ready (some Chromium switches must be set then). */
+function startupSetting<K extends keyof Settings>(key: K): Settings[K] {
   try {
-    const raw = JSON.parse(readFileSync(join(app.getPath('userData'), 'settings.json'), 'utf8')) as { settings?: { drmOptIn?: unknown } };
-    return raw.settings?.drmOptIn === true;
+    const raw = JSON.parse(readFileSync(join(app.getPath('userData'), 'settings.json'), 'utf8')) as { settings?: Partial<Settings> };
+    return sanitizeSettings(raw.settings ?? {})[key];
   } catch {
-    return false;
+    return DEFAULT_SETTINGS[key];
   }
 }
 
@@ -817,6 +856,17 @@ function showShieldMenu(w: BrowserWindowController, tabId: number): void {
         },
       },
       { label: tr('{0} richieste bloccate in questa pagina', guard.blockedCount(wc.id)), enabled: false },
+      ...(s.forgetSitesOnClose && !w.isPrivate
+        ? [{
+            label: tr('Ricorda questo sito (non cancellare i suoi dati alla chiusura)'),
+            type: 'checkbox' as const,
+            checked: s.rememberedSites.includes(site),
+            click: () => {
+              const list = settings.get().rememberedSites;
+              settings.update({ rememberedSites: list.includes(site) ? list.filter((x) => x !== site) : [...list, site] });
+            },
+          }]
+        : []),
     );
     if (guard.wasCleaned(wc.id)) items.push({ label: tr('Parametri di tracciamento rimossi dall’indirizzo'), enabled: false });
     if (s.trackingProtection === 'off') items.push({ label: tr('Il blocco dei tracker è disattivato nelle impostazioni'), enabled: false });
@@ -1123,23 +1173,13 @@ function registerChromeIpc(): void {
   handle(IPC.drmEnable, () => enableDrmAndRestart());
   // Synchronous: the shield preload needs it before the page's scripts run.
   ipcMain.on('shield:config', (event) => {
-    const ses = event.sender.session;
-    let key = fingerprintKeys.get(ses);
-    if (!key) fingerprintKeys.set(ses, (key = randomBytes(32)));
     let top = '';
     try {
       top = event.senderFrame?.top?.url || event.sender.getURL();
     } catch {
       /* frame gone */
     }
-    const s = settings.get();
-    event.returnValue = shieldConfig({
-      setting: s.fingerprintProtection,
-      site: /^https?:/i.test(top) ? siteOf(top) : null,
-      exceptions: s.protectionExceptions,
-      sessionKey: key,
-      cpus: cpus().length || 4,
-    });
+    event.returnValue = shieldConfigFor(event.sender.session, top);
   });
   ipcMain.on('shield:drm-wanted', (event) => {
     if (!settings.get().drmOptIn) offerDrm(event.sender);

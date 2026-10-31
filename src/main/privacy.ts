@@ -3,6 +3,7 @@ import { deleteHeader, httpsUpgrade, isThirdParty, siteOf, stripTrackingParams }
 import type { TrackerBlocker } from './blocker';
 import type { ThreatKind } from '../shared/threat-match';
 import { HIGH_ENTROPY_HINTS } from '../shared/fingerprint';
+import { debounce } from '../shared/debounce';
 import type { SettingsStore } from './settings';
 
 /**
@@ -50,8 +51,14 @@ export class PrivacyGuard {
       if (details.resourceType === 'mainFrame') {
         if (wcId !== undefined) this.resetCount(wcId);
         let target = details.url;
+        const cleanLinks = s.stripTrackingParams && details.method === 'GET' && !this.isExempt(details.url);
+        // A redirect page that only records the click (l.facebook.com, google.com/url…): straight to the destination.
+        const bounced = cleanLinks ? debounce(target) : null;
+        if (bounced) target = bounced;
         // Tracking parameters go before the page is requested (GET only: a form's data must not change).
-        const clean = s.stripTrackingParams && details.method === 'GET' && !this.isExempt(details.url) ? stripTrackingParams(target) : null;
+        const stripped = cleanLinks ? stripTrackingParams(target) : null;
+        if (stripped) target = stripped;
+        const clean = bounced || stripped ? target : null;
         if (clean) target = clean;
         if (wcId !== undefined) {
           if (clean) this.cleaned.add(wcId);

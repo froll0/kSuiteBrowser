@@ -284,6 +284,10 @@ export interface Settings {
   /** Warn when a password being saved appears in known data breaches. */
   breachCheckOnSave: boolean;
   /** Let streaming services play DRM-protected content (Widevine). */
+  /** Clear a site's cookies and data once no tab shows it any more (normal windows). */
+  forgetSitesOnClose: boolean;
+  /** Sites kept when forgetSitesOnClose is on (e.g. to stay logged in). */
+  rememberedSites: string[];
   /** Interface language: the system's (when supported) or a fixed one; applies at the next start. */
   language: LanguageSetting;
   /** Protected content (Widevine): the module comes from Google, so only on the user's request. */

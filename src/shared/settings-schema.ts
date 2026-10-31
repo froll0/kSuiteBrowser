@@ -64,6 +64,8 @@ export const DEFAULT_SETTINGS: Settings = {
   doNotTrack: true,
   threatProtection: true,
   breachCheckOnSave: true,
+  forgetSitesOnClose: false,
+  rememberedSites: [],
   language: 'system',
   drmOptIn: false,
   fingerprintProtection: 'standard',
@@ -209,6 +211,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     threatProtection: bool(s.threatProtection, d.threatProtection),
     breachCheckOnSave: bool(s.breachCheckOnSave, d.breachCheckOnSave),
     // Replaces drmEnabled, which was on by default: Widevine is now only downloaded when asked for.
+    forgetSitesOnClose: bool(s.forgetSitesOnClose, d.forgetSitesOnClose),
+    rememberedSites: hostList(s.rememberedSites),
     language: oneOf(s.language, ['system', 'it', 'en'] as const, d.language),
     drmOptIn: bool(s.drmOptIn, d.drmOptIn),
     fingerprintProtection: oneOf(s.fingerprintProtection, ['off', 'standard', 'strict'] as const, d.fingerprintProtection),

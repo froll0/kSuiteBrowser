@@ -19,6 +19,8 @@ import { StatusBubble } from './status-bubble';
 import { TabSearchPopup } from './tab-search-popup';
 import { SuggestionsPopup } from './suggestions-popup';
 import { TabManager } from './tabs';
+import { protectWorkers } from './worker-shield';
+import type { ShieldConfig } from '../shared/fingerprint';
 import { tr } from '../shared/i18n';
 
 export interface WindowContext {
@@ -28,6 +30,8 @@ export interface WindowContext {
   bookmarks: BookmarksStore;
   /** Undefined once a private session is gone (its window is closing). */
   guardFor(session: Session): PrivacyGuard | undefined;
+  /** Fingerprinting protection for a page address in a session (also used for its workers). */
+  shieldConfigFor(session: Session, pageUrl: string): ShieldConfig;
   /** Applies the zoom saved for the page's site (or the default zoom). */
   applyZoom(contents: WebContents): void;
   stepZoom(controller: BrowserWindowController, contents: WebContents, direction: 'in' | 'out'): void;
@@ -401,6 +405,8 @@ export class BrowserWindowController {
       if (visitId) this.ctx.history.setTitle(visitId, title);
     });
     // WebRTC may only use what the privacy setting allows, decided again for every page.
+    // Workers get the same fingerprinting protection as the page.
+    protectWorkers(contents, (url) => (/^https?:/i.test(url) ? this.ctx.shieldConfigFor(contents.session, url) : null));
     const applyWebRtc = (url: string) => contents.setWebRTCIPHandlingPolicy(webRtcPolicy(this.ctx.settings.get().webRtcProtection, url));
     applyWebRtc(contents.getURL());
     contents.on('did-start-navigation', (details) => {

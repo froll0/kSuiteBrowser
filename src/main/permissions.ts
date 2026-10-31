@@ -12,6 +12,9 @@ const DESCRIPTIONS: Record<string, string> = {
   notifications: tr('mostrare notifiche'),
   geolocation: tr('conoscere la tua posizione'),
   'clipboard-read': tr('leggere gli appunti'),
+  // An embedded frame (e.g. a login or comments widget) asks for its own cookies on this page.
+  'storage-access': tr('usare i propri cookie mentre è incorporato in questa pagina'),
+  'top-level-storage-access': tr('usare i propri cookie mentre è incorporato in questa pagina'),
 };
 
 /** Where site decisions are remembered: the settings file, or memory only for private windows. */

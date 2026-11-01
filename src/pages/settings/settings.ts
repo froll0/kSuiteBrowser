@@ -1099,7 +1099,20 @@ async function aboutSection(): Promise<HTMLElement> {
       ),
     ),
   );
-  return h('div', {}, updatesCard, aboutCard);
+  const crashList = await internal.crashes.list();
+  const crashCard = section(
+    'crashes',
+    tr('Arresti anomali'),
+    row(tr('Proponi di segnalare gli arresti anomali'), tr('Dopo un arresto anomalo Velo propone di inviare una segnalazione anonima. Non parte mai da sola: si apre una pagina di GitHub già compilata, che leggi prima di inviarla. Contiene solo processo, motivo, versioni e sistema: niente indirizzi, file o dati personali.'), toggle('offerCrashReports', tr('Proponi di segnalare gli arresti anomali'))),
+    crashList.length
+      ? h('div', { class: 'row stack', 'data-search': tr('arresti anomali crash segnalazione') },
+          h('ul', { class: 'list' }, ...crashList.slice(-8).reverse().map((c) => h('li', {}, h('span', {}, `${new Date(c.at).toLocaleString(localeTag(), { dateStyle: 'short', timeStyle: 'short' })} · ${c.process} · ${c.reason}${c.detail ? ` · ${c.detail}` : ''}`)))),
+          h('div', { class: 'control' },
+            h('button', { class: 'primary', onclick: () => void internal.crashes.report() }, tr('Segnala su GitHub…')),
+            h('button', { onclick: () => void internal.crashes.clear().then(render) }, tr('Cancella l’elenco'))))
+      : h('div', { class: 'row' }, h('div', { class: 'text' }, h('div', { class: 'desc' }, tr('Nessun arresto anomalo registrato.')))),
+  );
+  return h('div', {}, updatesCard, aboutCard, crashCard);
 }
 
 // ---------- Page ----------

@@ -56,6 +56,9 @@ import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } fr
 import { DEFAULT_SETTINGS, TAG_COLORS, TAG_COLOR_INFO, sanitizeSettings } from '../shared/settings-schema';
 import { purgeRemovedFeatures } from './purge';
 import { SiteForgetter } from './forget';
+import { CrashLog } from './crash-log';
+import { issueUrl } from '../shared/crash-report';
+import { REPOSITORY } from '../shared/release';
 import { createProfile, currentProfile, listProfiles, openProfile, removeProfile, updateProfile } from './profiles';
 import { detectSources, importCookies, readSource, type ImportKind } from './importer';
 import { applySiteSettings, clearSiteData, normalizeSiteHost, siteSettingsInfo } from './site-settings';
@@ -118,6 +121,7 @@ let notifications: NotificationCenter;
 let updates: UpdateService;
 let ai: AiService;
 let forgetter: SiteForgetter | null = null;
+let crashes: CrashLog;
 
 /** A tab to open: `open` ones (links from other apps) load and come to the front, the others start asleep. */
 type SavedTab = { url: string; pinned?: boolean; title?: string; open?: boolean; groupId?: string | null; workspace?: string; container?: string | null };
@@ -242,6 +246,8 @@ async function start(): Promise<void> {
   if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(join(__dirname, '../icon.png'));
 
   settings = new SettingsStore();
+  crashes = new CrashLog();
+  crashes.start();
   services = new CloudServices(settings);
   downloads = new DownloadManager(settings, services, (items) => broadcast(IPC.evDownloads, items), {
     threatCheck: (url) => threats.match(url),
@@ -342,6 +348,13 @@ async function start(): Promise<void> {
     openWindow(false, [...first, ...pendingUrls]);
   }
   pendingUrls.length = 0;
+
+  // A crash since the last start: offer to report it (nothing is sent unless the user chooses to).
+  const offerCrash = settings.get().offerCrashReports ? crashes.takeNew() : [];
+  if (offerCrash.length) {
+    const w = normalWindow();
+    w?.win.webContents.once('did-finish-load', () => setTimeout(() => w.send(IPC.evCrashOffer, { count: offerCrash.length }), 2500));
+  }
 
   // Unused background tabs go to sleep to free memory.
   setInterval(() => {
@@ -1646,6 +1659,15 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.restart, SW, () => restartVelo());
   handleInternal(INTERNAL.tokenStatus, S, () => settings.tokenStatus());
   handleInternal(INTERNAL.defaultBrowserStatus, S, () => isDefaultBrowser());
+  // Crash reports (anonymous, sent only through an issue the user reads first).
+  handleInternal(INTERNAL.crashList, S, () => crashes.list());
+  handleInternal(INTERNAL.crashClear, S, () => crashes.clear());
+  handleInternal(INTERNAL.crashReport, S, () => {
+    const list = crashes.list();
+    if (!list.length) return;
+    const w = normalWindow() ?? current();
+    w?.tabs.create(issueUrl(REPOSITORY, list));
+  });
   // Import from other browsers on this computer.
   const IMPORT = ['import', 'welcome'];
   handleInternal(INTERNAL.importSources, IMPORT, () => detectSources().map(({ id, browser, key, profileName }) => ({ id, browser, key, profileName })));

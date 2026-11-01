@@ -163,4 +163,5 @@ export const SETTINGS_SECTIONS: ReadonlyArray<{ id: string; label: string; keywo
   { id: 'ai', label: 'Intelligenza artificiale', keywords: 'assistente ai' },
   { id: 'updates', label: 'Aggiornamenti', keywords: 'versione' },
   { id: 'about', label: 'Informazioni', keywords: 'versione licenza' },
+  { id: 'crashes', label: 'Arresti anomali', keywords: 'arresti anomali crash segnalazione' },
 ];

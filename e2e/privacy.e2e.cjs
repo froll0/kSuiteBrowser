@@ -82,3 +82,25 @@ test('containers forget their sites too', async () => {
     server.close();
   }
 });
+
+test('after a crash Velo offers an anonymous report, sent only by the user', async () => {
+  // The previous run never ended: as after a crash of the browser itself.
+  const velo = await launchVelo({ before: (userData) => fs.writeFileSync(path.join(userData, 'running.lock'), String(Date.now() - 60_000)) });
+  try {
+    const bar = await until(() => velo.win.evaluate(() => (document.getElementById('infobar').hidden ? null : document.getElementById('infobar').textContent)), 10_000);
+    assert.match(bar, /chiuso in modo anomalo/);
+    const settings = await velo.openTab('velo://settings/#crashes', 'velo://settings');
+    await settings.waitForSelector('#crashes li');
+    assert.match(await settings.textContent('#crashes li'), /main · unclean-exit/);
+    const crashes = JSON.parse(fs.readFileSync(path.join(velo.userData, 'crashes.json'), 'utf8'));
+    assert.equal(crashes.entries.length, 1);
+    // The report is a GitHub issue page, already filled in (GitHub may ask to sign in first).
+    await velo.app.evaluate(({ app }) => app.on('web-contents-created', (_e, wc) => wc.on('did-start-navigation', (d) => { if (d.isMainFrame) (globalThis.__nav ??= []).push(d.url); })));
+    await settings.click('#crashes button.primary');
+    const url = await until(() => velo.app.evaluate(() => (globalThis.__nav ?? []).find((u) => u.includes('/issues/new'))));
+    assert.match(url, /github\.com\/froll0\/kSuiteBrowser\/issues\/new\?labels=crash/);
+    assert.match(decodeURIComponent(url), /main · unclean-exit/);
+  } finally {
+    await velo.close();
+  }
+});

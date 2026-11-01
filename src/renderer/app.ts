@@ -1131,6 +1131,20 @@ ks.events.onComposeMail((mail) => void setPanelOpen(true).then(() => panel.compo
 ks.events.onAiAsk((ask) => void setPanelOpen(true).then(() => panel.askAi(ask)));
 ks.events.onToast((t) => toast(t.kind, t.message));
 
+// Velo crashed since the last start: offer an anonymous report.
+ks.events.onCrashOffer(({ count }) => {
+  if (!infobar.hidden) return;
+  infobar.replaceChildren(
+    barIcon('alert'),
+    h('span', { class: 'msg' }, count === 1 ? tr('Velo si è chiuso in modo anomalo. Puoi inviarci una segnalazione anonima: la vedi prima di mandarla.') : tr('Velo si è chiuso in modo anomalo {0} volte. Puoi inviarci una segnalazione anonima: la vedi prima di mandarla.', count)),
+    h('span', { class: 'spacer' }),
+    h('button', { class: 'primary', onclick: () => { hideInfobar(); void ks.openSettingsPage('crashes'); } }, tr('Vedi la segnalazione')),
+    h('button', { onclick: hideInfobar }, tr('Non ora')),
+    h('button', { onclick: () => { hideInfobar(); void ks.settings.set({ offerCrashReports: false }); } }, tr('Non chiedere più')),
+  );
+  infobar.hidden = false;
+});
+
 // A site wants protected content (Netflix…) while Widevine is off.
 ks.events.onDrmOffer((offer) => {
   if (!infobar.hidden) return;

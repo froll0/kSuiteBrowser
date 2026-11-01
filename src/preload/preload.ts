@@ -152,6 +152,8 @@ const api = {
     onDrmOffer: (fn: (offer: { host: string }) => void) => on(IPC.evDrmOffer, fn),
     /** The page took the keyboard focus. */
     onPageFocus: (fn: () => void) => on(IPC.evPageFocus, fn),
+    /** Velo crashed since the last start. */
+    onCrashOffer: (fn: (info: { count: number }) => void) => on(IPC.evCrashOffer, fn),
     /** F6: move the keyboard focus to the next part of the window. */
     onCycleFocus: (fn: () => void) => on(IPC.evCycleFocus, fn),
     /** The page was scrolled up (true) or down, for the auto-hiding bar. */

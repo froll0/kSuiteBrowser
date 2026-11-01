@@ -43,6 +43,12 @@ quindi funzionano senza sorprese.
 - **Impostazioni del sito** (`velo://site`, dal lucchetto o dalla tavolozza): permessi, protezioni, eccezione HTTP, zoom,
   cookie e "ricorda questo sito" in un solo posto, più l'elenco dei siti con impostazioni particolari
 
+**Arresti anomali** (Impostazioni › Informazioni)
+- Velo tiene in locale un breve elenco degli arresti anomali (quale processo, perché, versioni, sistema), ripulito da
+  indirizzi, percorsi ed e-mail; nessun dump della memoria
+- Dopo un arresto propone di segnalarlo: si apre una pagina di GitHub già compilata, che leggi e invii tu. Velo non
+  manda mai nulla da solo; la proposta si può spegnere
+
 **Accessibilità**
 - **Tastiera**: `F6` passa da barra degli indirizzi a schede, barra degli strumenti, preferiti e pagina; nelle schede le
   frecce si spostano (anche sulle etichette dei gruppi), `Invio` apre, `Canc` chiude, il tasto menu (o `Maiusc+F10`)

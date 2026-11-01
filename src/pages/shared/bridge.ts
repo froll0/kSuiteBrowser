@@ -1,6 +1,7 @@
 import { INTERNAL } from '../../shared/ipc';
 import type { AutofillAddress, AutofillCard, ImportKindOption, ImportReport, ImportSourceInfo, ProfileInfo, TagColor, SiteSettingsInfo, SiteSettingsPatch, AiEvent, AboutInfo, BreachReport, ReaderArticle, SyncCollectionOption, SyncStatus, ApiResult, Bookmark, BookmarkFolder, BrowsingDataSelection, Drive, HistoryVisit, Profile, SavedLogin, Settings, TokenStatus, UpdateStatus, VaultStatus } from '../../shared/types';
 import { translateDom, tr, type Locale } from '../../shared/i18n';
+import type { CrashEntry } from '../../shared/crash-report';
 
 interface InternalBridge {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -62,6 +63,12 @@ export const internal = {
   },
   /** Ends the welcome page: opens `url` there, restarting first when the language changed. */
   welcomeFinish: (url: string, restart: boolean) => call<void>(INTERNAL.welcomeFinish, url, restart),
+  crashes: {
+    list: () => call<CrashEntry[]>(INTERNAL.crashList),
+    clear: () => call<void>(INTERNAL.crashClear),
+    /** Opens the GitHub issue, already filled in, for the user to read and send. */
+    report: () => call<void>(INTERNAL.crashReport),
+  },
   importer: {
     sources: () => call<ImportSourceInfo[]>(INTERNAL.importSources),
     run: (sourceId: string, kinds: ImportKindOption[]) => call<ApiResult<ImportReport>>(INTERNAL.importRun, sourceId, kinds),

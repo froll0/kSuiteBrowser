@@ -399,6 +399,8 @@ export interface Settings {
   autofillPasswords: boolean;
   /** Offer saved addresses and payment cards in forms. */
   autofillForms: boolean;
+  /** After a crash, offer to report it (anonymous, sent only when the user chooses to). */
+  offerCrashReports: boolean;
 
   // Privacy e sicurezza
   /** Record visited pages (never in private windows). */

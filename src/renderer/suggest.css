@@ -3,7 +3,7 @@
   font-weight: 100 900;
   src: url('fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
 }
-:root { --surface: #fff; --text: #15181d; --muted: #6a7280; --hover: #f1f3f6; --selected: rgba(10, 116, 240, 0.1); --accent: #0a74f0; --border: #dde1e7; }
+:root { --surface: #fff; --text: #15181d; --muted: #5b6270; --hover: #f1f3f6; --selected: rgba(8, 96, 204, 0.1); --accent: #0860cc; --border: #dde1e7; }
 :root[data-theme="dark"] { --surface: #1f2126; --text: #e8eaee; --muted: #979fab; --hover: #2a2d33; --selected: rgba(76, 157, 255, 0.18); --accent: #4c9dff; --border: #33373e; }
 html, body { margin: 0; background: transparent; overflow: hidden; font: 13.5px/1.3 var(--font, 'Inter Variable', system-ui, sans-serif); user-select: none; -webkit-font-smoothing: antialiased; }
 ul {

@@ -8,6 +8,7 @@ import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from '../../shared/url';
 import { ZOOM_STEPS } from '../../shared/zoom';
 import { hydrateIcons, logoMark } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
+import { followTheme } from '../shared/theme';
 import { LOCALES, LOCALE_NAMES, localeTag, tr } from '../../shared/i18n';
 import { TAG_COLORS, TAG_COLOR_INFO } from '../../shared/settings-schema';
 import type { Container, TagColor, Workspace } from '../../shared/types';
@@ -272,6 +273,7 @@ function toolbarEditor(): HTMLElement {
         }
       });
     } else {
+      c.setAttribute('role', 'button');
       c.setAttribute('aria-label', tr('{0}: Canc per togliere, frecce per spostare', def.label));
       c.addEventListener('keydown', (e) => {
         const start = [...settings.toolbarStart];
@@ -1278,6 +1280,7 @@ function scrollToHash(): void {
   target?.scrollIntoView({ block: 'start' });
 }
 
+followTheme();
 hydrateIcons();
 document.getElementById('logo')?.append(logoMark(28));
 filter.addEventListener('input', applyFilter);

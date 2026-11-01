@@ -43,6 +43,18 @@ quindi funzionano senza sorprese.
 - **Impostazioni del sito** (`velo://site`, dal lucchetto o dalla tavolozza): permessi, protezioni, eccezione HTTP, zoom,
   cookie e "ricorda questo sito" in un solo posto, più l'elenco dei siti con impostazioni particolari
 
+**Accessibilità**
+- **Tastiera**: `F6` passa da barra degli indirizzi a schede, barra degli strumenti, preferiti e pagina; nelle schede le
+  frecce si spostano (anche sulle etichette dei gruppi), `Invio` apre, `Canc` chiude, il tasto menu (o `Maiusc+F10`)
+  apre il menu della scheda; `Ctrl+K` raggiunge qualsiasi comando
+- **Lettori di schermo**: schede e gruppi esposti come schede con il loro stato (fissata, audio, in pausa, gruppo,
+  contenitore), etichette su tutti i pulsanti
+- **Contrasto**: testi e controlli rispettano WCAG AA (4,5:1) in ogni tema, tavolozza e colore d'accento: i colori
+  vengono corretti da soli; la tavolozza *Contrasto elevato* va oltre
+- **Riduci movimento**, dal sistema o dalle impostazioni
+- In CI ogni pagina interna e la finestra passano i controlli automatici di axe-core (WCAG 2.1 A e AA); restano
+  da fare prove a mano con NVDA e VoiceOver
+
 **Importazione dagli altri browser** (`velo://import`, anche dalla pagina di benvenuto)
 - **Preferiti, cronologia, password e cookie** letti direttamente dai profili di Chrome, Edge, Brave, Vivaldi, Opera,
   Chromium e Firefox su questo computer, senza passare da Internet (anche con il browser aperto: Velo ne legge una copia)

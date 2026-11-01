@@ -123,11 +123,12 @@ export function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/** The accent, adjusted until text in that colour reads on `surface` (at least 3:1 for UI accents, 4.5:1 in high contrast). */
-function readableAccent(accent: string, surface: string, dark: boolean, min: number): string {
-  let color = accent;
-  for (let i = 0; i < 12 && contrast(color, surface) < min; i++) color = mix(color, dark ? '#ffffff' : '#000000', 0.12);
-  return color;
+/** `color`, moved towards white (dark themes) or black until it reaches `min` contrast on every background. */
+function readableOn(color: string, backgrounds: string[], dark: boolean, min: number): string {
+  let c = color;
+  const worst = () => Math.min(...backgrounds.map((b) => contrast(c, b)));
+  for (let i = 0; i < 24 && worst() < min; i++) c = mix(c, dark ? '#ffffff' : '#000000', 0.08);
+  return c;
 }
 
 // ---------- Palettes ----------
@@ -196,14 +197,31 @@ export function tokens(s: AppearanceSettings, dark: boolean, isPrivate = false):
   const n = isPrivate ? PRIVATE : NEUTRALS[s.palette][dark ? 'dark' : 'light'];
   const highContrast = s.palette === 'contrast';
   const baseAccent = isPrivate ? PRIVATE.accent : validHex(s.accentColor) ? s.accentColor : DEFAULT_ACCENT;
-  const accent = readableAccent(baseAccent, n.surface, dark || isPrivate, highContrast ? 4.5 : 3);
-  const onAccent = contrast(accent, '#ffffff') >= contrast(accent, '#111318') ? '#ffffff' : '#111318';
-  const accentHover = mix(accent, dark || isPrivate ? '#ffffff' : '#000000', 0.12);
-
   // Backdrop: the colour around the page canvas, lightly tinted with the accent unless neutral.
   const tint = isPrivate || s.backdrop === 'neutral' || highContrast ? 0 : dark ? 0.1 : 0.12;
   const top = mix(n.base, baseAccent, s.backdrop === 'gradient' ? tint * 1.5 : tint);
   const bottom = mix(n.base, baseAccent, s.backdrop === 'gradient' ? tint * 0.35 : tint);
+
+  // Every colour of text and controls must read on all the backgrounds it is drawn on (WCAG AA):
+  // 4.5:1 for text, 3:1 for the accent of controls (4.5:1 in high contrast). Adjusted, never chosen blindly.
+  const dk = dark || isPrivate;
+  // The page background of internal pages and the address bar (between surface and title bar) too.
+  const pageBg = mix(n.surface2, baseAccent, tint ? 0.025 : 0);
+  const backgrounds = [n.surface, n.surface2, top, pageBg, mix(n.surface, top, 0.3)];
+  // The accent is also the colour of links and selected items' text: 4.5:1, also on its own soft tint
+  // (selected rows), which follows the accent: a few rounds settle both.
+  const softAlpha = dk ? 0.2 : 0.12;
+  const tinted = (a: string) => [n.surface, n.surface2, pageBg].map((b) => mix(b, a, softAlpha));
+  let accent = baseAccent;
+  for (let i = 0; i < 4; i++) accent = readableOn(accent, [...backgrounds, ...tinted(accent)], dk, 4.5);
+  const onAccent = contrast(accent, '#ffffff') >= contrast(accent, '#111318') ? '#ffffff' : '#111318';
+  const textBackgrounds = [...backgrounds, ...tinted(accent)];
+  const text2 = readableOn(n.text2, textBackgrounds, dk, 4.5);
+  const muted = readableOn(n.muted, textBackgrounds, dk, 4.5);
+  // White or near-black on the accent: the accent darkens (or lightens) a little more when neither reads.
+  const accentFill = contrast(accent, onAccent) >= 4.5 ? accent : readableOn(accent, [onAccent], onAccent !== '#ffffff', 4.5);
+  // Hovered buttons move away from the text colour, so they stay readable.
+  const accentHover = mix(accentFill, onAccent === '#ffffff' ? '#000000' : '#ffffff', 0.12);
   const d = DENSITY[s.density];
   // The first row stays solid: the system draws the window buttons on that colour.
   const backdrop = s.backdrop === 'gradient' && tint ? `linear-gradient(180deg, ${top} 0px, ${top} ${d.row}px, ${bottom})` : top;
@@ -219,7 +237,7 @@ export function tokens(s: AppearanceSettings, dark: boolean, isPrivate = false):
 
     '--titlebar': top,
     '--backdrop': backdrop,
-    '--bg': mix(n.surface2, baseAccent, tint ? 0.025 : 0),
+    '--bg': pageBg,
     '--surface': n.surface,
     '--surface-2': n.surface2,
     '--surface-3': n.surface3,
@@ -229,11 +247,12 @@ export function tokens(s: AppearanceSettings, dark: boolean, isPrivate = false):
     '--border': n.border,
     '--border-strong': n.borderStrong,
     '--text': n.text,
-    '--text-2': n.text2,
-    '--muted': n.muted,
+    '--text-2': text2,
+    '--muted': muted,
     '--accent': accent,
+    '--accent-fill': accentFill,
     '--accent-hover': accentHover,
-    '--accent-soft': alpha(accent, dark || isPrivate ? 0.2 : 0.12),
+    '--accent-soft': alpha(accent, softAlpha),
     '--on-accent': onAccent,
     '--selected': alpha(accent, dark || isPrivate ? 0.22 : 0.12),
     '--focus': `0 0 0 3px ${alpha(accent, highContrast ? 0.8 : 0.3)}`,

@@ -67,7 +67,7 @@ mark { background: color-mix(in srgb, #ffd54a 45%, transparent); color: inherit;
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-2); font-size: 12.5px; text-decoration: none; }
 .chip:hover { background: var(--hover); }
-a.button { display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: var(--r-sm); background: var(--accent); color: var(--on-accent); font-weight: 550; }
+a.button { display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: var(--r-sm); background: var(--accent-fill, var(--accent)); color: var(--on-accent); font-weight: 550; }
 a.button:hover { background: var(--accent-hover); }
 a.button span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .welcome { padding: 8px 4px; color: var(--muted); }

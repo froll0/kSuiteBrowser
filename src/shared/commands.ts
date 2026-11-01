@@ -33,6 +33,7 @@ export const COMMANDS = [
   { id: 'openPasswords', label: 'Password', group: 'Generale', keys: '' },
   { id: 'clearData', label: 'Cancella dati di navigazione…', group: 'Generale', keys: 'CmdOrCtrl+Shift+Delete' },
   { id: 'find', label: 'Trova nella pagina…', group: 'Pagina', keys: 'CmdOrCtrl+F' },
+  { id: 'cycleFocus', label: 'Passa alla parte successiva della finestra', group: 'Generale', keys: 'F6' },
   { id: 'focusAddress', label: 'Vai all’indirizzo', group: 'Pagina', keys: 'CmdOrCtrl+L' },
   { id: 'reload', label: 'Ricarica', group: 'Pagina', keys: 'CmdOrCtrl+R' },
   { id: 'back', label: 'Indietro', group: 'Pagina', keys: 'Alt+Left' },

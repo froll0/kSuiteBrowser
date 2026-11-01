@@ -1327,4 +1327,12 @@ export const en: Record<string, string> = {
   'Cookie, profili diversi e importazione da file (HTML dei preferiti, CSV delle password).': 'Cookies, other profiles and import from files (bookmarks HTML, passwords CSV).',
   'Password, codici 2FA, indirizzi e carte': 'Passwords, 2FA codes, addresses and cards',
   'Modulo di pagamento di {0}': 'Payment form of {0}',
+  'fissata': 'pinned',
+  'audio disattivato': 'muted',
+  'riproduce audio': 'playing audio',
+  'in pausa': 'sleeping',
+  'caricamento': 'loading',
+  'gruppo {0}': 'group {0}',
+  'contenitore {0}': 'container {0}',
+  'Passa alla parte successiva della finestra': 'Move to the next part of the window',
 };

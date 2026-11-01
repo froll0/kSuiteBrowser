@@ -251,6 +251,24 @@ function hideHoverCard(): void {
 
 window.addEventListener('blur', hideHoverCard);
 
+/** What a screen reader says for a tab: title and state. */
+function tabLabel(t: TabState): string {
+  const parts = [t.title || t.url];
+  if (t.pinned) parts.push(tr('fissata'));
+  if (t.audible) parts.push(t.muted ? tr('audio disattivato') : tr('riproduce audio'));
+  else if (t.muted) parts.push(tr('audio disattivato'));
+  if (t.sleeping) parts.push(tr('in pausa'));
+  if (t.loading) parts.push(tr('caricamento'));
+  const group = t.groupId ? layout.groups.find((g) => g.id === t.groupId) : undefined;
+  if (group) parts.push(tr('gruppo {0}', group.name || tr(TAG_COLOR_INFO[group.color].name).toLowerCase()));
+  const container = t.container ? currentSettings?.containers.find((c) => c.id === t.container) : undefined;
+  if (container) parts.push(tr('contenitore {0}', tr(container.name)));
+  return parts.join(', ');
+}
+
+/** Tab to focus after the strip is drawn again (keyboard in the strip). */
+let refocusTab: number | null = null;
+
 /** Tabs already drawn: only new ones get the opening animation. */
 let drawnTabs = new Set<number>();
 
@@ -272,6 +290,10 @@ function groupChip(groupId: string, count: number): HTMLElement {
     'aria-label': label,
     'aria-expanded': String(!g.collapsed),
   }, h('span', { class: 'label' }, g.name), g.collapsed ? h('span', { class: 'count' }, String(count)) : null);
+  // A group label sits among the tabs: exposed as a tab that folds the group (as in Chrome).
+  chip.setAttribute('role', 'tab');
+  chip.setAttribute('aria-selected', 'false');
+  chip.tabIndex = -1;
   chip.style.setProperty('--group-color', tagColor(g.color));
   chip.addEventListener('click', () => void ks.tabs.groupUpdate(g.id, { collapsed: !g.collapsed }));
   chip.addEventListener('dblclick', (e) => {
@@ -326,6 +348,10 @@ function workspaceButton(): HTMLElement | null {
 
 function renderTabs(): void {
   const firstDraw = drawnTabs.size === 0;
+  // The strip is drawn again on every change: the keyboard focus stays on the same tab (or group label).
+  const focused = document.activeElement instanceof HTMLElement && tabsHost().contains(document.activeElement) ? document.activeElement : null;
+  if (focused?.classList.contains('tab') && refocusTab === null) refocusTab = Number(focused.dataset.id);
+  const focusedGroup = focused?.classList.contains('group-chip') ? focused.dataset.group : undefined;
   const visible = shownTabs();
   const groupOf = (id: string | null) => (id ? layout.groups.find((g) => g.id === id) : undefined);
   const els = visible.map((t) => {
@@ -343,6 +369,9 @@ function renderTabs(): void {
           class: `tab${t.active ? ' active' : ''}${t.loading ? ' loading' : ''}${t.pinned ? ' pinned' : ''}${t.sleeping ? ' sleeping' : ''}`,
           role: 'tab',
           'aria-selected': String(t.active),
+          // Roving focus: only the active tab is in the Tab order; the arrows move between tabs.
+          tabindex: t.active ? '0' : '-1',
+          'aria-label': tabLabel(t),
           title: `${t.title}\n${t.url}${t.sleeping ? tr('\nIn pausa per risparmiare memoria: si ricarica quando la apri') : ''}`,
           draggable: 'true',
           'data-id': String(t.id),
@@ -412,17 +441,37 @@ function renderTabs(): void {
     const newRow = h('button', { class: 'new-tab-row', title: tr('Nuova scheda (Ctrl+T)'), onclick: () => void ks.tabs.create() }, h('span', {}, tr('Nuova scheda')));
     newRow.prepend(icon('plus', 16));
     tabstrip.replaceChildren();
+    $('ws-slot').replaceChildren();
+    $('newtab-slot').replaceChildren();
+    $('side-ws-slot').replaceChildren(...(workspace ? [workspace] : []));
     sideList.replaceChildren(
-      ...(workspace ? [workspace] : []),
-      h('div', { class: 'pinned-grid' }, ...els.filter((el) => el.classList.contains('pinned'))),
+      h('div', { class: 'pinned-grid', role: 'none' }, ...els.filter((el) => el.classList.contains('pinned'))),
       ...withChips.filter((el) => !el.classList.contains('pinned')),
-      newRow,
     );
+    $('side-new-slot').replaceChildren(newRow);
   } else {
     sideList.replaceChildren();
-    tabstrip.replaceChildren(...(workspace ? [workspace] : []), ...withChips, newTabButton());
+    $('side-ws-slot').replaceChildren();
+    $('side-new-slot').replaceChildren();
+    $('ws-slot').replaceChildren(...(workspace ? [workspace] : []));
+    tabstrip.replaceChildren(...withChips);
+    // The tabs measure themselves against their own width (container queries), so the strip can't
+    // size itself from them: it asks for the room they would like, and shrinks when there is less.
+    const wanted = withChips.reduce((w, el) => w + (el.classList.contains('pinned') ? 40 : el.classList.contains('tab') ? 204 : 120), 0);
+    tabstrip.style.flexBasis = `${wanted}px`;
+    $('newtab-slot').replaceChildren(newTabButton());
   }
   drawnTabs = new Set(tabs.map((t) => t.id));
+  if (focusedGroup) tabsHost().querySelector<HTMLElement>(`.group-chip[data-group="${CSS.escape(focusedGroup)}"]`)?.focus();
+  if (refocusTab !== null) {
+    const el = tabsHost().querySelector<HTMLElement>(`.tab[data-id="${refocusTab}"]`);
+    refocusTab = null;
+    if (el) {
+      for (const x of tabsHost().querySelectorAll<HTMLElement>('.tab')) x.tabIndex = -1;
+      el.tabIndex = 0;
+      el.focus();
+    }
+  }
   tabsHost().querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
@@ -436,6 +485,74 @@ function newTabButton(): HTMLButtonElement {
   return button;
 }
 
+// ---------- Keyboard in the tab strip ----------
+// ←/→ (↑/↓ with side tabs) move between tabs and group labels, Home/End to the ends, Enter or Space
+// shows the tab, Delete closes it, the context menu key (or Shift+F10) opens its menu.
+
+for (const host of [tabstrip, sideList]) {
+  host.addEventListener('keydown', (e) => {
+    const target = e.target as HTMLElement;
+    const item = target.closest<HTMLElement>('.tab, .group-chip');
+    if (!item || target.tagName === 'INPUT') return;
+    const items = [...host.querySelectorAll<HTMLElement>('.tab, .group-chip')];
+    const at = items.indexOf(item);
+    const prev = vertical() ? 'ArrowUp' : 'ArrowLeft';
+    const next = vertical() ? 'ArrowDown' : 'ArrowRight';
+    const go = (el: HTMLElement | undefined) => {
+      if (!el) return;
+      e.preventDefault();
+      for (const x of items) if (x.classList.contains('tab')) x.tabIndex = -1;
+      el.tabIndex = 0;
+      el.focus();
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    };
+    const id = Number(item.dataset.id);
+    if (e.key === next) go(items[at + 1] ?? items[0]);
+    else if (e.key === prev) go(items[at - 1] ?? items[items.length - 1]);
+    else if (e.key === 'Home') go(items[0]);
+    else if (e.key === 'End') go(items[items.length - 1]);
+    else if (item.classList.contains('tab') && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      void ks.tabs.activate(id);
+    } else if (item.classList.contains('tab') && e.key === 'Delete') {
+      e.preventDefault();
+      // Keep the keyboard in the strip: the neighbour takes the focus.
+      const neighbour = items[at + 1] ?? items[at - 1];
+      refocusTab = neighbour?.dataset.id ? Number(neighbour.dataset.id) : null;
+      void ks.tabs.close(id);
+    } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+      e.preventDefault();
+      if (item.classList.contains('tab')) void ks.tabs.menu(id);
+      else if (item.dataset.group) void ks.tabs.groupMenu(item.dataset.group);
+    }
+  });
+}
+
+
+// F6 (menu command): address bar → tabs → toolbar → bookmarks bar → page, and round again.
+ks.events.onCycleFocus(() => {
+  const regions: Array<() => HTMLElement | null> = [
+    () => omnibox,
+    () => tabsHost().querySelector<HTMLElement>('.tab.active') ?? tabsHost().querySelector<HTMLElement>('.tab'),
+    () => toolbar.querySelector<HTMLElement>('button:not([disabled]):not([hidden])'),
+    () => (document.body.classList.contains('bookmarks-bar') ? $('bookmarks-bar').querySelector<HTMLElement>('button') : null),
+  ];
+  const active = document.hasFocus() ? (document.activeElement as HTMLElement | null) : null;
+  const containers = [$('omnibox-form'), tabsHost(), toolbar, $('bookmarks-bar')];
+  const current = active ? containers.findIndex((c) => c.contains(active)) : -1;
+  for (let i = current + 1; i < regions.length; i++) {
+    const el = regions[i]();
+    if (el && el.offsetParent !== null) {
+      el.focus();
+      if (el === omnibox) omnibox.select();
+      return;
+    }
+  }
+  // Past the last region: back to the page.
+  const tab = activeTab();
+  if (tab) void ks.tabs.activate(tab.id);
+});
+
 // With more tabs than fit, the mouse wheel scrolls the tab strip.
 tabstrip.addEventListener('wheel', (e) => {
   if (tabstrip.scrollWidth <= tabstrip.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
@@ -443,7 +560,8 @@ tabstrip.addEventListener('wheel', (e) => {
   tabstrip.scrollLeft += e.deltaY;
 }, { passive: false });
 
-for (const host of [tabstrip, sideList]) {
+// Drops are taken on the whole tabs area (also the empty space after the last tab).
+for (const host of [$('tabs-area'), sideList]) {
   host.addEventListener('dragover', (e) => {
     if (!e.dataTransfer?.types.includes(TAB_MIME)) return;
     e.preventDefault();

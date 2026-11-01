@@ -32,6 +32,7 @@ export const IPC = {
   setContentBounds: 'layout:content-bounds',
   chromeVisible: 'layout:chrome-visible',
   evPageFocus: 'layout:page-focus',
+  evCycleFocus: 'layout:cycle-focus',
   evScrollReveal: 'layout:scroll-reveal',
   evWindowState: 'ui:window-state',
   windowControl: 'ui:window-control',

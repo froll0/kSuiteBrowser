@@ -946,6 +946,7 @@ function appActions(): AppMenuActions {
     pinTab: () => withActiveTab((w, id) => w.tabs.setPinned(id, !w.tabs.states().find((t) => t.id === id)?.pinned)),
     muteTab: () => withActiveTab((w, id) => w.tabs.setMuted(id, !w.tabs.states().find((t) => t.id === id)?.muted)),
     commandPalette: () => toggleCommandPalette(current()),
+    cycleFocus: () => current()?.focusChrome(IPC.evCycleFocus),
     groupTab: () => withActiveTab((w, id) => w.tabs.createGroup([id])),
     newContainerTab: () => {
       const w = current();

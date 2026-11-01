@@ -27,6 +27,7 @@
     "@mozilla/readability": "^0.6.0",
     "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^22.20.4",
+    "axe-core": "4.10.3",
     "electron": "git+https://github.com/castlabs/electron-releases.git#v44.1.0+wvcus",
     "electron-builder": "^26.15.3",
     "electron-updater": "^6.8.9",

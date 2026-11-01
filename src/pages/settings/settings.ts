@@ -754,7 +754,8 @@ function permissionsSection(): HTMLElement {
 
 const SYNC_COLLECTIONS: Array<[SyncCollectionOption, string]> = [
   ['bookmarks', tr('Preferiti')],
-  ['logins', 'Password'],
+  ['logins', tr('Password, codici 2FA, indirizzi e carte')],
+  ['spaces', tr('Spazi di lavoro e contenitori')],
   ['history', tr('Cronologia (ultimi 90 giorni)')],
   ['tabs', tr('Schede aperte (per riaprirle da un altro dispositivo)')],
 ];

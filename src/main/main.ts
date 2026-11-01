@@ -269,6 +269,14 @@ async function start(): Promise<void> {
       .filter((t) => /^https?:/i.test(t.url))
       .map((t) => ({ title: t.title, url: t.url })),
     onStatus: (status) => sendToInternalPages(INTERNAL.evSync, status),
+    spaces: {
+      get: () => ({ workspaces: settings.get().workspaces, containers: settings.get().containers }),
+      set: (key, items) => settings.update({ [key]: items } as Partial<Settings>),
+      isDefault: (key) => JSON.stringify(settings.get()[key]) === JSON.stringify(DEFAULT_SETTINGS[key]),
+    },
+  });
+  settings.onChange((next, prev) => {
+    if (JSON.stringify([next.workspaces, next.containers]) !== JSON.stringify([prev.workspaces, prev.containers])) sync.soon();
   });
   bookmarks.onChange(() => sync.soon());
   passwords.vault.onChange(() => sync.soon());

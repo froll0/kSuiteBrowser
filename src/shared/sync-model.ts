@@ -23,6 +23,34 @@ export interface LoginData {
   username: string;
   password: string;
   createdAt: number;
+  /** Two-factor key; absent when the login has none. */
+  totp?: string;
+}
+
+/** An address for forms (see AutofillAddress), keyed by its id. */
+export interface AddressData {
+  name: string;
+  organization: string;
+  street: string;
+  postalCode: string;
+  city: string;
+  region: string;
+  country: string;
+  phone: string;
+  email: string;
+}
+
+/** A payment card (never the security code), keyed by its id. */
+export interface CardData {
+  name: string;
+  number: string;
+  expMonth: number;
+  expYear: number;
+}
+
+/** Workspaces and containers: one record each ('workspaces', 'containers'), the whole list. */
+export interface SpacesData {
+  items: Array<{ id: string; name: string; color: string }>;
 }
 
 export interface HistoryData {
@@ -35,10 +63,13 @@ export interface SyncState {
   bookmarks: Record<string, SyncRecord<BookmarkData>>;
   logins: Record<string, SyncRecord<LoginData>>;
   history: Record<string, SyncRecord<HistoryData>>;
+  addresses: Record<string, SyncRecord<AddressData>>;
+  cards: Record<string, SyncRecord<CardData>>;
+  spaces: Record<string, SyncRecord<SpacesData>>;
 }
 
 export type Collection = keyof SyncState;
-export const COLLECTIONS: Collection[] = ['bookmarks', 'logins', 'history'];
+export const COLLECTIONS: Collection[] = ['bookmarks', 'logins', 'history', 'addresses', 'cards', 'spaces'];
 
 /** Deletions are forgotten after 90 days (every device has seen them by then, or never will). */
 export const TOMBSTONE_TTL_MS = 90 * 24 * 3600 * 1000;
@@ -46,7 +77,7 @@ export const TOMBSTONE_TTL_MS = 90 * 24 * 3600 * 1000;
 export const HISTORY_WINDOW_MS = 90 * 24 * 3600 * 1000;
 
 export function emptyState(): SyncState {
-  return { bookmarks: {}, logins: {}, history: {} };
+  return { bookmarks: {}, logins: {}, history: {}, addresses: {}, cards: {}, spaces: {} };
 }
 
 // ---------- Keys ----------

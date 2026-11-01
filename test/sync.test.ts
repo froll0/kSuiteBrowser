@@ -52,7 +52,7 @@ describe('sync model', () => {
     const now = 200 * DAY;
     const state: SyncState = {
       bookmarks: { old: { updatedAt: now - 100 * DAY, deleted: true }, recent: { updatedAt: now - DAY, deleted: true } },
-      logins: {},
+      logins: {}, addresses: {}, cards: {}, spaces: {},
       history: { 'https://old.ch': { updatedAt: 1, data: { url: 'https://old.ch', title: '', lastVisit: now - 120 * DAY } } },
     };
     const c = compact(state, now);
@@ -81,3 +81,22 @@ describe('sync model', () => {
   });
 });
 
+
+describe('sync of the newer data', () => {
+  it('carries 2FA keys, addresses, cards and spaces, and edited spaces beat untouched defaults', () => {
+    const now = 1_800_000_000_000;
+    const a = localState(emptyState(), {
+      logins: { 'https://x.ch\nanna': { data: { origin: 'https://x.ch', username: 'anna', password: 'p', createdAt: 1, totp: 'JBSWY3DPEHPK3PXP' }, changedAt: 5 } },
+      addresses: { a1: { data: { name: 'Anna', organization: '', street: 'Via 1', postalCode: '', city: 'Milano', region: '', country: '', phone: '', email: '' } } },
+      cards: { c1: { data: { name: 'A', number: '4111111111111111', expMonth: 5, expYear: 2029 } } },
+      spaces: { workspaces: { data: { items: [{ id: 'default', name: 'Generale', color: 'blue' }, { id: 'ws-1', name: 'Tesi', color: 'green' }] } } },
+    }, now);
+    // A new computer with the default lists (changedAt 1 on its first sync).
+    const b = localState(emptyState(), { spaces: { workspaces: { data: { items: [{ id: 'default', name: 'Generale', color: 'blue' }] }, changedAt: 1 } } }, now + 1000);
+    const merged = mergeStates(a, b);
+    expect(merged.logins['https://x.ch\nanna'].data?.totp).toBe('JBSWY3DPEHPK3PXP');
+    expect(merged.addresses.a1.data?.city).toBe('Milano');
+    expect(merged.cards.c1.data?.number).toBe('4111111111111111');
+    expect(merged.spaces.workspaces.data?.items.map((w) => w.name)).toEqual(['Generale', 'Tesi']);
+  });
+});

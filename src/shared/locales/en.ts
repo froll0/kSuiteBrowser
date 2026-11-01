@@ -1325,4 +1325,5 @@ export const en: Record<string, string> = {
   'Importato': 'Imported',
   'Altre possibilità': 'Other options',
   'Cookie, profili diversi e importazione da file (HTML dei preferiti, CSV delle password).': 'Cookies, other profiles and import from files (bookmarks HTML, passwords CSV).',
+  'Password, codici 2FA, indirizzi e carte': 'Passwords, 2FA codes, addresses and cards',
 };

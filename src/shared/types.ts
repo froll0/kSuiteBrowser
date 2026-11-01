@@ -604,7 +604,8 @@ export interface TabSearchData {
   reset: boolean;
 }
 
-export type SyncCollectionOption = 'bookmarks' | 'logins' | 'history' | 'tabs';
+/** logins also carries 2FA keys, addresses and cards; spaces = workspaces and containers. */
+export type SyncCollectionOption = 'bookmarks' | 'logins' | 'history' | 'tabs' | 'spaces';
 
 /** State of the encrypted kDrive sync, for the settings page. */
 export interface SyncStatus {

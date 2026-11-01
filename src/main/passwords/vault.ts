@@ -271,15 +271,32 @@ export class Vault {
   }
 
   /** Login coming from another device (sync): its dates are kept. */
-  putSynced(origin: string, username: string, password: string, createdAt: number, updatedAt: number): void {
+  putSynced(origin: string, username: string, password: string, createdAt: number, updatedAt: number, totp: string | null = null): void {
     const data = this.data();
     const existing = data.logins.find((l) => l.origin === origin && l.username === username);
+    const key = totp ? normalizeTotp(totp) : null;
     if (existing) {
       existing.password = password;
       existing.updatedAt = updatedAt;
+      existing.totp = key;
     } else {
-      data.logins.push({ id: randomUUID(), origin, username, password, createdAt, updatedAt, lastUsedAt: null, timesUsed: 0 });
+      data.logins.push({ id: randomUUID(), origin, username, password, createdAt, updatedAt, lastUsedAt: null, timesUsed: 0, totp: key });
     }
+    this.persist();
+  }
+
+  /** Address or card from another device (sync), with its id. */
+  putAddressSynced(id: string, fields: Omit<AutofillAddress, 'id'>): void {
+    const data = this.data();
+    data.addresses = [...(data.addresses ?? []).filter((a) => a.id !== id), { id, ...cleanAddress(fields) }];
+    this.persist();
+  }
+
+  putCardSynced(id: string, card: Omit<AutofillCard, 'id'>): void {
+    const number = cleanCardNumber(card.number);
+    if (!number) return;
+    const data = this.data();
+    data.cards = [...(data.cards ?? []).filter((c) => c.id !== id), { id, name: String(card.name ?? '').slice(0, 120), number, expMonth: card.expMonth, expYear: card.expYear }];
     this.persist();
   }
 

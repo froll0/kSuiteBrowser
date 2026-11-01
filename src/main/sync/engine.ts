@@ -6,7 +6,7 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 import { safeStorage } from 'electron';
 import { downloadFile, ensureDirectory, listAll, trashFile, uploadFile } from '../../api/drive';
 import {
-  COLLECTIONS, bookmarkKey, compact, emptyState, localState, loginKey, mergeStates, plan, rebase,
+  type SpacesData, COLLECTIONS, bookmarkKey, compact, emptyState, localState, loginKey, mergeStates, plan, rebase,
   type BookmarkData, type Collection, type HistoryData, type LoginData, type SyncState,
 } from '../../shared/sync-model';
 import type { Bookmark, RemoteTabs, SyncCollectionOption, SyncStatus } from '../../shared/types';
@@ -63,6 +63,13 @@ export interface SyncDeps {
   bookmarks: BookmarksStore;
   history: HistoryStore;
   vault: Vault;
+  /** Workspaces and containers (settings). */
+  spaces: {
+    get(): { workspaces: SpacesData['items']; containers: SpacesData['items'] };
+    set(key: 'workspaces' | 'containers', items: SpacesData['items']): void;
+    /** True while the list is still the one Velo starts with (never edited). */
+    isDefault(key: 'workspaces' | 'containers'): boolean;
+  };
   /** Open tabs of the normal windows. */
   openTabs: () => Array<{ title: string; url: string }>;
   onStatus: (status: SyncStatus) => void;
@@ -103,7 +110,7 @@ export class SyncEngine {
       enabled: false,
       deviceId: randomUUID(),
       deviceName: hostname() || tr('Questo computer'),
-      collections: { bookmarks: true, logins: true, history: true, tabs: true },
+      collections: { bookmarks: true, logins: true, history: true, tabs: true, spaces: true },
       keyCipher: null,
       snapshot: null,
       lastSync: null,
@@ -414,6 +421,8 @@ export class SyncEngine {
   }
 
   private syncs(c: Collection): boolean {
+    // Addresses and cards are in the password vault: they follow the passwords option.
+    if (c === 'addresses' || c === 'cards') return this.local.collections.logins;
     return this.local.collections[c];
   }
 
@@ -434,12 +443,24 @@ export class SyncEngine {
       if (this.deps.vault.tryAutoUnlock()) {
         out.logins = {};
         for (const l of this.deps.vault.list()) {
-          const data: LoginData = { origin: l.origin, username: l.username, password: l.password, createdAt: l.createdAt };
+          const data: LoginData = { origin: l.origin, username: l.username, password: l.password, createdAt: l.createdAt, ...(l.totp ? { totp: l.totp } : {}) };
           out.logins[loginKey(l.origin, l.username)] = { data, changedAt: l.updatedAt };
         }
+        out.addresses = {};
+        for (const { id, ...data } of this.deps.vault.addresses()) out.addresses[id] = { data };
+        out.cards = {};
+        for (const { id, ...data } of this.deps.vault.cards()) out.cards[id] = { data };
       } else {
         this.passwordsWaiting = true;
       }
+    }
+    if (this.syncs('spaces')) {
+      const spaces = this.deps.spaces.get();
+      // Lists never edited lose against any edited copy (a new computer must not reset the others).
+      out.spaces = {
+        workspaces: { data: { items: spaces.workspaces }, changedAt: this.deps.spaces.isDefault('workspaces') ? 1 : undefined },
+        containers: { data: { items: spaces.containers }, changedAt: this.deps.spaces.isDefault('containers') ? 1 : undefined },
+      };
     }
     if (this.syncs('history')) {
       out.history = {};
@@ -477,11 +498,28 @@ export class SyncEngine {
       if (current.logins) {
         const local = Object.fromEntries(Object.entries(current.logins).map(([k, v]) => [k, v.data]));
         const { upsert, remove } = plan(local, merged.logins);
-        for (const [key, data] of upsert) this.deps.vault.putSynced(data.origin, data.username, data.password, data.createdAt, merged.logins[key].updatedAt);
+        for (const [key, data] of upsert) this.deps.vault.putSynced(data.origin, data.username, data.password, data.createdAt, merged.logins[key].updatedAt, data.totp ?? null);
         for (const key of remove) {
           const [origin, username] = key.split('\n');
           this.deps.vault.removeSynced(origin, username ?? '');
         }
+      }
+      if (current.addresses) {
+        const local = Object.fromEntries(Object.entries(current.addresses).map(([k, v]) => [k, v.data]));
+        const { upsert, remove } = plan(local, merged.addresses);
+        for (const [id, data] of upsert) this.deps.vault.putAddressSynced(id, data);
+        for (const id of remove) this.deps.vault.removeAddress(id);
+      }
+      if (current.cards) {
+        const local = Object.fromEntries(Object.entries(current.cards).map(([k, v]) => [k, v.data]));
+        const { upsert, remove } = plan(local, merged.cards);
+        for (const [id, data] of upsert) this.deps.vault.putCardSynced(id, data);
+        for (const id of remove) this.deps.vault.removeCard(id);
+      }
+      if (current.spaces) {
+        const local = Object.fromEntries(Object.entries(current.spaces).map(([k, v]) => [k, v.data]));
+        const { upsert } = plan(local, merged.spaces);
+        for (const [key, data] of upsert) if (key === 'workspaces' || key === 'containers') this.deps.spaces.set(key, data.items);
       }
       if (current.history) {
         const local = Object.fromEntries(Object.entries(current.history).map(([k, v]) => [k, v.data]));

@@ -142,9 +142,14 @@ export class PasswordManager {
     // Addresses and payment cards in forms (cards only on secure pages).
     ipcMain.handle('af:field-click', (event, info: { kind?: string }) => {
       const ctx = this.context(event);
-      if (!ctx || ctx.frame !== event.sender.mainFrame || !this.settings.get().autofillForms) return;
+      if (!ctx || !this.settings.get().autofillForms) return;
       const kind = info?.kind === 'card' ? 'card' : 'address';
       if (kind === 'card' && !secureOrigin(ctx.origin)) return;
+      // An embedded frame (a payment provider's form) only gets cards, and only when it and the page
+      // are on secure connections; the menu names the frame's site so the user knows who receives them.
+      const main = event.sender.mainFrame;
+      const embedded = ctx.frame !== main;
+      if (embedded && (kind !== 'card' || !main.url.startsWith('https://') || !ctx.origin.startsWith('https://'))) return;
       const unlocked = this.vault.tryAutoUnlock();
       if (!unlocked) {
         if (this.vault.status().state === 'locked') Menu.buildFromTemplate([{ label: tr('Sblocca le password salvate…'), click: () => ctx.tab.window.send(IPC.evPasswordUnlock, { reason: 'fill' }) }]).popup({ window: ctx.tab.window.win });
@@ -152,12 +157,18 @@ export class PasswordManager {
       }
       const { frame, origin } = ctx;
       const send = (data: Record<string, string>) => {
-        if (!frame.isDestroyed() && originOf(frame.url) === origin) frame.send('af:fill', data);
+        if (!embedded) {
+          if (!frame.isDestroyed() && originOf(frame.url) === origin) frame.send('af:fill', data);
+          return;
+        }
+        // Providers often split number, expiry and name over several frames of their own site.
+        for (const f of main.framesInSubtree) if (f !== main && !f.isDestroyed() && originOf(f.url) === origin) f.send('af:fill', data);
       };
-      const items: Electron.MenuItemConstructorOptions[] = kind === 'card'
+      const items: Electron.MenuItemConstructorOptions[] = embedded ? [{ label: tr('Modulo di pagamento di {0}', new URL(origin).host), enabled: false }] : [];
+      items.push(...(kind === 'card'
         ? this.vault.cards().map((c) => ({ label: `•••• ${c.number.slice(-4)} — ${String(c.expMonth).padStart(2, '0')}/${String(c.expYear).slice(-2)}${c.name ? ` · ${c.name}` : ''}`, click: () => send(cardFields(c)) }))
-        : this.vault.addresses().map((a) => ({ label: [a.name, a.street, a.city].filter(Boolean).join(', ') || a.email, click: () => send(addressFields(a)) }));
-      if (!items.length) return;
+        : this.vault.addresses().map((a) => ({ label: [a.name, a.street, a.city].filter(Boolean).join(', ') || a.email, click: () => send(addressFields(a)) }))));
+      if (!items.some((i) => i.click)) return;
       items.push({ type: 'separator' }, { label: kind === 'card' ? tr('Gestisci carte…') : tr('Gestisci indirizzi…'), click: () => ctx.tab.window.openInternal(`velo://passwords/#${kind === 'card' ? 'cards' : 'addresses'}`) });
       Menu.buildFromTemplate(items).popup({ window: ctx.tab.window.win });
     });

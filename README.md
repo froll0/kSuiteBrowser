@@ -153,7 +153,9 @@ quindi funzionano senza sorprese.
   `otpauth://` che il sito mostra col QR code); il codice compare nella pagina delle password con il conto alla
   rovescia e viene proposto nei campi del codice di verifica (anche quelli a una casella per cifra)
 - **Indirizzi e carte di pagamento**, cifrati come le password: clic in un modulo di spedizione o di pagamento e scelta
-  dal menu; le carte solo sulle pagine HTTPS, il codice di sicurezza (CVC) non viene mai salvato
+  dal menu; le carte solo sulle pagine HTTPS, il codice di sicurezza (CVC) non viene mai salvato. Funziona anche nei
+  moduli di pagamento incorporati (Stripe, Adyen…): lì solo le carte, solo con un clic vero e con il nome del fornitore
+  nel menu, così sai a chi le stai dando
 - Pagina di gestione: ricerca, mostra/copia, modifica, eliminazione, avvisi per password **riutilizzate** o **deboli**, siti esclusi
 - **Importazione CSV** da Chrome, Edge, Firefox, Safari, Bitwarden, 1Password; **esportazione CSV** (richiede la password principale)
 - **Password compromesse**: "Controlla ora" nella pagina delle password verifica se compaiono in violazioni di dati note
@@ -457,8 +459,6 @@ codice caricato solo dall'archivio `app.asar` (verificato su Windows e macOS), c
 - Importazione: le password di **Chrome 127+ su Windows** sono legate all'app (cifratura "app-bound") e non si possono
   leggere da fuori: Velo lo dice e propone l'esportazione in CSV. Con la password principale di Firefox attiva le password
   di Firefox vanno esportate in CSV.
-- Indirizzi e carte si compilano solo nella pagina principale, non nei moduli di pagamento dentro un iframe di un altro
-  sito (Stripe e simili).
 - Il browser si basa su Electron, che riceve gli aggiornamenti di sicurezza di Chromium con qualche settimana di ritardo:
   la CI avvisa quando c'è una versione nuova, ma l'aggiornamento va fatto (e pubblicato) a mano.
 - La protezione dall'impronta non copre i *service worker* (girano fuori dalle schede).

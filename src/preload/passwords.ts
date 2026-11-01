@@ -241,10 +241,12 @@ function fillForm(data: FormData): void {
   }
 }
 
-function startAutofill(): void {
+function startAutofill(cardsOnly = false): void {
   document.addEventListener('click', (e) => {
+    // Only real clicks: a page script can't ask for saved data by faking one.
+    if (!e.isTrusted) return;
     const kind = fieldKind(e.target as Element);
-    if (!kind) return;
+    if (!kind || (cardsOnly && !kind.startsWith('cc-'))) return;
     const field = e.target as HTMLInputElement;
     if (field.value && kind !== 'otp' && !(field instanceof HTMLSelectElement)) return;
     if (kind === 'otp') void ipcRenderer.invoke('pw:otp-click');
@@ -261,6 +263,12 @@ if (/^https?:$/.test(location.protocol) && window === window.top) {
     start();
     startAutofill();
   };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
+} else if (location.protocol === 'https:') {
+  // Payment forms in an embedded frame (Stripe, Adyen, Braintree…): payment cards only, never logins.
+  ipcRenderer.on('af:fill', (_e, data: FormData) => fillForm(data ?? {}));
+  const boot = () => startAutofill(true);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 }

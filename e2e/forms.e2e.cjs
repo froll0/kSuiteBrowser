@@ -7,11 +7,16 @@ const SHOP = `<title>Shop</title>
 <form><input id="fn" name="firstname"><input id="ln" name="lastname"><input id="st" autocomplete="address-line1"><input id="zip" name="cap"><input id="city" name="city"><input id="mail" type="email"></form>
 <form><input id="cc" autocomplete="cc-number"><input id="exp" autocomplete="cc-exp"><input id="holder" autocomplete="cc-name"></form>`;
 
+const CHECKOUT = (port) => `<title>Checkout</title><iframe id="pay" src="https://pay.test:${port}/card" width="400" height="200"></iframe>`;
+const CARD_FRAME = '<form><input id="cc" autocomplete="cc-number"><input id="exp" autocomplete="cc-exp"><input id="user" type="text" name="username"></form>';
+
 test('two-factor codes, addresses and cards fill forms', async () => {
+  let port = 0;
   const server = await serve((req, res) => {
     res.setHeader('Content-Type', 'text/html');
-    res.end(SHOP);
+    res.end(req.url === '/checkout' ? CHECKOUT(port) : req.url === '/card' ? CARD_FRAME : SHOP);
   }, { secure: true });
+  port = server.port;
   const origin = `https://shop.test:${server.port}`;
   const velo = await launchVelo();
   try {
@@ -52,6 +57,25 @@ test('two-factor codes, addresses and cards fill forms', async () => {
       const v = await shop.evaluate(() => ['cc', 'exp', 'holder'].map((id) => document.getElementById(id).value));
       return v[0] ? v : null;
     }), ['4111111111111111', '05/29', 'ANNA ROSSI']);
+
+    // A payment provider's form in an embedded frame of another site: cards only, with its name.
+    const checkout = await velo.openTab(`${origin}/checkout`, '/checkout');
+    await checkout.waitForSelector('#pay');
+    const frame = await until(() => checkout.frames().find((f) => f.url().includes('pay.test')));
+    await frame.waitForSelector('#cc');
+    await frame.click('#cc');
+    const labels = await until(velo.menuLabels);
+    assert.equal(labels[0], `Modulo di pagamento di pay.test:${server.port}`);
+    await velo.pick('••••');
+    assert.deepEqual(await until(async () => {
+      const v = await frame.evaluate(() => ['cc', 'exp'].map((id) => document.getElementById(id).value));
+      return v[0] ? v : null;
+    }), ['4111111111111111', '05/29']);
+    // Nothing for other fields of the frame.
+    await velo.app.evaluate(() => { globalThis.__menu = null; });
+    await frame.click('#user');
+    await new Promise((r) => setTimeout(r, 600));
+    assert.equal(await velo.menuLabels(), null);
   } finally {
     await velo.close();
     server.close();

@@ -4,6 +4,8 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 
 ## Prossima versione
 
+## 0.7.0
+
 ### Sicurezza e affidabilità
 - Segnalazione degli arresti anomali facoltativa e anonima: Velo tiene un breve elenco locale, ripulito da indirizzi,
   percorsi ed e-mail, e propone di aprire una segnalazione su GitHub già compilata, che leggi e invii tu.

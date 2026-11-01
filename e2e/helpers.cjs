@@ -23,12 +23,13 @@ function tempDir(name) {
  */
 async function launchVelo({ cfg = tempDir('profile'), settings = { onboarded: true }, args = [], env = {}, before } = {}) {
   fs.mkdirSync(path.join(cfg, 'Velo'), { recursive: true });
-  if (settings) fs.writeFileSync(path.join(cfg, 'Velo', 'settings.json'), JSON.stringify({ settings }));
+  // The tests read the Italian texts: Italian on every system (null = a new profile, with the welcome page).
+  fs.writeFileSync(path.join(cfg, 'Velo', 'settings.json'), JSON.stringify({ settings: { language: 'it', ...(settings ?? { onboarded: false }) } }));
   if (before) before(path.join(cfg, 'Velo'));
   const app = await _electron.launch({
     executablePath: electronPath,
     args: [ROOT, '--no-sandbox', '--no-proxy-server', '--ignore-certificate-errors', '--host-resolver-rules=MAP *.test 127.0.0.1', ...args],
-    env: { ...process.env, LANG: 'it_IT.UTF-8', XDG_CONFIG_HOME: cfg, no_proxy: '*', NO_PROXY: '*', ...env },
+    env: { ...process.env, LANG: 'it_IT.UTF-8', XDG_CONFIG_HOME: cfg, VELO_TEST_APPDATA: cfg, no_proxy: '*', NO_PROXY: '*', ...env },
   });
   await app.firstWindow();
   const velo = {

@@ -45,8 +45,12 @@ jobs:
   # Chromium, 2FA codes, address and card autofill, privacy (purge, bounce links, forgotten sites).
   e2e:
     needs: check
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -55,7 +59,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: xvfb-run -a npm run e2e
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npm run e2e
+      - if: runner.os != 'Linux'
+        run: npm run e2e
 
   # Manual run: installers as workflow artifacts, nothing is published.
   package:

@@ -13,6 +13,8 @@ const MARKER = 'legacy-profile.json';
  * becomes unreadable. Must run before anything touches the profile (single instance lock included).
  */
 export function adoptLegacyProfile(): void {
+  // Tests start Velo with a throwaway folder on every system (XDG_CONFIG_HOME only works on Linux).
+  if (process.env.VELO_TEST_APPDATA) app.setPath('appData', process.env.VELO_TEST_APPDATA);
   const appData = app.getPath('appData');
   const current = join(appData, 'Velo');
   const legacy = join(appData, LEGACY_NAME);

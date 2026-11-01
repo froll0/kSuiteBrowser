@@ -35,7 +35,9 @@ function chromiumProfile(cfg, port) {
   return port;
 }
 
-test('imports bookmarks, history, cookies and passwords from a Chromium profile', async () => {
+// The profile is written where Chromium keeps it on Linux, with the key Chromium uses there without a
+// keyring; on Windows (DPAPI) and macOS (Keychain) the key belongs to the system.
+test('imports bookmarks, history, cookies and passwords from a Chromium profile', { skip: process.platform !== 'linux' && 'Linux profile layout' }, async () => {
   const server = await serve((req, res) => {
     res.setHeader('Content-Type', 'text/html');
     res.end('<title>T</title><script>document.title = "C:" + document.cookie</script>');

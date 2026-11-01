@@ -733,10 +733,11 @@ function permissionsSection(): HTMLElement {
   const decisions = settings.sitePermissions.length
     ? h('ul', { class: 'list' }, ...settings.sitePermissions.map((sp) =>
         h('li', {},
-          h('span', {}, h('strong', {}, sp.host), ' · ', permissionLabel(sp.permission), ' ', h('span', { class: `tag ${sp.allowed ? 'allow' : 'block'}` }, sp.allowed ? tr('Consentito') : tr('Bloccato'))),
+          h('span', {}, h('strong', {}, sp.host), ' · ', permissionLabel(sp.permission), ' ',
+            sp.container ? h('span', { class: 'tag' }, tr('Contenitore: {0}', tr(settings.containers.find((c) => c.id === sp.container)?.name ?? sp.container))) : '', ' ', h('span', { class: `tag ${sp.allowed ? 'allow' : 'block'}` }, sp.allowed ? tr('Consentito') : tr('Bloccato'))),
           h('button', {
             class: 'link',
-            onclick: () => void update({ sitePermissions: settings.sitePermissions.filter((x) => !(x.host === sp.host && x.permission === sp.permission)) }).then(render),
+            onclick: () => void update({ sitePermissions: settings.sitePermissions.filter((x) => x !== sp) }).then(render),
           }, tr('Rimuovi')),
         )))
     : h('p', { class: 'muted small' }, tr('Nessuna scelta salvata.'));

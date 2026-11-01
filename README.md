@@ -36,7 +36,8 @@ quindi funzionano senza sorprese.
   `Ctrl+Alt+←/→`); le schede degli altri spazi restano aperte e vengono ripristinate con la sessione
 - **Contenitori** (Personale, Lavoro, Acquisti, Banca, o i tuoi): schede con cookie, accessi e dati propri, per essere
   connesso a due account dello stesso sito o tenere separati i siti; clic destro sul `+` o "Riapri in un contenitore"
-  nel menu della scheda; una barretta colorata indica il contenitore
+  nel menu della scheda; una barretta colorata indica il contenitore. Ogni contenitore ha anche i propri permessi dei
+  siti, e «Dimentica i siti alla chiusura» vale anche dentro i contenitori
 - **Profili** (Impostazioni › *Profili*, menu File › Profili): un Velo separato per ogni profilo, con cronologia,
   preferiti, password, cookie e impostazioni propri; il nome compare nella barra e nel titolo della finestra
 - **Impostazioni del sito** (`velo://site`, dal lucchetto o dalla tavolozza): permessi, protezioni, eccezione HTTP, zoom,
@@ -97,7 +98,7 @@ quindi funzionano senza sorprese.
   HTML dell'articolo ricostruito in modo sicuro
 - **Cerca tra le schede** (`Ctrl+Shift+A` o il pulsante nella barra degli strumenti): tutte le schede delle finestre aperte,
   dalla più recente, con ricerca, chiusura (`Shift+Canc`) e schede chiuse di recente da riaprire
-- **Sincronizzazione cifrata su kDrive**: preferiti, password, cronologia e schede aperte tra i tuoi computer, cifrati
+- **Sincronizzazione cifrata su kDrive**: preferiti, password (con codici 2FA, indirizzi e carte), cronologia, schede aperte, spazi di lavoro e contenitori tra i tuoi computer, cifrati
   end-to-end con una passphrase che conosci solo tu (vedi sotto)
 - **Schede dormienti**: le schede non usate da un po' (1 ora, configurabile in Impostazioni › Generale) chiudono la pagina
   per liberare memoria e si ricaricano quando le apri, con la cronologia avanti/indietro intatta. Mai quelle fissate,
@@ -456,11 +457,8 @@ codice caricato solo dall'archivio `app.asar` (verificato su Windows e macOS), c
 - Importazione: le password di **Chrome 127+ su Windows** sono legate all'app (cifratura "app-bound") e non si possono
   leggere da fuori: Velo lo dice e propone l'esportazione in CSV. Con la password principale di Firefox attiva le password
   di Firefox vanno esportate in CSV.
-- Le chiavi 2FA, gli indirizzi e le carte non vengono ancora sincronizzati su kDrive (solo password, preferiti, cronologia e schede).
 - Indirizzi e carte si compilano solo nella pagina principale, non nei moduli di pagamento dentro un iframe di un altro
   sito (Stripe e simili).
-- I contenitori condividono i permessi dei siti (fotocamera, posizione…) e «Dimentica i siti alla chiusura» riguarda
-  solo le schede senza contenitore.
 - Il browser si basa su Electron, che riceve gli aggiornamenti di sicurezza di Chromium con qualche settimana di ritardo:
   la CI avvisa quando c'è una versione nuova, ma l'aggiornamento va fatto (e pubblicato) a mano.
 - La protezione dall'impronta non copre i *service worker* (girano fuori dalle schede).

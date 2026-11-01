@@ -22,7 +22,8 @@ export function normalizeSiteHost(input: string): string | null {
 export async function siteSettingsInfo(settings: SettingsStore, session: Session, host: string): Promise<SiteSettingsInfo> {
   const s = settings.get();
   const site = siteOf(`https://${host}/`) ?? host;
-  const saved = s.sitePermissions.filter((p) => p.host === host);
+  // The page shows the normal tabs' decisions (containers keep their own).
+  const saved = s.sitePermissions.filter((p) => p.host === host && !p.container);
   const names = [...new Set([...ASKABLE_PERMISSIONS, ...saved.map((p) => p.permission)])];
   const permissions = names.map((permission) => {
     const remembered = saved.find((p) => p.permission === permission);
@@ -57,7 +58,7 @@ export function applySiteSettings(settings: SettingsStore, host: string, patch: 
   const next: Parameters<SettingsStore['update']>[0] = {};
   if (patch.permission && typeof patch.permission.name === 'string') {
     const { name, state } = patch.permission;
-    const others = s.sitePermissions.filter((p) => !(p.host === host && p.permission === name));
+    const others = s.sitePermissions.filter((p) => !(p.host === host && p.permission === name && !p.container));
     next.sitePermissions = state === 'default' ? others : [...others, { host, permission: name, allowed: state === 'allow' }];
   }
   if (patch.zoom !== undefined) {

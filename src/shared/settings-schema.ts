@@ -167,9 +167,10 @@ function sitePermissions(value: unknown): SitePermission[] {
   const seen = new Map<string, SitePermission>();
   for (const v of value) {
     if (!v || typeof v !== 'object') continue;
-    const { host, permission, allowed } = v as Partial<SitePermission>;
+    const { host, permission, allowed, container } = v as Partial<SitePermission>;
     if (typeof host !== 'string' || !host || typeof permission !== 'string' || typeof allowed !== 'boolean') continue;
-    seen.set(`${host}|${permission}`, { host: host.toLowerCase(), permission, allowed });
+    const box = typeof container === 'string' && /^[a-z0-9-]{1,40}$/.test(container) ? container : undefined;
+    seen.set(`${host}|${permission}|${box ?? ''}`, { host: host.toLowerCase(), permission, allowed, ...(box ? { container: box } : {}) });
   }
   return [...seen.values()].sort((a, b) => a.host.localeCompare(b.host) || a.permission.localeCompare(b.permission));
 }

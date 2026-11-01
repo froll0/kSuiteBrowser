@@ -59,3 +59,26 @@ test('a site is forgotten once its tabs are closed (when asked for)', async () =
     server.close();
   }
 });
+
+test('containers forget their sites too', async () => {
+  const server = await serve((req, res) => {
+    res.setHeader('Set-Cookie', 'box=1; Max-Age=3600');
+    res.setHeader('Content-Type', 'text/html');
+    res.end('<title>Box</title>');
+  });
+  const velo = await launchVelo({ settings: { onboarded: true, httpsOnly: false, forgetSitesOnClose: true } });
+  const cookies = () => velo.app.evaluate(async ({ session }) => (await session.fromPartition('persist:container-work').cookies.get({ name: 'box' })).length);
+  try {
+    await velo.captureMenus();
+    await velo.win.evaluate(() => window.velo.tabs.containerMenu({ x: 10, y: 10, width: 10, height: 10 }));
+    await velo.pick('Lavoro');
+    const tab = await until(async () => (await velo.tabs()).find((t) => t.container === 'work'));
+    await velo.win.evaluate(([id, url]) => window.velo.tabs.navigate(id, url), [tab.id, `http://127.0.0.1:${server.port}/`]);
+    assert.equal(await until(async () => (await cookies()) === 1), true);
+    await velo.win.evaluate((id) => window.velo.tabs.close(id), tab.id);
+    assert.equal(await until(async () => (await cookies()) === 0, 25_000, 500), true);
+  } finally {
+    await velo.close();
+    server.close();
+  }
+});

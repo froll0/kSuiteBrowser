@@ -2,7 +2,7 @@ import { type WebContents, desktopCapturer, dialog, type BrowserWindow, type Ses
 import { isTrustedSuiteHost } from '../shared/infomaniak-apps';
 import { externalAppName, externalScheme, externalVerdict } from '../shared/external-protocols';
 import { ASKABLE_PERMISSIONS } from '../shared/settings-schema';
-import type { AskablePermission } from '../shared/types';
+import type { AskablePermission, SitePermission } from '../shared/types';
 import type { SettingsStore } from './settings';
 import { tr } from '../shared/i18n';
 
@@ -23,12 +23,14 @@ export interface PermissionMemory {
   set(host: string, permission: string, allowed: boolean): void;
 }
 
-export function persistentMemory(settings: SettingsStore): PermissionMemory {
+/** Decisions in the settings; a container keeps its own (the same site may differ between containers). */
+export function persistentMemory(settings: SettingsStore, container?: string): PermissionMemory {
+  const mine = (p: SitePermission) => (p.container ?? undefined) === container;
   return {
-    get: (host, permission) => settings.get().sitePermissions.find((p) => p.host === host && p.permission === permission)?.allowed,
+    get: (host, permission) => settings.get().sitePermissions.find((p) => mine(p) && p.host === host && p.permission === permission)?.allowed,
     set: (host, permission, allowed) => {
-      const others = settings.get().sitePermissions.filter((p) => !(p.host === host && p.permission === permission));
-      settings.update({ sitePermissions: [...others, { host, permission, allowed }] });
+      const others = settings.get().sitePermissions.filter((p) => !(mine(p) && p.host === host && p.permission === permission));
+      settings.update({ sitePermissions: [...others, { host, permission, allowed, ...(container ? { container } : {}) }] });
     },
   };
 }

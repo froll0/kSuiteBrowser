@@ -233,6 +233,8 @@ export interface SitePermission {
   host: string;
   permission: string;
   allowed: boolean;
+  /** Decision made in a container's tabs (absent: normal tabs). */
+  container?: string;
 }
 
 /** A colour for tab groups, workspaces and containers. */

@@ -169,8 +169,9 @@ app.on('before-quit', (event) => {
   quitting = true;
   const s = settings?.get();
   // Sites to forget: the ones still open, unless their tabs come back at the next start.
-  const forget = s && s.forgetSitesOnClose && s.startup !== 'restore' && forgetter
-    ? [...openSites([...windows].filter((w) => !w.isPrivate).flatMap((w) => w.tabs.states().map((t) => t.url)))].filter((site) => !s.rememberedSites.includes(site))
+  // Per session: the normal one and each container keep their own cookies.
+  const forget = s && s.forgetSitesOnClose && s.startup !== 'restore'
+    ? allForgetters().flatMap(([container, f]) => [...openSites(tabUrls(container))].filter((site) => !s.rememberedSites.includes(site)).map((site) => () => f.forget(site)))
     : [];
   if (!s || dataCleared || (!s.clearCookiesOnExit && !s.clearCacheOnExit && forget.length === 0)) return;
   event.preventDefault();
@@ -179,7 +180,7 @@ app.on('before-quit', (event) => {
     ...(s.clearCookiesOnExit || s.clearCacheOnExit
       ? persistentSessions().map((ses) => clearBrowsingData(ses, { cookies: s.clearCookiesOnExit, cache: s.clearCacheOnExit }))
       : []),
-    ...forget.map((site) => forgetter!.forget(site)),
+    ...forget.map((run) => run()),
   ])
     .catch((err) => console.error('[privacy] pulizia alla chiusura non riuscita:', err))
     .finally(() => app.quit());
@@ -282,9 +283,7 @@ async function start(): Promise<void> {
   passwords.vault.onChange(() => sync.soon());
   sync.start();
   passwords.register();
-  forgetter = new SiteForgetter(electronSession.defaultSession, settings, () =>
-    [...windows].filter((w) => !w.isPrivate).flatMap((w) => w.tabs.states().map((t) => t.url)),
-  );
+  forgetter = new SiteForgetter(electronSession.defaultSession, settings, () => tabUrls(null));
   notifications = new NotificationCenter(settings, services, {
     openApp: (appId) => {
       const appDef = INFOMANIAK_APPS.find((a) => a.id === appId);
@@ -351,7 +350,8 @@ async function start(): Promise<void> {
   }, 60_000).unref();
 }
 
-function setupSession(ses: Session, isPrivate: boolean): void {
+/** Sets up a session; `container` for a container's (its own site permissions). */
+function setupSession(ses: Session, isPrivate: boolean, container?: string): void {
   const guard = new PrivacyGuard(ses, settings, blocker, (wcId) => {
     const wc = allWebContents.fromId(wcId);
     if (!wc) return;
@@ -360,7 +360,7 @@ function setupSession(ses: Session, isPrivate: boolean): void {
   guard.install();
   guards.set(ses, guard);
   downloads.attach(ses, { isPrivate });
-  configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings), () => lastFocused?.win ?? null, (contents) => offerDrm(contents));
+  configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings, container), () => lastFocused?.win ?? null, (contents) => offerDrm(contents));
   serveInternalPages(ses, PATHS.pages, faviconFor);
   ses.registerPreloadScript({ type: 'frame', id: 'velo-adblock', filePath: PATHS.adblockPreload });
   ses.registerPreloadScript({ type: 'frame', id: 'velo-passwords', filePath: PATHS.passwordsPreload });
@@ -390,10 +390,23 @@ function containerSession(id: string): Session | undefined {
   let ses = containerSessions.get(id);
   if (!ses) {
     ses = electronSession.fromPartition(`persist:container-${id}`);
-    setupSession(ses, false);
+    setupSession(ses, false, id);
     containerSessions.set(id, ses);
+    containerForgetters.set(id, new SiteForgetter(ses, settings, () => tabUrls(id)));
   }
   return ses;
+}
+
+const containerForgetters = new Map<string, SiteForgetter>();
+
+/** Addresses of the tabs of normal windows in a container (null: without container). */
+function tabUrls(container: string | null): string[] {
+  return [...windows].filter((w) => !w.isPrivate).flatMap((w) => w.tabs.states().filter((t) => t.container === container).map((t) => t.url));
+}
+
+/** "Forget sites" for the normal session and for every container in use. */
+function allForgetters(): Array<[string | null, SiteForgetter]> {
+  return [...(forgetter ? [[null, forgetter] as [null, SiteForgetter]] : []), ...containerForgetters];
 }
 
 /** The sessions saved on disk: the normal one and those of the containers (also unused ones). */
@@ -429,12 +442,12 @@ const windowContext: WindowContext = {
   onTabsChanged: (w) => {
     if (!w.isPrivate) {
       scheduleSessionSave();
-      forgetter?.update();
+      for (const [, f] of allForgetters()) f.update();
     }
   },
   onClosed: (w) => {
     windows.delete(w);
-    if (!w.isPrivate) forgetter?.update();
+    if (!w.isPrivate) for (const [, f] of allForgetters()) f.update();
     if (lastFocused === w) lastFocused = null;
     // Keep the last window's tabs for the next start (closing it quits the app).
     if (!w.isPrivate && !quitting && normalWindow()) scheduleSessionSave();
@@ -755,6 +768,9 @@ function onSettingsChanged(next: Settings, previous: Settings): void {
     for (const w of windows) for (const t of w.tabs.states().filter((x) => x.container === id)) reopenInContainer(w, t.id, null);
     const ses = containerSessions.get(id) ?? electronSession.fromPartition(`persist:container-${id}`);
     containerSessions.delete(id);
+    containerForgetters.get(id)?.dispose();
+    containerForgetters.delete(id);
+    settings.update({ sitePermissions: settings.get().sitePermissions.filter((p) => p.container !== id) });
     void ses.clearStorageData().then(() => ses.clearCache()).catch(() => {});
   }
 
@@ -1142,11 +1158,12 @@ function showSiteMenu(w: BrowserWindowController, tabId: number): void {
   if (w.isPrivate) {
     items.push({ label: tr('Nelle finestre private i permessi valgono fino alla chiusura'), enabled: false });
   } else {
-    const granted = settings.get().sitePermissions.filter((p) => p.host === hostname);
+    const box = w.tabs.states().find((t) => t.id === tabId)?.container ?? undefined;
+    const granted = settings.get().sitePermissions.filter((p) => p.host === hostname && p.container === box);
     if (granted.length === 0) items.push({ label: tr('Nessun permesso scelto per questo sito'), enabled: false });
     for (const p of granted) {
       const set = (allowed: boolean | null) => {
-        const others = settings.get().sitePermissions.filter((x) => !(x.host === hostname && x.permission === p.permission));
+        const others = settings.get().sitePermissions.filter((x) => !(x.host === hostname && x.permission === p.permission && x.container === box));
         settings.update({ sitePermissions: allowed === null ? others : [...others, { ...p, allowed }] });
       };
       items.push({

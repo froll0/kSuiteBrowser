@@ -145,7 +145,9 @@ jobs:
           if [ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null)" = "true" ]; then
             gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes
           fi
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" --title "Velo $TAG" --generate-notes
+          # The version's section of CHANGELOG.md, else GitHub's list of changes.
+          if node scripts/release-notes.mjs "$TAG" > notes.md; then NOTES=(--notes-file notes.md); else NOTES=(--generate-notes); fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" --title "Velo $TAG" "${NOTES[@]}"
         env:
           TAG: ${{ steps.version.outputs.tag }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

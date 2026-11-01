@@ -9,6 +9,12 @@ minimale e personalizzabile. Funziona senza alcun account; chi usa i servizi clo
 
 ![Velo, tema scuro con schede di lato e sfondo sfumato](docs/screenshot-dark.png)
 
+## Documentazione
+
+- [Guida rapida](docs/GUIDA.md) e [domande frequenti](docs/FAQ.md)
+- [Informativa sulla privacy](PRIVACY.md) e [sicurezza](SECURITY.md) (come segnalare una vulnerabilità)
+- [Novità di ogni versione](CHANGELOG.md) e [come si pubblica una versione](docs/RILASCIO.md)
+
 ## Perché Electron + TypeScript
 
 | Opzione | Pro | Contro per un *browser* |

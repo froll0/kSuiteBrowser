@@ -1,15 +1,16 @@
 name: Electron security updates
 
-# Electron carries Chromium's security fixes: every week check for a newer castlabs build and open an
-# issue when there is one.
+# Electron carries Chromium's security fixes: every week check for a newer castlabs build. When there is
+# one: an issue, and a branch with the update already made and tested, proposed as a pull request.
 on:
   schedule:
     - cron: '17 6 * * 1'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
+  pull-requests: write
 
 jobs:
   check:
@@ -26,6 +27,45 @@ jobs:
           code=$?
           if [ "$code" = "2" ]; then echo "::warning::È disponibile una versione più recente di Electron (vedi la issue)."; exit 0; fi
           exit $code
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - id: version
+        run: echo "info=$(node scripts/check-electron.mjs --json)" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - if: fromJSON(steps.version.outputs.info).outdated
+        name: Update, test and propose
+        run: |
+          VERSION="${{ fromJSON(steps.version.outputs.info).latest }}"
+          BRANCH="electron-update/v$VERSION"
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then echo "Branch $BRANCH already proposed."; exit 0; fi
+          npm ci
+          node scripts/update-electron.mjs "$VERSION"
+          npm run typecheck
+          npm test
+          npm run build
+          xvfb-run -a npm run e2e
+          xvfb-run -a node scripts/net-audit.mjs 40
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git commit -am "Update Electron to $VERSION"
+          git push origin "$BRANCH"
+          gh pr create --base "${{ github.event.repository.default_branch }}" --head "$BRANCH" \
+            --title "Aggiornare Electron a $VERSION" \
+            --body "Correzioni di sicurezza di Chromium. Typecheck, test unitari, build, test end-to-end e verifica di rete sono passati su Linux. Dopo l'unione: provare su Windows e macOS, poi pubblicare una versione."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

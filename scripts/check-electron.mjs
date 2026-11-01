@@ -31,6 +31,10 @@ const lines = [`Electron in uso: ${current}`];
 if (sameMajor.length) lines.push(`Correzioni nella stessa versione principale: ${sameMajor.map((r) => r.version).join(', ')}`);
 if (latest && newer(latest.version, current)) lines.push(`Ultima versione stabile: ${latest.version} (${latest.url})`);
 const outdated = latest && newer(latest.version, current);
+if (process.argv.includes('--json')) {
+  console.log(JSON.stringify({ current, latest: latest?.version ?? current, outdated: Boolean(outdated) }));
+  process.exit(0);
+}
 console.log(lines.join('\n'));
 if (!outdated) {
   console.log('Aggiornato.');

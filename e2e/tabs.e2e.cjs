@@ -21,17 +21,20 @@ test('containers, groups and workspaces, kept with the session', async () => {
     const ctab = await until(async () => (await velo.tabs()).find((t) => t.container === 'work'));
     assert.ok(ctab, 'a tab in the Work container');
     const navigate = (id, url) => velo.win.evaluate(([id, url]) => window.velo.tabs.navigate(id, url), [id, url]);
-    await navigate(ctab.id, `${base}/set?v=work`);
-    await sleep(800);
-    await navigate(ctab.id, `${base}/read`);
+    // Each page shows the cookie it holds: wait for it before the next step (slow machines too).
+    const titleOf = async (id) => (await velo.tabs()).find((t) => t.id === id)?.title;
     const normal = (await velo.tabs()).find((t) => t.url.includes('v=normal'));
+    assert.equal(await until(async () => (await titleOf(normal.id)) === 'C:who=normal', 15_000), true);
+    await navigate(ctab.id, `${base}/set?v=work`);
+    assert.equal(await until(async () => (await titleOf(ctab.id)) === 'C:who=work', 15_000), true);
+    await navigate(ctab.id, `${base}/read`);
     await navigate(normal.id, `${base}/read`);
     const titles = await until(async () => {
       const tabs = await velo.tabs();
       const a = tabs.find((t) => t.id === ctab.id)?.title;
       const b = tabs.find((t) => t.id === normal.id)?.title;
-      return a === 'C:who=work' && b === 'C:who=normal' ? [a, b] : null;
-    });
+      return a === 'C:who=work' && b === 'C:who=normal' && tabs.every((t) => t.id !== ctab.id || t.url.endsWith('/read')) ? [a, b] : null;
+    }, 15_000);
     assert.deepEqual(titles, ['C:who=work', 'C:who=normal']);
 
     // Groups
@@ -60,8 +63,10 @@ test('containers, groups and workspaces, kept with the session', async () => {
     await velo.win.evaluate(() => window.velo.tabs.switchWorkspace('default'));
     assert.equal(await until(() => velo.win.evaluate(() => Boolean(document.querySelector('.workspace-btn')))), true);
 
-    await velo.app.evaluate(({ app }) => app.quit());
-    await sleep(2000);
+    // Quitting saves the session at once: wait for the app to be gone, then read it.
+    const exited = new Promise((resolve) => velo.app.process().once('exit', resolve));
+    await velo.app.evaluate(({ app }) => app.quit()).catch(() => {});
+    await Promise.race([exited, sleep(15_000)]);
     const saved = JSON.parse(fs.readFileSync(path.join(velo.userData, 'session.json'), 'utf8')).windows[0];
     assert.equal(saved.layout.groups[0].name, 'Ricerca');
     assert.ok(saved.tabs.some((t) => t.workspace === ws));

@@ -8,6 +8,12 @@ updates:
       interval: weekly
     ignore:
       - dependency-name: electron
+      # Major versions change the toolchain (TypeScript 7 is a new compiler; @types/node follows
+      # Electron's Node, not the latest): updated by hand.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
       dev-tools:
         dependency-type: development

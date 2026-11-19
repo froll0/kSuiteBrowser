@@ -122,7 +122,7 @@ test('the main menu (⋮) is drawn by Velo: commands, zoom, folded sections, key
     assert.equal(await until(async () => (await menu.textContent('.zvalue')) === '110%'), true);
     // A folded section opens in place.
     assert.equal(await menu.$('[data-id="devTools"]'), null);
-    await menu.click('[data-id="more:Altri strumenti"]');
+    await menu.click('[data-id="more:/Altri strumenti"]');
     await menu.waitForSelector('[data-id="devTools"]');
     // Keyboard: Home goes to "New tab", Enter runs it and closes the menu.
     await menu.keyboard.press('Home');
@@ -130,6 +130,28 @@ test('the main menu (⋮) is drawn by Velo: commands, zoom, folded sections, key
     await menu.keyboard.press('Enter');
     assert.equal(await until(async () => (await velo.tabs()).length === before + 1), true);
     assert.equal(await velo.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.some((v) => v.webContents.getURL().includes('mainmenu.html'))), false);
+  } finally {
+    await velo.close();
+  }
+});
+
+test('popup menus are drawn by Velo too: right click on a page, edit actions', async () => {
+  const velo = await launchVelo();
+  try {
+    const page = await velo.openTab('velo://history/', 'velo://history');
+    await page.fill('#search', 'parola');
+    await page.click('#search', { button: 'right' });
+    const menu = await velo.waitPage('mainmenu.html');
+    await menu.waitForSelector('.item');
+    const labels = await menu.$$eval('.item .label', (els) => els.map((e) => e.textContent));
+    assert.ok(labels.includes('Seleziona tutto') && labels.includes('Incolla'), labels.join(', '));
+    assert.equal(await menu.evaluate(() => document.body.classList.contains('compact')), true);
+    // "Select all" acts on the page that was right-clicked.
+    await menu.click('.item:has-text("Seleziona tutto")');
+    assert.equal(await until(() => page.evaluate(() => {
+      const f = document.getElementById('search');
+      return f.selectionStart === 0 && f.selectionEnd === f.value.length;
+    })), true);
   } finally {
     await velo.close();
   }

@@ -62,7 +62,8 @@ async function launchVelo({ cfg = tempDir('profile'), settings = { onboarded: tr
       return velo.waitPage(frag);
     },
     /** Popup menus are captured instead of shown, so a test can choose their items. */
-    captureMenus: () => app.evaluate(({ Menu }) => { Menu.prototype.popup = function () { globalThis.__menu = this; }; }),
+    // Velo draws its menus itself (src/main/popup-menu.ts): with this flag it hands them over instead.
+    captureMenus: () => app.evaluate(({ Menu }) => { globalThis.__captureMenus = true; Menu.prototype.popup = function () { globalThis.__menu = this; }; }),
     menuLabels: () => app.evaluate(() => (globalThis.__menu ? globalThis.__menu.items.map((i) => i.label) : null)),
     /** Clicks an item of the last captured menu, following submenus by label (prefix). */
     pick: (...labels) => app.evaluate((_, labels) => {

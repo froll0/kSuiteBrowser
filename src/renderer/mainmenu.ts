@@ -9,7 +9,7 @@ translateDom(document.documentElement);
 interface Bridge {
   onData(fn: (data: MainMenuData) => void): void;
   run(id: string, keepOpen?: boolean): void;
-  resize(height: number): void;
+  resize(width: number, height: number): void;
   dismiss(): void;
 }
 
@@ -25,11 +25,24 @@ function glyph(name: string): Element {
   return span;
 }
 
+const compact = () => data?.variant === 'context';
+
+/** The icon column: the item's icon, a tick for a chosen option in compact menus, or empty. */
+function lead(e: { icon: string; checked?: boolean }): Element | null {
+  if (compact()) {
+    const span = h('span', { class: 'icon tick' });
+    if (e.checked) span.append(icon('check', 15));
+    else if (e.icon) span.append(icon(e.icon as IconName, 16));
+    return span;
+  }
+  return glyph(e.icon);
+}
+
 function itemRow(e: Extract<MainMenuEntry, { kind: 'item' }>, nested: boolean): HTMLElement {
-  const el = h('button', { class: `item${nested ? ' nested' : ''}`, role: e.checked === undefined ? 'menuitem' : 'menuitemcheckbox', tabindex: '-1', 'data-id': e.id },
-    glyph(e.icon),
-    h('span', { class: 'label' }, e.label),
-    e.checked !== undefined ? h('span', { class: `check${e.checked ? ' on' : ''}`, 'aria-hidden': 'true' }) : null,
+  const el = h('button', { class: `item${nested ? ' nested' : ''}`, role: e.checked === undefined ? 'menuitem' : 'menuitemcheckbox', tabindex: '-1', 'data-id': e.id, disabled: e.enabled === false },
+    lead(e),
+    e.sub ? h('span', { class: 'label two' }, h('span', {}, e.label), h('small', {}, e.sub)) : h('span', { class: 'label' }, e.label),
+    e.checked !== undefined && !compact() ? h('span', { class: `check${e.checked ? ' on' : ''}`, 'aria-hidden': 'true' }) : null,
     // Long shortcuts in the folded sections would cut the labels: those stay in the tooltip.
     e.keys && !(nested && e.keys.length > 12) ? h('span', { class: 'keys' }, e.keys) : null);
   if (e.keys) el.title = e.keys;
@@ -66,26 +79,42 @@ function render(): void {
     badge.style.background = data.profile.color;
     nodes.push(h('div', { class: 'profile' }, badge, h('span', {}, data.profile.name)), h('div', { class: 'sep', role: 'separator' }));
   }
-  for (const e of data.entries) {
-    if (e.kind === 'separator') nodes.push(h('div', { class: 'sep', role: 'separator' }));
-    else if (e.kind === 'zoom') nodes.push(zoomRow(data));
-    else if (e.kind === 'item') nodes.push(itemRow(e, false));
-    else {
-      const isOpen = open.has(e.label);
-      const head = h('button', { class: `item more${isOpen ? ' open' : ''}`, role: 'menuitem', tabindex: '-1', 'aria-haspopup': 'true', 'aria-expanded': String(isOpen), 'data-id': `more:${e.label}` },
-        glyph(e.icon), h('span', { class: 'label' }, e.label), h('span', { class: 'chev' }, icon('chevronDown', 15)));
-      head.addEventListener('click', () => toggle(e.label));
-      nodes.push(head);
-      if (isOpen) nodes.push(h('div', { class: 'nested-group', role: 'group', 'aria-label': e.label }, ...e.items.map((x) => (x.kind === 'item' ? itemRow(x, true) : h('div', { class: 'sep', role: 'separator' })))));
-    }
-  }
+  document.body.classList.toggle('compact', compact());
+  const entryNodes = (list: MainMenuEntry[], nested: boolean, path: string): Node[] => list.flatMap((e): Node[] => {
+    if (e.kind === 'separator') return [h('div', { class: 'sep', role: 'separator' })];
+    if (e.kind === 'header') return [h('div', { class: `header${nested ? ' nested' : ''}`, role: 'presentation' }, e.label)];
+    if (e.kind === 'zoom') return [zoomRow(data!)];
+    if (e.kind === 'item') return [itemRow(e, nested)];
+    const key = `${path}/${e.label}`;
+    const isOpen = open.has(key);
+    const head = h('button', { class: `item more${isOpen ? ' open' : ''}${nested ? ' nested' : ''}`, role: 'menuitem', tabindex: '-1', 'aria-haspopup': 'true', 'aria-expanded': String(isOpen), 'data-id': `more:${key}`, disabled: e.enabled === false },
+      lead(e), h('span', { class: 'label' }, e.label), h('span', { class: 'chev' }, icon('chevronDown', 15)));
+    head.addEventListener('click', () => toggle(key));
+    return [head, ...(isOpen ? [h('div', { class: 'nested-group', role: 'group', 'aria-label': e.label }, ...entryNodes(e.items, true, key))] : [])];
+  });
+  nodes.push(...entryNodes(data.entries, false, ''));
   menu.replaceChildren(...nodes);
   const again = focusedId ? menu.querySelector<HTMLElement>(`[data-id="${CSS.escape(focusedId)}"]`) : null;
   // Opened with the mouse: no item looks selected until the keyboard is used (arrows start from the top).
   if (again && !again.matches(':disabled')) again.focus();
   else menu.focus();
-  // Content height (the card itself fills the view, whatever its size).
-  requestAnimationFrame(() => bridge.resize((menu.lastElementChild?.getBoundingClientRect().bottom ?? 0) + menu.scrollTop + 12));
+  requestAnimationFrame(measure);
+}
+
+/** The size the menu needs: content height, and for compact menus the width of its longest row. */
+function measure(): void {
+  const height = (menu.lastElementChild?.getBoundingClientRect().bottom ?? 0) + menu.scrollTop + 12;
+  let width = 0;
+  for (const row of menu.querySelectorAll<HTMLElement>('.item, .header')) {
+    const label = row.querySelector<HTMLElement>('.label');
+    const fixed = [...row.children].filter((c) => c !== label).reduce((w, c) => w + (c as HTMLElement).offsetWidth + 12, 0);
+    const pad = parseFloat(getComputedStyle(row).paddingLeft) + parseFloat(getComputedStyle(row).paddingRight);
+    // The text's own width (the label stretches to fill the row).
+    const range = document.createRange();
+    range.selectNodeContents(label ?? row);
+    width = Math.max(width, range.getBoundingClientRect().width + (label ? fixed : 0) + pad);
+  }
+  bridge.resize(Math.ceil(width) + 16, height);
 }
 
 function toggle(label: string): void {

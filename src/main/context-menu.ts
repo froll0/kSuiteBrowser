@@ -1,4 +1,4 @@
-import { Menu, clipboard, type MenuItemConstructorOptions, type WebContents } from 'electron';
+import { clipboard, type MenuItemConstructorOptions, type WebContents } from 'electron';
 import { PAGE_ACTIONS, TEXT_ACTIONS, type PageAction, type TextAction } from '../shared/ai-prompts';
 import { stripTrackingParams } from '../shared/privacy-rules';
 import { runMediaAction, type MediaAction } from './media';
@@ -18,6 +18,8 @@ export interface ContextMenuActions {
   askAboutPage(action: PageAction): void;
   /** An Infomaniak account is connected: kDrive and Mail actions are offered. */
   cloudEnabled(): boolean;
+  /** Shows the menu (drawn by Velo, at the pointer). */
+  popup(items: MenuItemConstructorOptions[], at: { x: number; y: number }): void;
 }
 
 /** Right-click menu for web pages, with the cloud actions (when an account is connected) next to the usual browser ones. */
@@ -156,6 +158,6 @@ export function attachContextMenu(contents: WebContents, actions: ContextMenuAct
       items.push({ label: tr('Visualizza sorgente pagina'), click: () => actions.viewSource(contents) });
     }
     items.push({ label: tr('Ispeziona'), click: () => contents.inspectElement(params.x, params.y) });
-    Menu.buildFromTemplate(items).popup();
+    actions.popup(items, { x: params.x, y: params.y });
   });
 }

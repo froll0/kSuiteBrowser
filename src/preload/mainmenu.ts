@@ -8,6 +8,6 @@ contextBridge.exposeInMainWorld('mainMenu', {
   onData: (fn: (data: MainMenuData) => void) => ipcRenderer.on('mainmenu:data', (_e, data) => fn(data)),
   /** Runs a command; `keepOpen` for zoom buttons. */
   run: (id: string, keepOpen = false) => ipcRenderer.send('mainmenu:run', id, keepOpen),
-  resize: (height: number) => ipcRenderer.send('mainmenu:resize', height),
+  resize: (width: number, height: number) => ipcRenderer.send('mainmenu:resize', width, height),
   dismiss: () => ipcRenderer.send('mainmenu:dismiss'),
 });

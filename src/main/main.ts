@@ -51,6 +51,7 @@ import { CloudServices } from './services';
 import { SettingsStore } from './settings';
 import { BookmarksStore } from './stores/bookmarks';
 import { cleanPath, folderEntries } from '../shared/bookmark-folders';
+import { popupMenu, runPopupItem } from './popup-menu';
 import { FaviconStore } from './stores/favicons';
 import { HistoryStore } from './stores/history';
 import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } from './window';
@@ -535,7 +536,7 @@ function tabContextMenu(w: BrowserWindowController, tabId: number): void {
   const closeMany = (list: number[]) => {
     for (const id of list) w.tabs.close(id);
   };
-  Menu.buildFromTemplate([
+  popupMenu(w.win, [
     { label: tr('Nuova scheda a destra'), click: () => w.tabs.create(settings.get().newTabPage === 'newtab' ? NEWTAB_URL : settings.get().homePage, { index: index + 1 }) },
     { type: 'separator' },
     { label: tr('Ricarica'), click: () => w.tabs.reload(tabId) },
@@ -560,7 +561,7 @@ function tabContextMenu(w: BrowserWindowController, tabId: number): void {
     { label: tr('Chiudi le schede a destra'), enabled: index < ids.length - 1, click: () => closeMany(ids.slice(index + 1)) },
     { type: 'separator' },
     { label: tr('Riapri scheda chiusa'), enabled: w.tabs.hasClosed(), click: () => w.tabs.reopenClosed() },
-  ]).popup({ window: w.win });
+  ]);
 }
 
 /** Groups, workspaces and containers in the tab menu. */
@@ -848,20 +849,20 @@ function bookmarkPageMenu(w: BrowserWindowController, tabId: number): void {
     return;
   }
   const other: BookmarkFolder = existing.folder === 'bar' ? 'other' : 'bar';
-  Menu.buildFromTemplate([
+  popupMenu(w.win, [
     { label: tr('Nei preferiti: {0}', existing.title), enabled: false },
     { type: 'separator' },
     { label: other === 'other' ? tr('Sposta in Altri preferiti') : tr('Sposta nella barra dei preferiti'), click: () => bookmarks.update(existing.id, { folder: other }) },
     { label: tr('Modifica…'), click: () => w.openInternal('velo://bookmarks/') },
     { label: tr('Rimuovi dai preferiti'), click: () => bookmarks.remove(existing.id) },
-  ]).popup({ window: w.win });
+  ]);
 }
 
 function bookmarkContextMenu(w: BrowserWindowController, id: string): void {
   const b = bookmarks.list().find((x) => x.id === id);
   if (!b) return;
   const other: BookmarkFolder = b.folder === 'bar' ? 'other' : 'bar';
-  Menu.buildFromTemplate([
+  popupMenu(w.win, [
     { label: tr('Apri'), click: () => openUrl(w, b.url, 'current') },
     { label: tr('Apri in una nuova scheda'), click: () => openUrl(w, b.url, 'background') },
     { label: tr('Apri in una nuova finestra'), click: () => openUrl(w, b.url, 'window') },
@@ -870,7 +871,7 @@ function bookmarkContextMenu(w: BrowserWindowController, id: string): void {
     { label: other === 'other' ? tr('Sposta in Altri preferiti') : tr('Sposta nella barra dei preferiti'), click: () => bookmarks.update(b.id, { folder: other }) },
     { label: tr('Modifica…'), click: () => w.openInternal('velo://bookmarks/') },
     { label: tr('Elimina'), click: () => bookmarks.remove(b.id) },
-  ]).popup({ window: w.win });
+  ]);
 }
 
 /** A folder as menu items: its bookmarks, and its subfolders as submenus. */
@@ -885,13 +886,13 @@ function folderMenuItems(w: BrowserWindowController, root: BookmarkFolder, path:
 function allBookmarksMenu(w: BrowserWindowController): void {
   const bar = folderMenuItems(w, 'bar', []);
   const others = folderMenuItems(w, 'other', []);
-  Menu.buildFromTemplate([
+  popupMenu(w.win, [
     ...bar,
     ...(bar.length ? [{ type: 'separator' as const }] : []),
     { label: tr('Altri preferiti'), submenu: others.length ? others : [{ label: tr('Vuoto'), enabled: false }] },
     { type: 'separator' },
     { label: tr('Gestisci preferiti'), click: () => w.openInternal('velo://bookmarks/') },
-  ]).popup({ window: w.win });
+  ]);
 }
 
 function refreshAllTabs(): void {
@@ -1052,8 +1053,7 @@ function showWorkspaceMenu(w: BrowserWindowController, anchor?: Rect): void {
     { label: tr('Nuovo spazio di lavoro'), click: () => newWorkspace(w) },
     { label: tr('Gestisci spazi di lavoro…'), click: () => w.openSettings('workspaces') },
   );
-  const menu = Menu.buildFromTemplate(items);
-  menu.popup(anchor ? { window: w.win, x: Math.round(anchor.x), y: Math.round(anchor.y + anchor.height) } : { window: w.win });
+  popupMenu(w.win, items, anchor ? { anchor } : {});
 }
 
 function showContainerMenu(w: BrowserWindowController, anchor?: Rect): void {
@@ -1064,14 +1064,14 @@ function showContainerMenu(w: BrowserWindowController, anchor?: Rect): void {
     { type: 'separator' },
     { label: tr('Gestisci contenitori…'), click: () => w.openSettings('workspaces') },
   ];
-  Menu.buildFromTemplate(items).popup(anchor ? { window: w.win, x: Math.round(anchor.x), y: Math.round(anchor.y + anchor.height) } : { window: w.win });
+  popupMenu(w.win, items, anchor ? { anchor } : {});
 }
 
 function showGroupMenu(w: BrowserWindowController, groupId: string): void {
   const group = w.tabs.groupList().find((g) => g.id === groupId);
   if (!group) return;
   const tabsOf = w.tabs.groupTabs(groupId);
-  Menu.buildFromTemplate([
+  popupMenu(w.win, [
     { label: groupLabel(group), enabled: false },
     { label: tr('Rinomina…'), click: () => w.send(IPC.evGroupRename, groupId) },
     { label: tr('Colore'), submenu: TAG_COLORS.map((c) => ({ label: colorLabel(c), type: 'radio' as const, checked: group.color === c, click: () => w.tabs.updateGroup(groupId, { color: c }) })) },
@@ -1093,7 +1093,7 @@ function showGroupMenu(w: BrowserWindowController, groupId: string): void {
         if (w.tabs.count() === 0) w.win.close();
       },
     },
-  ]).popup({ window: w.win });
+  ]);
 }
 
 /** Opens the page of a tab again in another container (its cookies differ, so it really reloads). */
@@ -1159,7 +1159,7 @@ function showShieldMenu(w: BrowserWindowController, tabId: number): void {
     items.push({ label: tr('Nessuna protezione necessaria per questa pagina'), enabled: false }, { type: 'separator' });
   }
   items.push({ label: tr('Impostazioni privacy…'), click: () => w.openSettings('privacy') });
-  Menu.buildFromTemplate(items).popup({ window: w.win });
+  popupMenu(w.win, items);
 }
 
 
@@ -1218,7 +1218,7 @@ function showSiteMenu(w: BrowserWindowController, tabId: number): void {
     { label: tr('Protezioni del sito…'), click: () => showShieldMenu(w, tabId) },
     { label: tr('Impostazioni del sito…'), click: () => openSiteSettings(w, url) },
   );
-  Menu.buildFromTemplate(items).popup({ window: w.win });
+  popupMenu(w.win, items);
 }
 
 /** velo://site/ for the site of a page (or the list of sites). */
@@ -1333,7 +1333,7 @@ function showToolbarMenu(w: BrowserWindowController, item: string | null): void 
     });
   }
   items.push({ label: tr('Personalizza l’aspetto…'), click: () => w.openSettings('appearance') });
-  if (!w.win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: w.win });
+  if (!w.win.isDestroyed()) popupMenu(w.win, items);
 }
 
 async function showMediaMenu(w: BrowserWindowController): Promise<void> {
@@ -1353,7 +1353,7 @@ async function showMediaMenu(w: BrowserWindowController): Promise<void> {
     if (!t.active) items.push({ label: tr('Vai alla scheda'), click: () => w.tabs.activate(t.id) });
   }
   if (!items.length) items.push({ label: tr('Nessun contenuto audio o video'), enabled: false });
-  if (!w.win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: w.win });
+  if (!w.win.isDestroyed()) popupMenu(w.win, items);
 }
 
 /** Commands that need the optional cloud account. */
@@ -1456,6 +1456,7 @@ function mainMenuData(w: BrowserWindowController): MainMenuData {
   ];
   const profile = currentProfile();
   return {
+    variant: 'main',
     entries,
     zoom: wc && !wc.isDestroyed() ? Math.round(wc.getZoomFactor() * 100) : null,
     fullscreen: w.win.isFullScreen(),
@@ -1471,7 +1472,7 @@ function toggleMainMenu(w: BrowserWindowController | null, anchor: Rect | null):
     w.suggestions.hide();
     w.tabSearch.hide();
     w.palette.hide();
-    void w.mainMenu.show(mainMenuData(w), anchor);
+    void w.mainMenu.show(mainMenuData(w), anchor ? { anchor, align: 'end' } : null);
   }
 }
 
@@ -1557,9 +1558,9 @@ function registerChromeIpc(): void {
   const menuOwner = (sender: Electron.WebContents) => [...windows].find((c) => c.mainMenu.contents === sender);
   ipcMain.on('mainmenu:run', (event, id: unknown, keepOpen: unknown) => {
     const w = menuOwner(event.sender);
-    if (w && typeof id === 'string') runMainMenu(w, id, keepOpen === true);
+    if (w && typeof id === 'string' && !runPopupItem(w.win, id)) runMainMenu(w, id, keepOpen === true);
   });
-  ipcMain.on('mainmenu:resize', (event, height: unknown) => menuOwner(event.sender)?.mainMenu.resize(Number(height)));
+  ipcMain.on('mainmenu:resize', (event, width: unknown, height: unknown) => menuOwner(event.sender)?.mainMenu.resize(Number(width), Number(height)));
   ipcMain.on('mainmenu:dismiss', (event) => {
     const w = menuOwner(event.sender);
     if (!w) return;
@@ -1694,7 +1695,7 @@ function registerChromeIpc(): void {
   handle(IPC.bookmarksMenu, (w) => allBookmarksMenu(w));
   handle(IPC.bookmarkFolderMenu, (w, path: unknown, x: number, y: number) => {
     const items = folderMenuItems(w, 'bar', cleanPath(path));
-    Menu.buildFromTemplate(items.length ? items : [{ label: tr('Vuoto'), enabled: false }]).popup({ window: w.win, x: Math.round(Number(x) || 0), y: Math.round(Number(y) || 0) });
+    popupMenu(w.win, items.length ? items : [{ label: tr('Vuoto'), enabled: false }], { point: { x: Math.round(Number(x) || 0), y: Math.round(Number(y) || 0) } });
   });
   handle(IPC.aiStatus, () => ai.status());
   handle(IPC.aiChat, async (w, request: AiChatRequest) => {

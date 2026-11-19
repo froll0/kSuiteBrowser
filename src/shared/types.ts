@@ -666,15 +666,19 @@ export interface PopupLook {
 }
 
 
-/** The main menu (⋮ button), drawn by Velo. */
+/** Menus drawn by Velo: the main menu (⋮ button) and every other popup menu (right click, buttons). */
 export type MainMenuEntry =
-  | { kind: 'item'; id: string; label: string; icon: string; keys: string; checked?: boolean }
+  | { kind: 'item'; id: string; label: string; icon: string; keys: string; checked?: boolean; enabled?: boolean; sub?: string }
   | { kind: 'separator' }
+  /** A line of text that can't be chosen (a title, "Empty"). */
+  | { kind: 'header'; label: string }
   | { kind: 'zoom' }
-  /** A section folded behind one row ("More tools"). */
-  | { kind: 'more'; label: string; icon: string; items: MainMenuEntry[] };
+  /** A section folded behind one row (a submenu, "More tools"). */
+  | { kind: 'more'; label: string; icon: string; items: MainMenuEntry[]; enabled?: boolean };
 
 export interface MainMenuData {
+  /** main: the ⋮ menu (switches for options); context: a compact menu (ticks for options). */
+  variant: 'main' | 'context';
   entries: MainMenuEntry[];
   /** Zoom of the current page in %, or null when there is no page to zoom. */
   zoom: number | null;

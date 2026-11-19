@@ -1,5 +1,6 @@
-import { Menu, ipcMain, safeStorage, type IpcMainEvent, type IpcMainInvokeEvent, type WebFrameMain } from 'electron';
+import { ipcMain, safeStorage, type IpcMainEvent, type IpcMainInvokeEvent, type WebFrameMain } from 'electron';
 import { keychainAvailable } from '../keychain';
+import { popupMenu } from '../popup-menu';
 import { createHmac, randomUUID } from 'node:crypto';
 import { parseTotp, totpCode, type Hmac } from '../../shared/totp';
 import type { AutofillAddress, AutofillCard } from '../../shared/types';
@@ -127,7 +128,7 @@ export class PasswordManager {
       const logins = this.vault.list().filter((l) => l.totp && (l.origin === ctx.origin || (site && siteOf(l.origin) === site)));
       if (!logins.length) return;
       const { frame, origin } = ctx;
-      Menu.buildFromTemplate([
+      popupMenu(ctx.tab.window.win, [
         { label: tr('Codice di verifica (2FA)'), enabled: false },
         ...logins.map((l) => ({
           label: `${l.username || tr('(senza nome utente)')} — ${new URL(l.origin).host}`,
@@ -136,7 +137,7 @@ export class PasswordManager {
             if (code && !frame.isDestroyed() && originOf(frame.url) === origin) frame.send('pw:fill-otp', code.code);
           },
         })),
-      ]).popup({ window: ctx.tab.window.win });
+      ]);
     });
 
     // Addresses and payment cards in forms (cards only on secure pages).
@@ -152,7 +153,7 @@ export class PasswordManager {
       if (embedded && (kind !== 'card' || !main.url.startsWith('https://') || !ctx.origin.startsWith('https://'))) return;
       const unlocked = this.vault.tryAutoUnlock();
       if (!unlocked) {
-        if (this.vault.status().state === 'locked') Menu.buildFromTemplate([{ label: tr('Sblocca le password salvate…'), click: () => ctx.tab.window.send(IPC.evPasswordUnlock, { reason: 'fill' }) }]).popup({ window: ctx.tab.window.win });
+        if (this.vault.status().state === 'locked') popupMenu(ctx.tab.window.win, [{ label: tr('Sblocca le password salvate…'), click: () => ctx.tab.window.send(IPC.evPasswordUnlock, { reason: 'fill' }) }]);
         return;
       }
       const { frame, origin } = ctx;
@@ -170,7 +171,7 @@ export class PasswordManager {
         : this.vault.addresses().map((a) => ({ label: [a.name, a.street, a.city].filter(Boolean).join(', ') || a.email, click: () => send(addressFields(a)) }))));
       if (!items.some((i) => i.click)) return;
       items.push({ type: 'separator' }, { label: kind === 'card' ? tr('Gestisci carte…') : tr('Gestisci indirizzi…'), click: () => ctx.tab.window.openInternal(`velo://passwords/#${kind === 'card' ? 'cards' : 'addresses'}`) });
-      Menu.buildFromTemplate(items).popup({ window: ctx.tab.window.win });
+      popupMenu(ctx.tab.window.win, items);
     });
 
     ipcMain.on('pw:submit', (event, data: { username?: unknown; password?: unknown }) => {
@@ -230,7 +231,7 @@ export class PasswordManager {
     }
     if (items.length === 0) return;
     items.push({ type: 'separator' }, { label: tr('Gestisci password…'), click: () => tab.window.openInternal('velo://passwords/') });
-    Menu.buildFromTemplate(items).popup({ window: tab.window.win });
+    popupMenu(tab.window.win, items);
   }
 
   private offerSave(tab: TabRef, origin: string, username: string, password: string): void {

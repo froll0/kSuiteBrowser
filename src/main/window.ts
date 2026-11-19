@@ -19,6 +19,7 @@ import { StatusBubble } from './status-bubble';
 import { TabSearchPopup } from './tab-search-popup';
 import { CommandPalette } from './command-palette';
 import { MainMenuPopup } from './main-menu';
+import { registerMenuHost, popupMenu } from './popup-menu';
 import { SuggestionsPopup } from './suggestions-popup';
 import { TabManager } from './tabs';
 import { protectWorkers } from './worker-shield';
@@ -176,6 +177,7 @@ export class BrowserWindowController {
     this.palette = new CommandPalette(this.win, { html: ctx.paths.paletteHtml, preload: ctx.paths.palettePreload }, () => densityMetrics(ctx.settings.get().density).row);
     this.mainMenu = new MainMenuPopup(this.win, { html: ctx.paths.mainMenuHtml, preload: ctx.paths.mainMenuPreload });
     const look = () => popupLook(ctx.settings.get(), isPrivate);
+    registerMenuHost(this.win, { popup: this.mainMenu, look });
     this.statusBubble = new StatusBubble(this.win, () => this.tabs.pageArea(), look);
     this.hoverCard = new HoverCard(this.win, look, () => ctx.settings.get().tabsLayout === 'side');
 
@@ -539,6 +541,10 @@ export class BrowserWindowController {
       cloudEnabled: () => this.ctx.settings.tokenStatus().configured,
       askAboutText: (action, text) => owner().send(IPC.evAiAsk, { action, text }),
       askAboutPage: (action) => owner().send(IPC.evAiAsk, { page: action }),
+      popup: (items, at) => {
+        const area = owner().tabs.pageArea();
+        popupMenu(owner().win, items, { contents, point: { x: area.x + at.x, y: area.y + at.y }, onClose: () => !contents.isDestroyed() && contents.focus() });
+      },
     });
   }
 }

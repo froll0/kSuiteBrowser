@@ -4,6 +4,8 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 
 ## Prossima versione
 
+## 0.8.0
+
 ### Sicurezza
 - Electron 44.10.1: corregge le vulnerabilità note della 44.1 (permessi attribuiti all'origine sbagliata, cookie
   SameSite nelle finestre aperte dai link, certificati eMudhra compromessi e altre).

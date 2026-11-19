@@ -42,6 +42,8 @@ export interface WindowContext {
   stepZoom(controller: BrowserWindowController, contents: WebContents, direction: 'in' | 'out'): void;
   paths: { chromePreload: string; pagePreload: string; chromeHtml: string; suggestHtml: string; suggestPreload: string; tabSearchHtml: string; tabSearchPreload: string; paletteHtml: string; palettePreload: string; mainMenuHtml: string; mainMenuPreload: string; appIcon: string };
   onTabsChanged(controller: BrowserWindowController): void;
+  /** A page starts loading `url` (null: it committed, failed or closed). */
+  onPageNavigation(contents: WebContents, url: string | null): void;
   /** Window currently holding a tab's page (tabs can move between windows). */
   ownerOf(contents: WebContents): BrowserWindowController | null;
   /** Brings an open tab to the front, in whichever window holds it. */
@@ -431,6 +433,13 @@ export class BrowserWindowController {
   }
 
   private setupPage(contents: WebContents): void {
+    // The address a page is loading counts as open for "forget sites" (closing the tab mid-load forgets it).
+    contents.on('did-start-navigation', (details) => {
+      if (details.isMainFrame && !details.isSameDocument) this.ctx.onPageNavigation(contents, details.url);
+    });
+    contents.on('did-navigate', () => this.ctx.onPageNavigation(contents, null));
+    contents.on('did-fail-load', (_e, _code, _desc, _url, isMainFrame) => isMainFrame && this.ctx.onPageNavigation(contents, null));
+    contents.once('destroyed', () => this.ctx.onPageNavigation(contents, null));
     // The tab may move to another window: always act on the window that holds it now.
     const owner = () => this.ctx.ownerOf(contents) ?? this;
     // History (never for private windows) and per-site zoom.

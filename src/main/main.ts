@@ -418,8 +418,16 @@ const containerForgetters = new Map<string, SiteForgetter>();
 
 /** Addresses of the tabs of normal windows in a container (null: without container). */
 function tabUrls(container: string | null): string[] {
-  return [...windows].filter((w) => !w.isPrivate).flatMap((w) => w.tabs.states().filter((t) => t.container === container).map((t) => t.url));
+  const ses = container ? containerSessions.get(container) : electronSession.defaultSession;
+  return [
+    ...[...windows].filter((w) => !w.isPrivate).flatMap((w) => w.tabs.states().filter((t) => t.container === container).map((t) => t.url)),
+    // Pages still loading their first response: their site is open too.
+    ...[...loadingPages.values()].filter((p) => p.session === ses).map((p) => p.url),
+  ];
 }
+
+/** Main-frame navigations in progress, by page (see WindowContext.onPageNavigation). */
+const loadingPages = new Map<number, { url: string; session: Session }>();
 
 /** "Forget sites" for the normal session and for every container in use. */
 function allForgetters(): Array<[string | null, SiteForgetter]> {
@@ -461,6 +469,13 @@ const windowContext: WindowContext = {
       scheduleSessionSave();
       for (const [, f] of allForgetters()) f.update();
     }
+  },
+  onPageNavigation: (contents, url) => {
+    if (url) {
+      loadingPages.set(contents.id, { url, session: contents.session });
+      return;
+    }
+    if (loadingPages.delete(contents.id)) for (const [, f] of allForgetters()) f.update();
   },
   onClosed: (w) => {
     windows.delete(w);

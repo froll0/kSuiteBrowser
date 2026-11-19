@@ -15,7 +15,7 @@ pubblica la release. Se un passo fallisce, rilanciando si riparte da zero (la bo
 
 ## 3. Prove a mano (prima di una versione importante e sempre per la 1.0)
 
-Su Windows 11, macOS (Apple Silicon) e una Linux (Ubuntu o Fedora), con un profilo nuovo e con uno della versione
+Su Windows 11, macOS (Apple Silicon; se possibile anche un Mac Intel) e una Linux (Ubuntu o Fedora), con un profilo nuovo e con uno della versione
 precedente:
 
 - [ ] Installazione senza avvisi (con la firma) e primo avvio con la pagina di benvenuto

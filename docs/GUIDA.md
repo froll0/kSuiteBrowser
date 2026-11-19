@@ -6,9 +6,11 @@ Scarica l'installer dell'ultima versione dalla pagina [Releases](https://github.
 
 | Sistema | File |
 | --- | --- |
-| Windows 10 e 11 (64 bit) | `Velo-x.y.z-win-x64.exe` |
-| macOS (Apple Silicon) | `Velo-x.y.z-mac-arm64.dmg` |
-| Linux | `Velo-x.y.z-linux-x86_64.AppImage` oppure `Velo-x.y.z-linux-amd64.deb` |
+| Windows 10 e 11 (Intel/AMD o ARM) | `Velo-x.y.z-win-setup.exe` (sceglie da solo la versione giusta) |
+| macOS con processore Apple (M1 e successivi) | `Velo-x.y.z-mac-arm64.dmg` |
+| macOS con processore Intel | `Velo-x.y.z-mac-x64.dmg` |
+| Linux (Intel/AMD) | `Velo-x.y.z-linux-x86_64.AppImage` oppure `Velo-x.y.z-linux-amd64.deb` |
+| Linux (ARM, es. Raspberry Pi 4/5) | `Velo-x.y.z-linux-arm64.AppImage` oppure `Velo-x.y.z-linux-arm64.deb` |
 
 Finché i pacchetti non sono firmati, Windows può mostrare l'avviso di SmartScreen (*Ulteriori informazioni › Esegui
 comunque*) e macOS chiede conferma alla prima apertura (clic destro sull'app › *Apri*).

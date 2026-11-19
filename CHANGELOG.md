@@ -4,6 +4,10 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 
 ## Prossima versione
 
+### Più computer
+- Velo anche per Mac con processore Intel, Windows su ARM e Linux su ARM (64 bit). Su Windows un solo installer
+  per Intel/AMD e ARM.
+
 ### Design
 - Tema scuro corretto nelle pagine interne: i riquadri ora risaltano sullo sfondo invece di sprofondarci.
 - Pagina nuova scheda: scorciatoie ai siti che scegli tu (aggiungi, modifica, rimuovi), schede chiuse di recente,

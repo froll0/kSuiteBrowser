@@ -125,8 +125,9 @@ jobs:
 
   # Tag vX.Y.Z (or a manual run with "release"): draft release -> installers and update files
   # from the three systems -> published release.
+  # Only after every test (unit, end-to-end on the three systems, network audit) has passed.
   release-draft:
-    needs: check
+    needs: [check, e2e, network-audit]
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
     runs-on: ubuntu-latest
     permissions:
@@ -140,11 +141,15 @@ jobs:
       # A pushed tag must match package.json; a manual run takes the version from package.json itself.
       - run: node scripts/check-release.mjs "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || steps.version.outputs.tag }}"
       # On a manual run the release creates the tag on the commit being built.
-      # A draft left by a failed run is replaced (a published release is never touched: create fails).
+      # Drafts left by failed runs are replaced; a version already published is never rebuilt.
       - run: |
-          if [ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null)" = "true" ]; then
-            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes
+          if gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\" and .draft == false) | .id" | grep -q .; then
+            echo "::error::$TAG è già pubblicata: aumenta la versione in package.json."
+            exit 1
           fi
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\" and .draft == true) | .id"); do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+          done
           # The version's section of CHANGELOG.md, else GitHub's list of changes.
           if node scripts/release-notes.mjs "$TAG" > notes.md; then NOTES=(--notes-file notes.md); else NOTES=(--generate-notes); fi
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" --title "Velo $TAG" "${NOTES[@]}"

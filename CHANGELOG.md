@@ -4,11 +4,11 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 
 ## Prossima versione
 
-## 0.8.1
-
 ### Correzioni
 - «Dimentica i siti alla chiusura» cancella i dati anche di una scheda chiusa mentre stava ancora caricando la prima
   pagina del sito.
+
+## 0.8.1
 
 ### Design
 - **Nuovo menu ⋮** disegnato da Velo al posto della barra dei menu del sistema: le voci più usate in vista, zoom e

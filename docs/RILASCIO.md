@@ -9,9 +9,11 @@
 
 ## 2. Pubblicare
 
-*Actions › CI › Run workflow* con l'opzione **release**. La CI crea la bozza con le note del CHANGELOG, compila e firma
+*Actions › CI › Run workflow* con l'opzione **release**. Solo se tutti i test passano (anche quelli end-to-end sui tre
+sistemi e la verifica di rete) la CI crea la bozza con le note del CHANGELOG, compila e firma
 (se i certificati sono nei secrets) gli installer dei tre sistemi, li carica con i file per l'aggiornamento automatico e
-pubblica la release. Se un passo fallisce, rilanciando si riparte da zero (la bozza viene sostituita).
+pubblica la release. Se un passo fallisce, rilanciando si riparte da zero (la bozza viene sostituita). Una versione già pubblicata non
+viene mai ricompilata: per una correzione serve un nuovo numero di versione.
 
 ## 3. Prove a mano (prima di una versione importante e sempre per la 1.0)
 

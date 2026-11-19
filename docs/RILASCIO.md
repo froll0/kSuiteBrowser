@@ -33,8 +33,10 @@ precedente:
 
 ## Aggiornare Electron (correzioni di sicurezza)
 
-Ogni lunedì la CI controlla l'Electron di castlabs. Se ce n'è uno nuovo apre una issue e una pull request già
-aggiornata e provata su Linux: unirla, controllare che la CI sia verde sui tre sistemi, pubblicare una versione
+Ogni lunedì la CI controlla l'Electron di castlabs. Se ce n'è uno nuovo apre una issue e prepara un ramo già
+aggiornato e provato su Linux (la correzione della stessa versione principale, se esiste), proposto come pull request.
+Perché la CI possa aprirla serve *Settings › Actions › General › Allow GitHub Actions to create and approve pull
+requests*; altrimenti il link per aprirla arriva nella issue. Poi: unirla, controllare che la CI sia verde sui tre sistemi, pubblicare una versione
 correttiva. A mano: `node scripts/update-electron.mjs [versione]`.
 
 ## Firma del codice

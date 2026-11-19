@@ -48,7 +48,7 @@ jobs:
       - if: fromJSON(steps.version.outputs.info).outdated
         name: Update, test and propose
         run: |
-          VERSION="${{ fromJSON(steps.version.outputs.info).latest }}"
+          VERSION="${{ fromJSON(steps.version.outputs.info).target }}"
           BRANCH="electron-update/v$VERSION"
           if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then echo "Branch $BRANCH already proposed."; exit 0; fi
           npm ci
@@ -63,9 +63,15 @@ jobs:
           git checkout -b "$BRANCH"
           git commit -am "Update Electron to $VERSION"
           git push origin "$BRANCH"
-          gh pr create --base "${{ github.event.repository.default_branch }}" --head "$BRANCH" \
-            --title "Aggiornare Electron a $VERSION" \
-            --body "Correzioni di sicurezza di Chromium. Typecheck, test unitari, build, test end-to-end e verifica di rete sono passati su Linux. Dopo l'unione: provare su Windows e macOS, poi pubblicare una versione."
+          BODY="Correzioni di sicurezza di Chromium. Typecheck, test unitari, build, test end-to-end e verifica di rete sono passati su Linux. Dopo l'unione: provare su Windows e macOS, poi pubblicare una versione."
+          # The repository may not let Actions open pull requests (Settings › Actions › General): then the
+          # branch is announced on the issue, with the link that opens the pull request.
+          if ! gh pr create --base "${{ github.event.repository.default_branch }}" --head "$BRANCH" --title "Aggiornare Electron a $VERSION" --body "$BODY"; then
+            ISSUE=$(gh issue list --state open --search "Aggiornare Electron in:title" --json number -q '.[0].number')
+            LINK="https://github.com/$GITHUB_REPOSITORY/compare/$BRANCH?expand=1"
+            if [ -n "$ISSUE" ]; then gh issue comment "$ISSUE" --body "Ramo \`$BRANCH\` pronto: $BODY Per proporlo: $LINK"; fi
+            echo "::warning::Ramo $BRANCH pronto; apri la pull request da $LINK"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

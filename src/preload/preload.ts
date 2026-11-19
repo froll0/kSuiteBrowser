@@ -59,7 +59,8 @@ const api = {
   toolbarMenu: (item: string | null) => invoke<void>(IPC.toolbarMenu, item),
   /** Turns protected content (Widevine) on and restarts the browser. */
   enableDrm: () => invoke<void>(IPC.drmEnable),
-  showAppMenu: () => invoke<void>(IPC.showAppMenu),
+  /** The main menu (⋮), under the button at `anchor`. */
+  showAppMenu: (anchor?: { x: number; y: number; width: number; height: number }) => invoke<void>(IPC.showAppMenu, anchor),
   showShieldMenu: (tabId: number) => invoke<void>(IPC.showShieldMenu, tabId),
   showSiteMenu: (tabId: number) => invoke<void>(IPC.showSiteMenu, tabId),
   /** Opens the tab search under `anchor` (a button), or centred at the top. */
@@ -158,6 +159,7 @@ const api = {
     onCrashOffer: (fn: (info: { count: number }) => void) => on(IPC.evCrashOffer, fn),
     /** F6: move the keyboard focus to the next part of the window. */
     onCycleFocus: (fn: () => void) => on(IPC.evCycleFocus, fn),
+    onOpenDownloads: (fn: () => void) => on(IPC.evOpenDownloads, fn),
     /** The page was scrolled up (true) or down, for the auto-hiding bar. */
     onScrollReveal: (fn: (up: boolean) => void) => on(IPC.evScrollReveal, fn),
     onWindowState: (fn: (state: { maximized: boolean; fullscreen: boolean }) => void) => on(IPC.evWindowState, fn),

@@ -665,3 +665,20 @@ export interface PopupLook {
   vars: Record<string, string>;
 }
 
+
+/** The main menu (⋮ button), drawn by Velo. */
+export type MainMenuEntry =
+  | { kind: 'item'; id: string; label: string; icon: string; keys: string; checked?: boolean }
+  | { kind: 'separator' }
+  | { kind: 'zoom' }
+  /** A section folded behind one row ("More tools"). */
+  | { kind: 'more'; label: string; icon: string; items: MainMenuEntry[] };
+
+export interface MainMenuData {
+  entries: MainMenuEntry[];
+  /** Zoom of the current page in %, or null when there is no page to zoom. */
+  zoom: number | null;
+  fullscreen: boolean;
+  profile: { name: string; color: string } | null;
+  look: PopupLook;
+}

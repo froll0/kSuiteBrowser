@@ -34,6 +34,7 @@ export const IPC = {
   evPageFocus: 'layout:page-focus',
   evCrashOffer: 'ev:crash-offer',
   evCycleFocus: 'layout:cycle-focus',
+  evOpenDownloads: 'layout:open-downloads',
   evScrollReveal: 'layout:scroll-reveal',
   evWindowState: 'ui:window-state',
   windowControl: 'ui:window-control',

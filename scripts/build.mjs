@@ -19,6 +19,8 @@ const targets = [
   { ...node, entryPoints: ['src/preload/suggest.ts'], outfile: 'dist/preload/suggest.js' },
   { ...node, entryPoints: ['src/preload/tabsearch.ts'], outfile: 'dist/preload/tabsearch.js' },
   { ...node, entryPoints: ['src/preload/palette.ts'], outfile: 'dist/preload/palette.js' },
+  { ...node, entryPoints: ['src/preload/mainmenu.ts'], outfile: 'dist/preload/mainmenu.js' },
+  { ...web, entryPoints: ['src/renderer/mainmenu.ts'], outfile: 'dist/renderer/mainmenu.js' },
   { ...web, entryPoints: ['src/renderer/palette.ts'], outfile: 'dist/renderer/palette.js' },
   { ...node, entryPoints: ['src/preload/passwords.ts'], outfile: 'dist/preload/passwords.js' },
   { ...node, entryPoints: ['src/preload/shield.ts'], outfile: 'dist/preload/shield.js' },
@@ -32,7 +34,7 @@ const targets = [
 
 function copyStatic() {
   for (const dir of ['dist/renderer', 'dist/preload', ...PAGES.map((p) => `dist/pages/${p}`)]) mkdirSync(dir, { recursive: true });
-  for (const file of ['index.html', 'styles.css', 'suggest.html', 'suggest.css', 'tabsearch.html', 'tabsearch.css', 'palette.html', 'palette.css']) cpSync(`src/renderer/${file}`, `dist/renderer/${file}`);
+  for (const file of ['index.html', 'styles.css', 'suggest.html', 'suggest.css', 'tabsearch.html', 'tabsearch.css', 'palette.html', 'palette.css', 'mainmenu.html', 'mainmenu.css']) cpSync(`src/renderer/${file}`, `dist/renderer/${file}`);
   cpSync('src/renderer/fonts', 'dist/renderer/fonts', { recursive: true });
   cpSync('build/icon-256.png', 'dist/icon.png');
   cpSync('build/icon.ico', 'dist/icon.ico');

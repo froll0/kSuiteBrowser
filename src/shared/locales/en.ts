@@ -1378,4 +1378,7 @@ export const en: Record<string, string> = {
   'Elimina la cartella {0}': 'Delete the folder {0}',
   'Eliminare la cartella “{0}” con i suoi {1} preferiti?': 'Delete the folder “{0}” and its {1} bookmarks?',
   'Cartella “{0}” eliminata ({1} preferiti).': 'Folder “{0}” deleted ({1} bookmarks).',
+  'Altri strumenti': 'More tools',
+  'Guida e domande frequenti': 'Guide and FAQ',
+  'Zoom {0}%, ripristina': 'Zoom {0}%, reset',
 };

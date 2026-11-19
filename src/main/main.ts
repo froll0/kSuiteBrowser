@@ -16,7 +16,7 @@ import { siteOf } from '../shared/privacy-rules';
 import { matchesAll } from '../shared/search-match';
 import { buildSuggestions } from '../shared/suggest';
 import type {
-  AutofillAddress, AutofillCard, ImportReport, TabGroup, TagColor, TabLayout, PaletteChoice, PaletteData, SiteSettingsPatch, AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
+  AutofillAddress, AutofillCard, ImportReport, TabGroup, TagColor, TabLayout, MainMenuData, MainMenuEntry, PaletteChoice, PaletteData, SiteSettingsPatch, AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
 } from '../shared/types';
 import { TOOLBAR_ITEMS, TOOLBAR_ITEM_IDS, type ToolbarItem } from '../shared/appearance';
 import { searchAnswerMessages } from '../shared/ai-prompts';
@@ -105,6 +105,8 @@ const PATHS = {
   tabSearchPreload: join(__dirname, '../preload/tabsearch.js'),
   paletteHtml: join(__dirname, '../renderer/palette.html'),
   palettePreload: join(__dirname, '../preload/palette.js'),
+  mainMenuHtml: join(__dirname, '../renderer/mainmenu.html'),
+  mainMenuPreload: join(__dirname, '../preload/mainmenu.js'),
   // Windows wants a multi-size .ico for crisp taskbar and title bar icons.
   appIcon: join(__dirname, process.platform === 'win32' ? '../icon.ico' : '../icon.png'),
   pages: join(__dirname, '../pages'),
@@ -1397,6 +1399,98 @@ function runPaletteChoice(w: BrowserWindowController, choice: PaletteChoice): vo
   }
 }
 
+// ---------- Main menu (⋮) ----------
+
+const MENU_ICONS: Partial<Record<CommandId, string>> = {
+  newTab: 'plus', newWindow: 'monitor', newPrivateWindow: 'eyeOff', openHistory: 'history', openBookmarks: 'star', openPasswords: 'key',
+  find: 'search', print: 'fileText', savePageAs: 'download', reader: 'bookOpen', savePageToDrive: 'cloud', mailPage: 'mail',
+  commandPalette: 'command', searchTabs: 'layers', newContainerTab: 'box', switchProfile: 'users', pictureInPicture: 'video',
+  siteSettings: 'shield', clearData: 'trash', importData: 'import', viewSource: 'fileCode', devTools: 'fileCode',
+  toggleBookmarksBar: 'bookmark', toggleAutoHide: 'panel', togglePanel: 'panel', openSettings: 'settings', customize: 'palette',
+  checkUpdates: 'refresh', about: 'info',
+};
+
+function mainMenuData(w: BrowserWindowController): MainMenuData {
+  const s = settings.get();
+  const cloud = settings.tokenStatus().configured;
+  const wc = w.activeContents();
+  const url = wc?.getURL() ?? '';
+  const page = /^(https?|file):/i.test(url);
+  const item = (id: CommandId, extra: { checked?: boolean; label?: string } = {}): MainMenuEntry => ({
+    kind: 'item', id, label: extra.label ?? tr(COMMANDS.find((c) => c.id === id)!.label), icon: MENU_ICONS[id] ?? 'command',
+    keys: displayShortcut(shortcutFor(id, s.shortcuts), process.platform), ...(extra.checked !== undefined ? { checked: extra.checked } : {}),
+  });
+  const sep: MainMenuEntry = { kind: 'separator' };
+  const entries: MainMenuEntry[] = [
+    item('newTab'), item('newWindow'), item('newPrivateWindow'),
+    sep,
+    item('openHistory', { label: tr('Cronologia') }),
+    { kind: 'item', id: 'downloads', label: 'Download', icon: 'download', keys: '' },
+    item('openBookmarks', { label: tr('Preferiti') }),
+    item('openPasswords'),
+    sep,
+    { kind: 'zoom' },
+    sep,
+    item('find'), item('print'), item('reader'),
+    ...(page ? [item('savePageAs')] : []),
+    ...(cloud ? [item('savePageToDrive'), item('mailPage')] : []),
+    sep,
+    {
+      kind: 'more', label: tr('Altri strumenti'), icon: 'grid', items: [
+        item('commandPalette'), item('searchTabs'), item('newContainerTab'), item('switchProfile'),
+        item('pictureInPicture'), ...(page ? [item('siteSettings')] : []), item('clearData'), item('importData'),
+        { kind: 'separator' },
+        item('toggleBookmarksBar', { label: tr('Barra dei preferiti'), checked: s.showBookmarksBar }),
+        item('toggleAutoHide', { checked: s.autoHideToolbar }),
+        ...(cloud ? [item('togglePanel', { label: tr('Pannello cloud'), checked: s.panelOpen })] : []),
+        { kind: 'separator' },
+        item('viewSource'), item('devTools'),
+      ],
+    },
+    sep,
+    item('openSettings'), item('customize'),
+    {
+      kind: 'more', label: tr('Aiuto'), icon: 'info', items: [item('checkUpdates'), item('about'), { kind: 'item', id: 'help', label: tr('Guida e domande frequenti'), icon: 'bookOpen', keys: '' }],
+    },
+    { kind: 'item', id: 'quit', label: tr('Esci'), icon: 'close', keys: process.platform === 'darwin' ? '⌘Q' : '' },
+  ];
+  const profile = currentProfile();
+  return {
+    entries,
+    zoom: wc && !wc.isDestroyed() ? Math.round(wc.getZoomFactor() * 100) : null,
+    fullscreen: w.win.isFullScreen(),
+    profile: profile.id === 'default' ? null : { name: tr(profile.name), color: TAG_COLOR_INFO[profile.color as TagColor]?.light ?? '#3264f0' },
+    look: popupLook(s, w.isPrivate),
+  };
+}
+
+function toggleMainMenu(w: BrowserWindowController | null, anchor: Rect | null): void {
+  if (!w) return;
+  if (w.mainMenu.isVisible()) w.mainMenu.hide();
+  else if (!w.mainMenu.justHidden()) {
+    w.suggestions.hide();
+    w.tabSearch.hide();
+    w.palette.hide();
+    void w.mainMenu.show(mainMenuData(w), anchor);
+  }
+}
+
+function runMainMenu(w: BrowserWindowController, id: string, keepOpen: boolean): void {
+  if (!keepOpen) w.mainMenu.hide();
+  const wc = w.activeContents();
+  if (id === 'zoomIn' || id === 'zoomOut' || id === 'zoomReset') {
+    if (wc) changeZoom(w, wc, id === 'zoomIn' ? 'in' : id === 'zoomOut' ? 'out' : 'reset');
+    w.mainMenu.refresh(mainMenuData(w));
+    return;
+  }
+  if (!keepOpen) w.focus();
+  if (id === 'fullscreen') w.win.setFullScreen(!w.win.isFullScreen());
+  else if (id === 'downloads') w.send(IPC.evOpenDownloads);
+  else if (id === 'quit') app.quit();
+  else if (id === 'help') w.tabs.create('https://github.com/froll0/kSuiteBrowser/blob/main/docs/GUIDA.md');
+  else if (COMMAND_IDS.includes(id as CommandId)) appActions()[id as CommandId]();
+}
+
 function toggleTabSearch(w: BrowserWindowController | null, anchor?: Rect): void {
   if (!w) return;
   if (w.tabSearch.isVisible()) w.tabSearch.hide();
@@ -1458,6 +1552,18 @@ function registerChromeIpc(): void {
     const w = searcher(event.sender);
     if (!w) return;
     w.tabSearch.hide();
+    w.activeContents()?.focus();
+  });
+  const menuOwner = (sender: Electron.WebContents) => [...windows].find((c) => c.mainMenu.contents === sender);
+  ipcMain.on('mainmenu:run', (event, id: unknown, keepOpen: unknown) => {
+    const w = menuOwner(event.sender);
+    if (w && typeof id === 'string') runMainMenu(w, id, keepOpen === true);
+  });
+  ipcMain.on('mainmenu:resize', (event, height: unknown) => menuOwner(event.sender)?.mainMenu.resize(Number(height)));
+  ipcMain.on('mainmenu:dismiss', (event) => {
+    const w = menuOwner(event.sender);
+    if (!w) return;
+    w.mainMenu.hide();
     w.activeContents()?.focus();
   });
   const paletteOwner = (sender: Electron.WebContents) => [...windows].find((c) => c.palette.contents === sender);
@@ -1523,7 +1629,7 @@ function registerChromeIpc(): void {
     } else if (action === 'close') w.win.close();
   });
   handle(IPC.chromeVisible, (w, visible: boolean) => w.setChromeVisible(Boolean(visible)));
-  handle(IPC.showAppMenu, (w) => Menu.getApplicationMenu()?.popup({ window: w.win }));
+  handle(IPC.showAppMenu, (w, anchor?: Rect) => toggleMainMenu(w, anchor && typeof anchor === 'object' ? anchor : null));
   handle(IPC.showShieldMenu, (w, tabId: number) => showShieldMenu(w, tabId));
   handle(IPC.tabSearch, (w, anchor?: Rect) => toggleTabSearch(w, anchor && typeof anchor.x === 'number' ? anchor : undefined));
   handle(IPC.showSiteMenu, (w, tabId: number) => showSiteMenu(w, Number(tabId)));

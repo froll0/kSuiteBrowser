@@ -107,3 +107,30 @@ test('auto-hiding bar: Velo window buttons on Linux, back when scrolling up', as
     await velo.close();
   }
 });
+
+test('the main menu (⋮) is drawn by Velo: commands, zoom, folded sections, keyboard', async () => {
+  const velo = await launchVelo();
+  try {
+    await velo.openTab('velo://history/', 'velo://history');
+    const before = (await velo.tabs()).length;
+    await velo.win.click('#btn-menu');
+    const menu = await velo.waitPage('mainmenu.html');
+    await menu.waitForSelector('[data-id="newTab"]');
+    assert.equal(await menu.textContent('.zvalue'), '100%');
+    // Zoom keeps the menu open and shows the new level.
+    await menu.click('[data-id="zoomIn"]');
+    assert.equal(await until(async () => (await menu.textContent('.zvalue')) === '110%'), true);
+    // A folded section opens in place.
+    assert.equal(await menu.$('[data-id="devTools"]'), null);
+    await menu.click('[data-id="more:Altri strumenti"]');
+    await menu.waitForSelector('[data-id="devTools"]');
+    // Keyboard: Home goes to "New tab", Enter runs it and closes the menu.
+    await menu.keyboard.press('Home');
+    assert.equal(await menu.evaluate(() => document.activeElement.dataset.id), 'newTab');
+    await menu.keyboard.press('Enter');
+    assert.equal(await until(async () => (await velo.tabs()).length === before + 1), true);
+    assert.equal(await velo.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.some((v) => v.webContents.getURL().includes('mainmenu.html'))), false);
+  } finally {
+    await velo.close();
+  }
+});

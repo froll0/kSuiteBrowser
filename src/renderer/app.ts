@@ -554,6 +554,16 @@ ks.events.onCycleFocus(() => {
   if (tab) void ks.tabs.activate(tab.id);
 });
 
+/** Fades the edges of the tab strip where more tabs are hidden. */
+function markTabOverflow(): void {
+  const max = tabstrip.scrollWidth - tabstrip.clientWidth;
+  tabstrip.classList.toggle('more-left', max > 1 && tabstrip.scrollLeft > 1);
+  tabstrip.classList.toggle('more-right', max > 1 && tabstrip.scrollLeft < max - 1);
+}
+tabstrip.addEventListener('scroll', markTabOverflow, { passive: true });
+new ResizeObserver(markTabOverflow).observe(tabstrip);
+new MutationObserver(() => requestAnimationFrame(markTabOverflow)).observe(tabstrip, { childList: true });
+
 // With more tabs than fit, the mouse wheel scrolls the tab strip.
 tabstrip.addEventListener('wheel', (e) => {
   if (tabstrip.scrollWidth <= tabstrip.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
@@ -1111,6 +1121,7 @@ downloadsBtn.addEventListener('click', () => {
   if (document.body.classList.contains('panel-open') && panel.current() === 'downloads') void setPanelOpen(false);
   else void setPanelOpen(true).then(() => panel.show('downloads'));
 });
+ks.events.onOpenDownloads(() => void setPanelOpen(true).then(() => panel.show('downloads')));
 ks.events.onDownloads((items) => {
   downloadsBtn.querySelector<HTMLElement>('.dot')!.hidden = !items.some((d) => d.state === 'progressing' || d.drive === 'uploading');
 });
@@ -1118,7 +1129,7 @@ shieldBtn.addEventListener('click', () => {
   const t = activeTab();
   if (t) void ks.showShieldMenu(t.id);
 });
-$('btn-menu').addEventListener('click', () => void ks.showAppMenu());
+$('btn-menu').addEventListener('click', () => void ks.showAppMenu(anchorOf($('btn-menu'))));
 
 ks.events.onFocusAddress(() => {
   omnibox.focus();
@@ -1184,16 +1195,33 @@ const systemDark = matchMedia('(prefers-color-scheme: dark)');
 let appliedLayout = '';
 
 /** Colours, shapes and the arrangement of the window, from the appearance settings. */
+/**
+ * Tabs next to the address bar need room: in a narrow window they would shrink to nothing, so they move
+ * above it (as with "tabs on top") until the window is wide again. A little hysteresis avoids flicker.
+ */
+const INLINE_MIN_WIDTH = 980;
+let narrowInline = window.innerWidth < INLINE_MIN_WIDTH;
+function effectiveLayout(settings: Settings): Settings['tabsLayout'] {
+  return settings.tabsLayout === 'inline' && narrowInline ? 'top' : settings.tabsLayout;
+}
+window.addEventListener('resize', () => {
+  const narrow = window.innerWidth < (narrowInline ? INLINE_MIN_WIDTH + 20 : INLINE_MIN_WIDTH);
+  if (narrow === narrowInline) return;
+  narrowInline = narrow;
+  if (currentSettings?.tabsLayout === 'inline') applyAppearance(currentSettings);
+});
+
 function applyAppearance(settings: Settings): void {
+  const tabsLayout = effectiveLayout(settings);
   const dark = isPrivateWindow || isDark(settings.theme, systemDark.matches);
   applyTokens(root, tokens(settings, dark, isPrivateWindow), dark);
   const body = document.body;
   for (const c of [...body.classList]) if (/^(layout|rail|canvas|apps|density)-/.test(c)) body.classList.remove(c);
   // The app bar shows the Infomaniak apps: only with an account connected.
-  body.classList.add(`layout-${settings.tabsLayout}`, `rail-${tokenConfigured ? settings.railPosition : 'hidden'}`, `canvas-${settings.canvasStyle}`, `apps-${settings.appIconStyle}`, `density-${settings.density}`);
-  body.classList.toggle('side-open', settings.tabsLayout === 'side');
+  body.classList.add(`layout-${tabsLayout}`, `rail-${tokenConfigured ? settings.railPosition : 'hidden'}`, `canvas-${settings.canvasStyle}`, `apps-${settings.appIconStyle}`, `density-${settings.density}`);
+  body.classList.toggle('side-open', tabsLayout === 'side');
   applyAutoHide(settings.autoHideToolbar);
-  body.classList.toggle('side-collapsed', settings.tabsLayout === 'side' && settings.sideTabsCollapsed);
+  body.classList.toggle('side-collapsed', tabsLayout === 'side' && settings.sideTabsCollapsed);
   body.style.setProperty('--side-w', `${settings.sideTabsWidth}px`);
   const collapse = $('btn-side-collapse');
   collapse.replaceChildren(icon(settings.sideTabsCollapsed ? 'panelLeftOpen' : 'panelLeftClose', 16));
@@ -1201,11 +1229,11 @@ function applyAppearance(settings: Settings): void {
   collapse.setAttribute('aria-label', collapse.title);
 
   // With tabs on top, the toolbar gets its own row under them.
-  const home = settings.tabsLayout === 'top' ? $('toolbar-row') : $('topbar');
+  const home = tabsLayout === 'top' ? $('toolbar-row') : $('topbar');
   if (toolbar.parentElement !== home) home.insertBefore(toolbar, home === $('topbar') ? toastEl : null);
   placeToolbar(settings);
-  if (appliedLayout !== settings.tabsLayout) {
-    appliedLayout = settings.tabsLayout;
+  if (appliedLayout !== tabsLayout) {
+    appliedLayout = tabsLayout;
     renderTabs();
   }
   requestAnimationFrame(syncBounds);

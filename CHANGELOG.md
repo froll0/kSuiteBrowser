@@ -4,6 +4,16 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 
 ## Prossima versione
 
+### Design
+- **Nuovo menu ⋮** disegnato da Velo al posto della barra dei menu del sistema: le voci più usate in vista, zoom e
+  schermo intero su una riga, «Altri strumenti» e «Aiuto» che si aprono sul posto, interruttori per barra dei preferiti
+  e barra a scomparsa, tutto usabile da tastiera.
+- **Finestre strette**: le schede non finiscono più sotto i pulsanti della finestra né si tagliano a metà. Con le schede
+  accanto all'indirizzo, sotto i 980 pixel di larghezza passano da sole sopra la barra; quando sono troppe scorrono, con
+  i bordi sfumati.
+- Schede più leggibili: i titoli troppo corti lasciano il posto alla sola icona, un divisore separa le schede inattive,
+  la scheda attiva si distingue meglio nel tema scuro.
+
 ## 0.8.0
 
 ### Sicurezza

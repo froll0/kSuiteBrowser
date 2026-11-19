@@ -209,10 +209,14 @@ body.layout-side #tabs-area { flex: 0 0 auto; }
   overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
 }
 #tabstrip::-webkit-scrollbar { display: none; }
+/* More tabs than fit: the edges fade where there are more to scroll to. */
+#tabstrip.more-left { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px); }
+#tabstrip.more-right { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+#tabstrip.more-left.more-right { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
 .tab {
   position: relative;
   display: flex; align-items: center; gap: 8px;
-  flex: 0 1 200px; min-width: 36px; max-width: 220px;
+  flex: 0 1 200px; min-width: 40px; max-width: 220px;
   container-type: inline-size;
   height: var(--tab-h); padding: 0 4px 0 10px;
   border-radius: var(--r-md);
@@ -220,7 +224,12 @@ body.layout-side #tabs-area { flex: 0 0 auto; }
   transition: background .12s, color .12s;
 }
 .tab:hover { background: var(--chrome-hover); color: var(--text); }
-.tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); }
+/* A thin divider between two inactive tabs, so their titles don't run into each other. */
+.tab:not(.active, :hover, .pinned) + .tab:not(.active, :hover, .pinned)::before {
+  content: ''; position: absolute; left: calc(var(--gap) / -2 - 0.5px); top: 25%; bottom: 25%; width: 1px;
+  background: color-mix(in srgb, var(--text) 14%, transparent);
+}
+.tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card), 0 0 0 1px color-mix(in srgb, var(--text) 7%, transparent); }
 .tab-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: calc(var(--fs) - 0.5px); }
 .tab.active .tab-title { font-weight: 500; }
 .tab-close, .tab-audio {
@@ -232,9 +241,10 @@ body.layout-side #tabs-area { flex: 0 0 auto; }
 .tab:hover .tab-close, .tab.active .tab-close, .tab-close:focus-visible { opacity: 1; }
 .tab-close:hover, .tab-audio:hover { background: var(--active); color: var(--text); }
 /* Narrow tabs keep only the icon (and the close button on the active one). */
-@container (max-width: 76px) {
+@container (max-width: 88px) {
   .tab-title { display: none; }
   .tab:not(.active) .tab-close { display: none; }
+  .tab:not(.active) .favicon, .tab:not(.active) .spinner { margin-inline: auto; }
 }
 @container (max-width: 56px) {
   .tab-close { display: none; }
@@ -263,12 +273,15 @@ body.layout-side #tabs-area { flex: 0 0 auto; }
 
 /* ---------- Toolbar and address bar ---------- */
 
-#toolbar { display: flex; align-items: center; gap: var(--gap); min-width: 0; }
-#toolbar .group { display: flex; align-items: center; gap: 2px; }
+/* Never narrower than its buttons and a short address bar: the tabs give way instead (they scroll), so
+   nothing slides under the window buttons. */
+#toolbar { display: flex; align-items: center; gap: var(--gap); min-width: max-content; }
+#toolbar .group { display: flex; align-items: center; gap: 2px; flex: none; }
 #toolbar .group:empty { display: none; }
 /* One row: tabs take what's left next to an address bar of comfortable width. */
 body.layout-inline #toolbar { flex: 0 1 auto; }
-body.layout-inline #omnibox-form { width: clamp(240px, 34vw, 560px); flex: 0 1 auto; }
+body.layout-inline #omnibox-form { width: clamp(240px, 28vw, 520px); flex: 0 1 auto; }
+body.layout-top #toolbar, body.layout-side #toolbar { min-width: 0; }
 body.layout-top #toolbar, body.layout-side #toolbar { flex: 1; }
 body.layout-top #omnibox-form, body.layout-side #omnibox-form { flex: 1; }
 body.layout-side #omnibox-form { max-width: 760px; margin: 0 auto; }

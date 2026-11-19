@@ -434,7 +434,7 @@ export class SyncEngine {
       out.bookmarks = {};
       for (const b of this.deps.bookmarks.list()) {
         if (!/^(https?|file):/i.test(b.url)) continue;
-        const data: BookmarkData = { title: b.title, url: b.url, folder: b.folder, position: positions[b.folder]++, createdAt: b.createdAt };
+        const data: BookmarkData = { title: b.title, url: b.url, folder: b.folder, ...(b.path?.length ? { path: b.path } : {}), position: positions[b.folder]++, createdAt: b.createdAt };
         out.bookmarks[bookmarkKey(b.url)] = { data, changedAt: b.createdAt };
       }
     }
@@ -487,7 +487,7 @@ export class SyncEngine {
           for (const [key, record] of Object.entries(merged.bookmarks)) {
             if (record.deleted || !record.data) continue;
             const existing = byKey.get(key);
-            next.push({ id: existing?.id ?? randomUUID(), title: record.data.title, url: record.data.url, folder: record.data.folder, createdAt: record.data.createdAt, position: record.data.position });
+            next.push({ id: existing?.id ?? randomUUID(), title: record.data.title, url: record.data.url, folder: record.data.folder, ...(record.data.path?.length ? { path: record.data.path } : {}), createdAt: record.data.createdAt, position: record.data.position });
           }
           // Local bookmarks that aren't synced (internal pages) stay where they are, at the end.
           for (const b of this.deps.bookmarks.list()) if (!/^(https?|file):/i.test(b.url)) next.push({ ...b, position: Number.MAX_SAFE_INTEGER });

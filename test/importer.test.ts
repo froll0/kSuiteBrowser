@@ -53,13 +53,13 @@ function loginField(text: string, key: Buffer): string {
 describe('import from Chromium browsers', () => {
   it('reads bookmarks, keeping the bar apart', () => {
     const json = JSON.stringify({ roots: {
-      bookmark_bar: { children: [{ type: 'url', name: 'A', url: 'https://a.example/' }, { type: 'folder', children: [{ type: 'url', name: 'B', url: 'https://b.example/' }] }] },
+      bookmark_bar: { children: [{ type: 'url', name: 'A', url: 'https://a.example/' }, { type: 'folder', name: 'Lavoro', children: [{ type: 'url', name: 'B', url: 'https://b.example/' }] }] },
       other: { children: [{ type: 'url', name: 'C', url: 'https://c.example/' }, { type: 'url', name: 'J', url: 'javascript:alert(1)' }] },
       synced: { children: [] },
     } });
     expect(parseChromiumBookmarks(json)).toEqual([
       { title: 'A', url: 'https://a.example/', folder: 'bar' },
-      { title: 'B', url: 'https://b.example/', folder: 'bar' },
+      { title: 'B', url: 'https://b.example/', folder: 'bar', path: ['Lavoro'] },
       { title: 'C', url: 'https://c.example/', folder: 'other' },
     ]);
   });
@@ -116,7 +116,7 @@ describe('import from Firefox', () => {
 
     const data = readFirefoxProfile({ id: 'firefox:x', browser: 'Firefox', key: 'firefox', family: 'firefox', profileName: 'x', path: dir }, ['logins', 'bookmarks', 'history']);
     expect(data.logins).toEqual([{ url: 'https://example.org', username: 'anna', password: 'pw-ü-1' }]);
-    expect(data.bookmarks).toEqual([{ title: 'Ex', url: 'https://example.org/', folder: 'bar' }, { title: 'News', url: 'https://news.example/', folder: 'other' }]);
+    expect(data.bookmarks).toEqual([{ title: 'Ex', url: 'https://example.org/', folder: 'bar', path: ['sub'] }, { title: 'News', url: 'https://news.example/', folder: 'other' }]);
     expect(data.history?.map((v) => v.url)).toEqual(['https://example.org/', 'https://news.example/']);
     expect(decryptLoginField(loginField('x', master), master)).toBe('x');
   });

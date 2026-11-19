@@ -151,11 +151,13 @@ export const internal = {
   },
   bookmarks: {
     list: () => call<Bookmark[]>(INTERNAL.bookmarksList),
-    add: (b: { title: string; url: string; folder: BookmarkFolder }) => call<Bookmark>(INTERNAL.bookmarksAdd, b),
-    update: (id: string, patch: { title?: string; url?: string; folder?: BookmarkFolder }) => call<void>(INTERNAL.bookmarksUpdate, id, patch),
+    add: (b: { title: string; url: string; folder: BookmarkFolder; path?: string[] }) => call<Bookmark>(INTERNAL.bookmarksAdd, b),
+    update: (id: string, patch: { title?: string; url?: string; folder?: BookmarkFolder; path?: string[] }) => call<void>(INTERNAL.bookmarksUpdate, id, patch),
+    renameFolder: (folder: BookmarkFolder, path: string[], name: string) => call<void>(INTERNAL.bookmarksRenameFolder, folder, path, name),
+    removeFolder: (folder: BookmarkFolder, path: string[]) => call<number>(INTERNAL.bookmarksRemoveFolder, folder, path),
     remove: (id: string) => call<void>(INTERNAL.bookmarksRemove, id),
     shift: (id: string, direction: -1 | 1) => call<void>(INTERNAL.bookmarksShift, id, direction),
-    import: (items: Array<{ title: string; url: string; folder: BookmarkFolder }>) => call<number>(INTERNAL.bookmarksImport, items),
+    import: (items: Array<{ title: string; url: string; folder: BookmarkFolder; path?: string[] }>) => call<number>(INTERNAL.bookmarksImport, items),
     onChange: (fn: (list: Bookmark[]) => void) => bridge().onBookmarks(fn),
   },
 };

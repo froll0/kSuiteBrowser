@@ -708,3 +708,4 @@ body.side-collapsed .ws-name { display: none; }
   background: var(--profile-color); color: #fff; font-size: 12px; font-weight: 600;
   white-space: nowrap; overflow: hidden; -webkit-app-region: no-drag;
 }
+.bookmark.folder svg { color: var(--muted); }

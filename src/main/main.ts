@@ -50,6 +50,7 @@ import { PrivacyGuard } from './privacy';
 import { CloudServices } from './services';
 import { SettingsStore } from './settings';
 import { BookmarksStore } from './stores/bookmarks';
+import { cleanPath, folderEntries } from '../shared/bookmark-folders';
 import { FaviconStore } from './stores/favicons';
 import { HistoryStore } from './stores/history';
 import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } from './window';
@@ -870,14 +871,22 @@ function bookmarkContextMenu(w: BrowserWindowController, id: string): void {
   ]).popup({ window: w.win });
 }
 
+/** A folder as menu items: its bookmarks, and its subfolders as submenus. */
+function folderMenuItems(w: BrowserWindowController, root: BookmarkFolder, path: string[]): Electron.MenuItemConstructorOptions[] {
+  return folderEntries(bookmarks.list(), root, path).map((e) =>
+    e.kind === 'bookmark'
+      ? { label: e.bookmark.title.slice(0, 60) || e.bookmark.url, click: () => openUrl(w, e.bookmark.url, 'current') }
+      : { label: e.name, submenu: folderMenuItems(w, root, e.path) },
+  );
+}
+
 function allBookmarksMenu(w: BrowserWindowController): void {
-  const item = (b: { title: string; url: string }) => ({ label: b.title.slice(0, 60) || b.url, click: () => openUrl(w, b.url, 'current') });
-  const bar = bookmarks.list().filter((b) => b.folder === 'bar');
-  const others = bookmarks.list().filter((b) => b.folder === 'other');
+  const bar = folderMenuItems(w, 'bar', []);
+  const others = folderMenuItems(w, 'other', []);
   Menu.buildFromTemplate([
-    ...bar.map(item),
+    ...bar,
     ...(bar.length ? [{ type: 'separator' as const }] : []),
-    { label: tr('Altri preferiti'), submenu: others.length ? others.map(item) : [{ label: tr('Vuoto'), enabled: false }] },
+    { label: tr('Altri preferiti'), submenu: others.length ? others : [{ label: tr('Vuoto'), enabled: false }] },
     { type: 'separator' },
     { label: tr('Gestisci preferiti'), click: () => w.openInternal('velo://bookmarks/') },
   ]).popup({ window: w.win });
@@ -1577,6 +1586,10 @@ function registerChromeIpc(): void {
   });
   handle(IPC.bookmarkMenu, (w, id: string) => bookmarkContextMenu(w, id));
   handle(IPC.bookmarksMenu, (w) => allBookmarksMenu(w));
+  handle(IPC.bookmarkFolderMenu, (w, path: unknown, x: number, y: number) => {
+    const items = folderMenuItems(w, 'bar', cleanPath(path));
+    Menu.buildFromTemplate(items.length ? items : [{ label: tr('Vuoto'), enabled: false }]).popup({ window: w.win, x: Math.round(Number(x) || 0), y: Math.round(Number(y) || 0) });
+  });
   handle(IPC.aiStatus, () => ai.status());
   handle(IPC.aiChat, async (w, request: AiChatRequest) => {
     const messages = (Array.isArray(request?.messages) ? request.messages : [])
@@ -1809,11 +1822,14 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.historyRemove, ['history'], (_e, ids: string[]) => history.remove(Array.isArray(ids) ? ids.map(String) : []));
   handleInternal(INTERNAL.historyClear, ['history', 'settings'], (_e, since: number) => history.clearSince(Number(since) || 0));
   handleInternal(INTERNAL.bookmarksList, HB, () => bookmarks.list());
-  handleInternal(INTERNAL.bookmarksAdd, ['bookmarks'], (_e, b: { title: string; url: string; folder: BookmarkFolder }) => bookmarks.add(b));
-  handleInternal(INTERNAL.bookmarksUpdate, ['bookmarks'], (_e, id: string, patch: { title?: string; url?: string; folder?: BookmarkFolder }) => bookmarks.update(String(id), patch ?? {}));
+  handleInternal(INTERNAL.bookmarksAdd, ['bookmarks'], (_e, b: { title: string; url: string; folder: BookmarkFolder; path?: string[] }) => bookmarks.add(b));
+  handleInternal(INTERNAL.bookmarksUpdate, ['bookmarks'], (_e, id: string, patch: { title?: string; url?: string; folder?: BookmarkFolder; path?: string[] }) => bookmarks.update(String(id), patch ?? {}));
+  const root = (f: unknown): BookmarkFolder => (f === 'other' ? 'other' : 'bar');
+  handleInternal(INTERNAL.bookmarksRenameFolder, ['bookmarks'], (_e, folder: unknown, path: unknown, name: unknown) => bookmarks.renameFolder(root(folder), cleanPath(path), String(name ?? '')));
+  handleInternal(INTERNAL.bookmarksRemoveFolder, ['bookmarks'], (_e, folder: unknown, path: unknown) => bookmarks.removeFolder(root(folder), cleanPath(path)));
   handleInternal(INTERNAL.bookmarksRemove, ['bookmarks'], (_e, id: string) => bookmarks.remove(String(id)));
   handleInternal(INTERNAL.bookmarksShift, ['bookmarks'], (_e, id: string, direction: number) => bookmarks.shift(String(id), direction < 0 ? -1 : 1));
-  handleInternal(INTERNAL.bookmarksImport, ['bookmarks'], (_e, items: Array<{ title: string; url: string; folder: BookmarkFolder }>) =>
+  handleInternal(INTERNAL.bookmarksImport, ['bookmarks'], (_e, items: Array<{ title: string; url: string; folder: BookmarkFolder; path?: string[] }>) =>
     bookmarks.import(Array.isArray(items) ? items.slice(0, 20000) : []),
   );
   const P = ['passwords'];

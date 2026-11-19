@@ -1,3 +1,4 @@
+import { folderEntries } from '../shared/bookmark-folders';
 import { applyTokens, isDark, SIDE_TABS_RANGE, tokens, TOOLBAR_ITEMS, type ToolbarItem } from '../shared/appearance';
 import { INFOMANIAK_APPS } from '../shared/infomaniak-apps';
 import { faviconUrl } from '../shared/top-sites';
@@ -828,7 +829,17 @@ function renderBookmarksBar(): void {
     return;
   }
   bookmarkItems.replaceChildren(
-    ...bar.map((b) => {
+    ...folderEntries(bookmarks, 'bar', []).map((entry) => {
+      if (entry.kind === 'folder') {
+        // A subfolder: its bookmarks in a menu under the button.
+        const el = h('button', { class: 'bookmark folder', title: entry.name, 'aria-haspopup': 'menu' }, icon('folder', 16), h('span', { class: 'label' }, entry.name));
+        el.addEventListener('click', () => {
+          const r = el.getBoundingClientRect();
+          void ks.bookmarks.folder(entry.path, r.left, r.bottom + 2);
+        });
+        return el;
+      }
+      const b = entry.bookmark;
       const el = h(
         'button',
         { class: 'bookmark', title: `${b.title}\n${b.url}` },

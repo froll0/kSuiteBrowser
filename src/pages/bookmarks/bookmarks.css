@@ -1,3 +1,13 @@
 .entry .folder-tag { font-size: 11px; color: var(--muted); }
 .folder-empty { margin: 0; padding: 14px 18px; color: var(--muted); font-size: 13px; }
 .no-bookmarks #add, .no-bookmarks .toolbar a.button, .no-bookmarks #export, .no-bookmarks .page-header .search-field { display: none; }
+/* Subfolders: indented under their folder. */
+.group .entry { padding-left: calc(18px + var(--depth, 0) * 26px); }
+.folder-head { background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
+.folder-head .folder-icon { display: grid; place-items: center; width: 22px; height: 22px; flex: none; color: var(--accent); }
+.folder-head strong { font-weight: 600; }
+.folder-rename { display: flex; flex: 1; gap: 8px; }
+.folder-rename input { flex: 1; max-width: 320px; }
+.edit { grid-template-columns: 1fr 1fr minmax(160px, auto) auto auto; }
+/* The new folder name takes a line of its own. */
+.edit .new-folder { grid-column: 1 / -1; order: 9; }

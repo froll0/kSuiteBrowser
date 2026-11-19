@@ -100,6 +100,8 @@ const api = {
     open: (id: string, how: 'current' | 'background') => invoke<void>(IPC.bookmarkOpen, id, how),
     menu: (id: string) => invoke<void>(IPC.bookmarkMenu, id),
     all: () => invoke<void>(IPC.bookmarksMenu),
+    /** A subfolder of the bookmarks bar, as a menu under the button at (x, y). */
+    folder: (path: string[], x: number, y: number) => invoke<void>(IPC.bookmarkFolderMenu, path, x, y),
   },
   settings: {
     get: () => invoke<Settings>(IPC.settingsGet),

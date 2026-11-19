@@ -14,6 +14,8 @@ export interface BookmarkData {
   title: string;
   url: string;
   folder: 'bar' | 'other';
+  /** Subfolders (left out at the root, so older versions read the same records). */
+  path?: string[];
   position: number;
   createdAt: number;
 }

@@ -16,6 +16,7 @@ export interface ImportedBookmark {
   title: string;
   url: string;
   folder: 'bar' | 'other';
+  path?: string[];
 }
 
 export interface ImportedVisit {

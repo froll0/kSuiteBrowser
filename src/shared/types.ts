@@ -121,6 +121,8 @@ export interface Bookmark {
   title: string;
   url: string;
   folder: BookmarkFolder;
+  /** Subfolders inside the root folder, outermost first; absent at the root. */
+  path?: string[];
   createdAt: number;
 }
 

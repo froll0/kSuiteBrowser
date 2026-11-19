@@ -24,7 +24,7 @@ interface BookmarkNode {
   children?: BookmarkNode[];
 }
 
-/** The "Bookmarks" JSON file: the bar keeps its place, everything else goes to "other". */
+/** The "Bookmarks" JSON file: the bar keeps its place, everything else goes to "other"; subfolders are kept. */
 export function parseChromiumBookmarks(json: string): ImportedBookmark[] {
   const out: ImportedBookmark[] = [];
   let data: { roots?: Record<string, BookmarkNode> };
@@ -33,13 +33,15 @@ export function parseChromiumBookmarks(json: string): ImportedBookmark[] {
   } catch {
     return out;
   }
-  const walk = (node: BookmarkNode | undefined, folder: 'bar' | 'other') => {
+  const walk = (node: BookmarkNode | undefined, folder: 'bar' | 'other', path: string[]) => {
     if (!node) return;
-    if (node.type === 'url' && node.url && /^(https?|file):/i.test(node.url)) out.push({ title: node.name ?? node.url, url: node.url, folder });
-    for (const child of node.children ?? []) walk(child, folder);
+    if (node.type === 'url' && node.url && /^(https?|file):/i.test(node.url)) out.push({ title: node.name ?? node.url, url: node.url, folder, ...(path.length ? { path } : {}) });
+    const inner = node.type === 'folder' && path.length < 8 ? [...path, node.name?.trim() || '…'] : path;
+    for (const child of node.children ?? []) walk(child, folder, inner);
   };
-  walk(data.roots?.bookmark_bar, 'bar');
-  for (const [key, node] of Object.entries(data.roots ?? {})) if (key !== 'bookmark_bar') walk(node, 'other');
+  // The roots themselves are not subfolders.
+  for (const child of data.roots?.bookmark_bar?.children ?? []) walk(child, 'bar', []);
+  for (const [key, node] of Object.entries(data.roots ?? {})) if (key !== 'bookmark_bar') for (const child of node?.children ?? []) walk(child, 'other', []);
   return out;
 }
 

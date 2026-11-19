@@ -134,16 +134,26 @@ export function readFirefoxProfile(source: ImportSource, kinds: ImportKind[]): I
     withDatabaseCopy(join(dir, 'places.sqlite'), (db) => {
       if (kinds.includes('bookmarks')) {
         const toolbar = (db.prepare("SELECT id FROM moz_bookmarks WHERE guid = 'toolbar_____'").get() as { id?: number } | undefined)?.id ?? -1;
-        // Folder of each bookmark, to know which ones are in (or under) the toolbar.
-        const parents = new Map<number, number>();
-        for (const r of db.prepare('SELECT id, parent FROM moz_bookmarks WHERE type = 2').all() as Array<{ id: number; parent: number }>) parents.set(r.id, r.parent);
+        // The built-in root folders (menu, toolbar, other, mobile) are not subfolders.
+        const roots = new Set((db.prepare("SELECT id FROM moz_bookmarks WHERE guid IN ('root________', 'menu________', 'toolbar_____', 'unfiled_____', 'mobile______')").all() as Array<{ id: number }>).map((r) => r.id));
+        // Folder of each folder, to know which bookmarks are in (or under) the toolbar and their subfolders.
+        const folders = new Map<number, { parent: number; title: string }>();
+        for (const r of db.prepare('SELECT id, parent, title FROM moz_bookmarks WHERE type = 2').all() as Array<{ id: number; parent: number; title: string | null }>) folders.set(r.id, { parent: r.parent, title: r.title?.trim() || '…' });
         const underToolbar = (folder: number) => {
-          for (let f: number | undefined = folder, depth = 0; f !== undefined && depth < 50; f = parents.get(f), depth++) if (f === toolbar) return true;
+          for (let f: number | undefined = folder, depth = 0; f !== undefined && depth < 50; f = folders.get(f)?.parent, depth++) if (f === toolbar) return true;
           return false;
+        };
+        const pathOf = (folder: number) => {
+          const path: string[] = [];
+          for (let f: number | undefined = folder, depth = 0; f !== undefined && !roots.has(f) && depth < 50; f = folders.get(f)?.parent, depth++) path.unshift(folders.get(f)?.title ?? '…');
+          return path.slice(0, 8);
         };
         result.bookmarks = (db.prepare('SELECT b.title AS title, p.url AS url, b.parent AS parent FROM moz_bookmarks b JOIN moz_places p ON p.id = b.fk WHERE b.type = 1 ORDER BY b.parent, b.position').all() as Array<{ title: string | null; url: string; parent: number }>)
           .filter((r) => /^(https?|file):/i.test(r.url))
-          .map((r): ImportedBookmark => ({ title: r.title || r.url, url: r.url, folder: underToolbar(r.parent) ? 'bar' : 'other' }));
+          .map((r): ImportedBookmark => {
+            const path = pathOf(r.parent);
+            return { title: r.title || r.url, url: r.url, folder: underToolbar(r.parent) ? 'bar' : 'other', ...(path.length ? { path } : {}) };
+          });
       }
       if (kinds.includes('history')) {
         result.history = (db.prepare('SELECT url, title, CAST(last_visit_date AS TEXT) AS t FROM moz_places WHERE last_visit_date IS NOT NULL AND hidden = 0 ORDER BY last_visit_date DESC LIMIT 50000').all() as Array<{ url: string; title: string | null; t: string }>)

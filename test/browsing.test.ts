@@ -79,7 +79,7 @@ describe('bookmark files', () => {
   it('imports Chrome/Firefox exports, keeping the toolbar folder', () => {
     expect(parseBookmarksHtml(chromeExport)).toEqual([
       { title: 'Mail & Calendar', url: 'https://mail.infomaniak.com/', folder: 'bar' },
-      { title: 'kDrive', url: 'https://kdrive.infomaniak.com/', folder: 'bar' },
+      { title: 'kDrive', url: 'https://kdrive.infomaniak.com/', folder: 'bar', path: ['Lavoro'] },
       { title: 'Esempio', url: 'https://example.org/?a=1&b=2', folder: 'other' },
     ]);
   });
@@ -88,10 +88,14 @@ describe('bookmark files', () => {
     const list: Bookmark[] = [
       { id: '1', title: 'A <b>', url: 'https://a.example/?x=1&y=2', folder: 'bar', createdAt: NOW },
       { id: '2', title: 'B', url: 'https://b.example/', folder: 'other', createdAt: NOW },
+      { id: '3', title: 'C', url: 'https://c.example/', folder: 'other', path: ['Lavoro', 'Progetti'], createdAt: NOW },
+      { id: '4', title: 'D', url: 'https://d.example/', folder: 'bar', path: ['Notizie'], createdAt: NOW },
     ];
     expect(parseBookmarksHtml(exportBookmarksHtml(list, NOW))).toEqual([
       { title: 'A <b>', url: 'https://a.example/?x=1&y=2', folder: 'bar' },
+      { title: 'D', url: 'https://d.example/', folder: 'bar', path: ['Notizie'] },
       { title: 'B', url: 'https://b.example/', folder: 'other' },
+      { title: 'C', url: 'https://c.example/', folder: 'other', path: ['Lavoro', 'Progetti'] },
     ]);
   });
 });

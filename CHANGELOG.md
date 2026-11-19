@@ -8,6 +8,11 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 - Velo anche per Mac con processore Intel, Windows su ARM e Linux su ARM (64 bit). Su Windows un solo installer
   per Intel/AMD e ARM.
 
+### Preferiti
+- **Cartelle dei preferiti**, anche una dentro l'altra: nella barra si aprono come menu, nella pagina Preferiti si
+  creano, rinominano ed eliminano. L'importazione da Chrome, Edge, Firefox e dai file HTML mantiene le cartelle, e la
+  sincronizzazione le porta sugli altri computer.
+
 ### Design
 - Tema scuro corretto nelle pagine interne: i riquadri ora risaltano sullo sfondo invece di sprofondarci.
 - Pagina nuova scheda: scorciatoie ai siti che scegli tu (aggiungi, modifica, rimuovi), schede chiuse di recente,

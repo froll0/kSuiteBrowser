@@ -602,6 +602,7 @@ function renderToolbar(): void {
   renderSiteInfo(tab);
   if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' && !tab.url.startsWith('velo://newtab') ? displayUrl(tab.url) : '';
   renderShield(tab);
+  updateBookmarksBar();
 
   const bookmarkable = Boolean(tab && /^(https?|file|velo):/i.test(tab.url) && !tab.url.startsWith('velo://newtab'));
   // Media controls: shown while a tab of this window plays (or played) sound.
@@ -809,7 +810,16 @@ omnibox.addEventListener('keydown', (e) => {
 
 // ---------- Bookmarks ----------
 
+/** The bar is shown when enabled; while it is empty, only on the new tab page (where its hint helps). */
+function updateBookmarksBar(): void {
+  const tab = activeTab();
+  const empty = !bookmarks.some((b) => b.folder === 'bar');
+  const onNewTab = !tab || tab.url === 'about:blank' || tab.url.startsWith('velo://newtab');
+  document.body.classList.toggle('bookmarks-bar', Boolean(currentSettings?.showBookmarksBar) && (!empty || onNewTab));
+}
+
 function renderBookmarksBar(): void {
+  updateBookmarksBar();
   const bar = bookmarks.filter((b) => b.folder === 'bar');
   if (bar.length === 0) {
     const hint = h('span', { class: 'bookmarks-hint' }, tr('Premi la stella nella barra degli indirizzi (o Ctrl+D) per aggiungere qui una pagina.'));
@@ -1110,7 +1120,6 @@ ks.events.onSettings(async (settings) => {
   currentSettings = settings;
   // The assistant and the mail compose form show different controls with the AI on or off.
   if (aiChanged && (panel.current() === 'assistant' || panel.current() === 'mail')) void panel.render();
-  document.body.classList.toggle('bookmarks-bar', settings.showBookmarksBar);
   applyAppearance(settings);
   renderToolbar();
   // Names and colours of workspaces and containers may have changed.
@@ -1342,7 +1351,6 @@ async function boot(): Promise<void> {
   document.body.classList.add(`platform-${info.platform}`);
   currentSettings = settings;
   bookmarks = bookmarkList;
-  document.body.classList.toggle('bookmarks-bar', settings.showBookmarksBar);
   renderBookmarksBar();
   tokenConfigured = status.configured;
   document.body.classList.toggle('private', info.isPrivate);

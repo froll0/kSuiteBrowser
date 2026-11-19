@@ -11,24 +11,31 @@
     <nav class="nav" aria-label="Sezioni">
       <h1><span class="logo" id="logo"></span>Impostazioni</h1>
       <span class="search-field" data-icon="search" data-size="16"><input id="filter" type="search" placeholder="Cerca nelle impostazioni" aria-label="Cerca nelle impostazioni" /></span>
-      <a href="#general" data-icon="settings" data-size="17">Generale</a>
-      <a href="#appearance" data-icon="palette" data-size="17">Aspetto</a>
-      <a href="#layout" data-icon="panelLeft" data-size="17">Disposizione</a>
-      <a href="#zoom" data-icon="search" data-size="17">Zoom</a>
-      <a href="#shortcuts" data-icon="keyboard" data-size="17">Scorciatoie</a>
-      <a href="#workspaces" data-icon="layers" data-size="17">Spazi di lavoro</a>
-      <a href="#profiles" data-icon="users" data-size="17">Profili</a>
-      <a href="#notifications" data-icon="bell" data-size="17">Notifiche</a>
-      <a href="#passwords" data-icon="key" data-size="17">Password</a>
-      <a href="#privacy" data-icon="shieldCheck" data-size="17">Privacy e sicurezza</a>
-      <a href="#permissions" data-icon="lock" data-size="17">Permessi dei siti</a>
-      <a href="#account" data-icon="cloud" data-size="17">Account cloud</a>
-      <a href="#sync" data-icon="cloud" data-size="17">Sincronizzazione</a>
-      <a href="#ai" data-icon="sparkles" data-size="17">Intelligenza artificiale</a>
-      <a href="#updates" data-icon="refresh" data-size="17">Aggiornamenti</a>
-      <a href="#about" data-icon="info" data-size="17">Informazioni</a>
+      <div class="nav-links">
+        <div class="nav-group" id="nav-browser">Browser</div>
+        <a href="#general" data-icon="settings" data-size="17">Generale</a>
+        <a href="#appearance" data-icon="palette" data-size="17">Aspetto</a>
+        <a href="#layout" data-icon="panelLeft" data-size="17">Disposizione</a>
+        <a href="#zoom" data-icon="search" data-size="17">Zoom</a>
+        <a href="#shortcuts" data-icon="keyboard" data-size="17">Scorciatoie</a>
+        <div class="nav-group">Schede e profili</div>
+        <a href="#workspaces" data-icon="layers" data-size="17">Spazi di lavoro</a>
+        <a href="#profiles" data-icon="users" data-size="17">Profili</a>
+        <a href="#notifications" data-icon="bell" data-size="17">Notifiche</a>
+        <div class="nav-group">Privacy</div>
+        <a href="#passwords" data-icon="key" data-size="17">Password</a>
+        <a href="#privacy" data-icon="shieldCheck" data-size="17">Privacy e sicurezza</a>
+        <a href="#permissions" data-icon="lock" data-size="17">Permessi dei siti</a>
+        <div class="nav-group">Account</div>
+        <a href="#account" data-icon="cloud" data-size="17">Account cloud</a>
+        <a href="#sync" data-icon="refresh" data-size="17">Sincronizzazione</a>
+        <a href="#ai" data-icon="sparkles" data-size="17">Intelligenza artificiale</a>
+        <div class="nav-group">Velo</div>
+        <a href="#updates" data-icon="download" data-size="17">Aggiornamenti</a>
+        <a href="#about" data-icon="info" data-size="17">Informazioni</a>
+      </div>
     </nav>
-    <main id="content" tabindex="-1"></main>
+    <main id="content" tabindex="-1"><p id="filter-summary" class="filter-summary" role="status"></p></main>
   </div>
   <script src="settings.js"></script>
 </body>

@@ -450,7 +450,7 @@ function layoutSection(): HTMLElement {
         h('div', { class: 'desc' }, tr('Trascina i pulsanti per riordinarli o spostarli; clic su un pulsante disponibile per aggiungerlo. Anche il clic destro sulla barra permette di togliere o aggiungere pulsanti.'))),
       toolbarEditor(),
     ),
-    h('div', { class: 'row stack', 'data-search': tr('nuova scheda sfondo saluto app siti') },
+    h('div', { class: 'row stack', 'data-search': tr('nuova scheda sfondo saluto app siti scorciatoie chiuse recenti') },
       h('div', { class: 'title' }, tr('Pagina nuova scheda')),
       h('div', { class: 'newtab-options' },
         segmented(tr('Sfondo della nuova scheda'), settings.newTabBackground, [
@@ -459,13 +459,14 @@ function layoutSection(): HTMLElement {
           { value: 'gradient', title: tr('Sfumata') },
         ], (v) => look({ newTabBackground: v })),
         h('label', { class: 'check' }, checkbox('newTabShowGreeting'), tr('Saluto')),
-        h('label', { class: 'check' }, checkbox('showTopSites'), tr('Siti più visitati')),
+        h('label', { class: 'check' }, checkbox('showTopSites'), tr('Scorciatoie e siti più visitati')),
+        h('label', { class: 'check' }, checkbox('newTabShowRecent'), tr('Schede chiuse di recente')),
         h('label', { class: 'check' }, checkbox('newTabShowApps'), tr('Le tue app'))),
     ),
   );
 }
 
-function checkbox(key: 'newTabShowGreeting' | 'newTabShowApps' | 'showTopSites'): HTMLInputElement {
+function checkbox(key: 'newTabShowGreeting' | 'newTabShowApps' | 'showTopSites' | 'newTabShowRecent'): HTMLInputElement {
   const input = h('input', { type: 'checkbox', checked: settings[key] });
   input.addEventListener('change', () => void update({ [key]: input.checked } as Partial<Settings>));
   return input;
@@ -1262,15 +1263,31 @@ async function render(): Promise<void> {
   else document.documentElement.dataset.theme = settings.theme;
   const scroll = content.scrollTop || document.scrollingElement?.scrollTop || 0;
   const sections = [await generalSection(), appearanceSection(), layoutSection(), zoomSection(), await shortcutsSection(), workspacesSection(), await profilesSection(), await notificationsSection(), await passwordsSection(), privacySection(), permissionsSection(), await accountSection(), syncSection(), await aiSection(), await aboutSection()];
-  content.replaceChildren(...sections);
+  // Some builders return several sections in a wrapper: every section is a direct child of the content.
+  content.replaceChildren(filterSummary, ...sections.flatMap((el) => (el.tagName === 'SECTION' ? [el] : [...el.querySelectorAll<HTMLElement>(':scope > section')])));
   hydrateIcons(content);
   applyFilter();
   if (document.scrollingElement) document.scrollingElement.scrollTop = scroll;
 }
 
+/** Sections shown on the page of another one (the nav has no entry for them). */
+const VIEW_OF: Record<string, string> = { crashes: 'about' };
+const filterSummary = document.getElementById('filter-summary')!;
+
+/** The nav entry for the address: a section, or an element inside one (velo://settings/#crashes). */
+function currentView(): string {
+  const id = decodeURIComponent(location.hash.slice(1));
+  const target = id ? document.getElementById(id) : null;
+  const sectionEl = target?.closest<HTMLElement>('#content > section');
+  return sectionEl ? (VIEW_OF[sectionEl.id] ?? sectionEl.id) : 'general';
+}
+
+/** One page per nav entry; while searching, the matching settings of every page. */
 function applyFilter(): void {
   const q = filter.value.trim().toLowerCase();
-  for (const sectionEl of content.querySelectorAll('section')) {
+  const view = currentView();
+  let total = 0;
+  for (const sectionEl of content.querySelectorAll<HTMLElement>(':scope > section')) {
     let visible = 0;
     for (const r of sectionEl.querySelectorAll<HTMLElement>('.row')) {
       const text = `${r.dataset.search ?? ''} ${r.textContent ?? ''}`.toLowerCase();
@@ -1278,19 +1295,32 @@ function applyFilter(): void {
       r.classList.toggle('hidden-by-filter', !match);
       if (match) visible++;
     }
-    sectionEl.classList.toggle('hidden-by-filter', !!q && visible === 0);
+    total += visible;
+    sectionEl.classList.toggle('hidden-by-filter', q ? visible === 0 : (VIEW_OF[sectionEl.id] ?? sectionEl.id) !== view);
   }
+  content.classList.toggle('searching', !!q);
+  filterSummary.textContent = q ? (total ? tr('Risultati per “{0}”', filter.value.trim()) : tr('Nessuna impostazione trovata per “{0}”.', filter.value.trim())) : '';
+  highlightNav();
 }
 
 function highlightNav(): void {
-  const id = location.hash.slice(1) || 'general';
-  for (const a of document.querySelectorAll<HTMLAnchorElement>('.nav a')) a.classList.toggle('active', a.hash === `#${id}`);
+  const view = filter.value.trim() ? null : currentView();
+  for (const a of document.querySelectorAll<HTMLAnchorElement>('.nav a')) {
+    const on = a.hash === `#${view}`;
+    a.classList.toggle('active', on);
+    if (on) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  }
 }
 
 function scrollToHash(): void {
-  highlightNav();
-  const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
-  target?.scrollIntoView({ block: 'start' });
+  // Choosing a page ends the search.
+  if (filter.value) filter.value = '';
+  applyFilter();
+  const id = decodeURIComponent(location.hash.slice(1));
+  const target = id ? document.getElementById(id) : null;
+  if (target && !target.matches('#content > section')) target.scrollIntoView({ block: 'start' });
+  else if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
 }
 
 followTheme();
@@ -1298,6 +1328,8 @@ hydrateIcons();
 document.getElementById('logo')?.append(logoMark(28));
 filter.addEventListener('input', applyFilter);
 window.addEventListener('hashchange', scrollToHash);
+// The page already shown (e.g. while searching): no hashchange.
+for (const a of document.querySelectorAll<HTMLAnchorElement>('.nav a')) a.addEventListener('click', () => a.hash === location.hash && scrollToHash());
 
 // Settings changed elsewhere (another window, the shield button): refresh unless the user is typing here.
 internal.onSettings(() => {

@@ -11,22 +11,31 @@
     <header class="page-header">
       <h1><span class="title-icon" data-icon="history" data-size="20"></span>Cronologia</h1>
       <span class="search-field" data-icon="search" data-size="16"><input id="search" type="search" placeholder="Cerca nella cronologia" aria-label="Cerca nella cronologia" /></span>
+      <button id="clear" data-icon="trash" data-size="16">Cancella la cronologia…</button>
     </header>
-    <div class="toolbar">
-      <label for="range">Cancella:</label>
-      <select id="range">
-        <option value="3600000">Ultima ora</option>
-        <option value="86400000">Ultime 24 ore</option>
-        <option value="604800000">Ultimi 7 giorni</option>
-        <option value="2419200000">Ultime 4 settimane</option>
-        <option value="0">Tutta la cronologia</option>
-      </select>
-      <button id="clear" class="danger">Cancella</button>
-      <span id="status" class="status" role="status"></span>
-    </div>
+    <p id="status" class="status" role="status"></p>
     <div id="list"></div>
     <button id="more" hidden>Mostra altre pagine</button>
   </div>
+  <dialog id="clear-dialog" aria-labelledby="clear-title">
+    <form method="dialog" id="clear-form">
+      <h2 id="clear-title">Cancella la cronologia</h2>
+      <p>Le pagine visitate nel periodo scelto spariscono da questa pagina e dai suggerimenti. Cookie e dati dei siti restano: si cancellano da Impostazioni › Privacy e sicurezza.</p>
+      <label>Periodo
+        <select id="range">
+          <option value="3600000">Ultima ora</option>
+          <option value="86400000">Ultime 24 ore</option>
+          <option value="604800000">Ultimi 7 giorni</option>
+          <option value="2419200000">Ultime 4 settimane</option>
+          <option value="0">Tutta la cronologia</option>
+        </select>
+      </label>
+      <div class="dialog-actions">
+        <button type="button" id="clear-cancel">Annulla</button>
+        <button type="submit" class="primary danger-fill">Cancella</button>
+      </div>
+    </form>
+  </dialog>
   <script src="history.js"></script>
 </body>
 </html>

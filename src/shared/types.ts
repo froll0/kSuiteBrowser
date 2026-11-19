@@ -89,6 +89,8 @@ export interface AiEvent {
 export interface TopSite {
   url: string;
   title: string;
+  /** Added by the user (new tab shortcuts), not from the history. */
+  pinned?: boolean;
 }
 
 export interface NewTabData {
@@ -100,6 +102,8 @@ export interface NewTabData {
   isPrivate: boolean;
   /** An Infomaniak account is connected: its apps are shown. */
   cloud: boolean;
+  /** Recently closed tabs of this window, most recent first. */
+  closed: Array<{ index: number; title: string; url: string }>;
 }
 
 export interface HistoryVisit {
@@ -352,6 +356,9 @@ export interface Settings {
   /** Show the whole address (scheme, www) even when the address bar isn't being edited. */
   showFullUrl: boolean;
   newTabBackground: NewTabBackground;
+  /** Sites pinned on the new tab page, before the most visited ones. */
+  newTabShortcuts: TopSite[];
+  newTabShowRecent: boolean;
   newTabShowGreeting: boolean;
   newTabShowApps: boolean;
   showBookmarksBar: boolean;

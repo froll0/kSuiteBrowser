@@ -14,9 +14,11 @@ export function withIcon<T extends HTMLElement>(el: T, name: IconName, size = 16
   return el;
 }
 
-/** Empty state with a large icon. */
-export function emptyState(name: IconName, text: string): HTMLElement {
+/** Empty state with a large icon, an optional explanation and buttons. */
+export function emptyState(name: IconName, text: string, desc?: string, ...actions: HTMLElement[]): HTMLElement {
   const badge = h('span', { class: 'big-icon' });
   badge.append(icon(name, 24));
-  return h('div', { class: 'empty' }, badge, h('span', {}, text));
+  return h('div', { class: 'empty' }, badge, h('strong', { class: 'empty-title' }, text),
+    desc ? h('span', { class: 'empty-desc' }, desc) : null,
+    actions.length ? h('div', { class: 'empty-actions' }, ...actions) : null);
 }

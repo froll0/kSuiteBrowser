@@ -96,6 +96,8 @@
 :root[data-theme="light"] { color-scheme: light; }
 
 * { box-sizing: border-box; }
+/* Buttons and other styled elements set a display that would otherwise win over the hidden attribute. */
+[hidden] { display: none !important; }
 html, body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 14px/1.5 var(--font, 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
@@ -107,13 +109,23 @@ svg.i { flex: none; display: block; }
 [data-icon] { display: inline-flex; align-items: center; justify-content: center; }
 button {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  height: 34px; padding: 0 14px;
+  height: 36px; padding: 0 14px;
   border: 1px solid var(--border); border-radius: var(--r-sm);
   background: var(--surface); font-weight: 500;
   transition: background .12s, border-color .12s;
 }
 button:hover:not(:disabled) { background: var(--surface-2); border-color: var(--border-strong); }
 button:disabled { opacity: .45; }
+/* A link that looks like a button (e.g. to another internal page). */
+a.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 36px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--text); font-weight: 500; text-decoration: none;
+  transition: background .12s, border-color .12s;
+}
+a.button:hover { background: var(--surface-2); border-color: var(--border-strong); }
+a.button.primary { background: var(--accent-fill, var(--accent)); border-color: var(--accent-fill, var(--accent)); color: var(--on-accent); }
+a.button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 button.primary { background: var(--accent-fill, var(--accent)); border-color: var(--accent-fill, var(--accent)); color: var(--on-accent); }
 button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 button.danger { color: var(--danger); }
@@ -190,14 +202,16 @@ section h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; margin:
 .warning { color: var(--warning); font-size: 13px; }
 
 /* List pages (history, bookmarks, passwords) */
-.page { max-width: 920px; margin: 0 auto; padding: 32px 28px 80px; }
-.page-header { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 20px; }
+.page { max-width: 880px; margin: 0 auto; padding: 36px 28px 80px; }
+.page-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; min-height: 40px; margin-bottom: 24px; }
+/* Controls in the header line up with the search field. */
+.page-header > button, .page-header > a.button { height: 40px; border-radius: 999px; padding: 0 16px; }
 .page-header h1 { display: flex; align-items: center; gap: 12px; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; margin: 0 auto 0 0; }
 .title-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); }
 .search-field { position: relative; display: flex; align-items: center; width: 340px; max-width: 100%; }
 .search-field svg { position: absolute; left: 13px; color: var(--muted); pointer-events: none; }
 .search-field input { width: 100%; height: 40px; padding-left: 38px; border-radius: 999px; background: var(--surface); }
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -8px 0 20px; }
 .group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); margin-bottom: 18px; overflow: hidden; box-shadow: var(--shadow-card); }
 .group h2 { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 0; padding: 12px 18px; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
 .entry { display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 8px 12px 8px 18px; border-bottom: 1px solid var(--border); min-width: 0; transition: background .1s; }
@@ -212,8 +226,21 @@ section h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; margin:
 .entry .host { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
 .entry .actions { display: flex; gap: 2px; flex: none; opacity: .55; transition: opacity .12s; }
 .entry:hover .actions, .entry .actions:focus-within { opacity: 1; }
-.empty { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--muted); padding: 36px 16px; text-align: center; }
-.empty .big-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--surface-2); color: var(--muted); }
+.empty { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--muted); padding: 40px 24px; text-align: center; }
+.empty .big-icon { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 6px; border-radius: 16px; background: var(--accent-soft); color: var(--accent); }
+.empty .empty-title { color: var(--text); font-size: 15px; font-weight: 600; }
+.empty .empty-desc { max-width: 440px; font-size: 13.5px; }
+.empty .empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; }
+
+/* Dialogs (new tab shortcuts, clearing the history…) */
+dialog { width: min(440px, calc(100vw - 32px)); padding: 22px 24px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); color: var(--text); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3); }
+dialog::backdrop { background: rgba(10, 12, 16, 0.4); }
+dialog h2 { font-size: 17px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 6px; }
+dialog p { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; }
+dialog label { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: 13px; font-weight: 550; color: var(--text-2); }
+dialog input[type=text], dialog select { width: 100%; }
+dialog .message:empty { display: none; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .edit { display: grid; grid-template-columns: 1fr 1fr auto auto auto; gap: 8px; width: 100%; }
 .status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin: 0; }
 .status:empty { display: none; }
@@ -224,3 +251,7 @@ section h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; margin:
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 :root.reduce-motion *, :root.reduce-motion *::before, :root.reduce-motion *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+
+/* Dark enough for white text on both the light and the dark red. */
+button.primary.danger-fill { --fill: color-mix(in srgb, var(--danger) 72%, #000); background: var(--fill); border-color: var(--fill); color: #fff; }
+button.primary.danger-fill:hover:not(:disabled) { --fill: color-mix(in srgb, var(--danger) 62%, #000); background: var(--fill); border-color: var(--fill); }

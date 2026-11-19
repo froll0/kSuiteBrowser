@@ -23,7 +23,8 @@ const MIME: Record<string, string> = {
 /** Must run before the app is ready. */
 export function registerInternalScheme(): void {
   protocol.registerSchemesAsPrivileged([
-    { scheme: INTERNAL_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+    // corsEnabled: fonts are always fetched with CORS, and velo://assets serves them to the other velo:// pages.
+    { scheme: INTERNAL_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
   ]);
 }
 
@@ -57,6 +58,8 @@ export function serveInternalPages(session: Session, pagesDir: string, favicon: 
           'Referrer-Policy': 'no-referrer',
           'X-Frame-Options': 'DENY',
           'Cache-Control': 'no-store',
+          // Shared files (fonts) for the other internal pages only.
+          ...(url.hostname === 'assets' && /^velo:\/\/[a-z-]+$/.test(request.headers.get('Origin') ?? '') ? { 'Access-Control-Allow-Origin': request.headers.get('Origin')! } : {}),
         },
       });
     } catch {

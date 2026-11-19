@@ -53,7 +53,7 @@ import { BookmarksStore } from './stores/bookmarks';
 import { FaviconStore } from './stores/favicons';
 import { HistoryStore } from './stores/history';
 import { BrowserWindowController, NEWTAB_URL, popupLook, type WindowContext } from './window';
-import { DEFAULT_SETTINGS, TAG_COLORS, TAG_COLOR_INFO, sanitizeSettings } from '../shared/settings-schema';
+import { DEFAULT_SETTINGS, MAX_NEWTAB_SHORTCUTS, TAG_COLORS, TAG_COLOR_INFO, sanitizeSettings, shortcutList, shortcutUrl } from '../shared/settings-schema';
 import { purgeRemovedFeatures } from './purge';
 import { SiteForgetter } from './forget';
 import { CrashLog } from './crash-log';
@@ -1870,9 +1870,15 @@ function registerInternalIpc(): void {
   handleInternal(INTERNAL.newtabData, ['newtab'], (event) => {
     const s = settings.get();
     const isPrivate = !event.sender.session.isPersistent();
+    // The user's shortcuts first, then the most visited sites (one per site) up to 8 tiles.
+    const pinned = s.newTabShortcuts.map((x) => ({ ...x, pinned: true }));
+    const pinnedOrigins = pinned.map((x) => originOf(x.url)).filter((x): x is string => !!x);
+    const visited = !isPrivate && s.saveHistory ? topSites(history.summaries(), [...s.hiddenTopSites, ...pinnedOrigins], Math.max(0, 8 - pinned.length)) : [];
+    const owner = [...windows].find((w) => w.tabs.idOf(event.sender) !== null);
     return {
       isPrivate,
-      topSites: !isPrivate && s.saveHistory && s.showTopSites ? topSites(history.summaries(), s.hiddenTopSites) : [],
+      topSites: s.showTopSites ? [...pinned, ...visited] : [],
+      closed: s.newTabShowRecent ? (owner?.tabs.recentlyClosed() ?? []).filter((c) => /^https?:/i.test(c.url)).slice(0, 5) : [],
       searchEngine: s.searchEngine,
       showTopSites: s.showTopSites,
       hiddenCount: s.hiddenTopSites.length,
@@ -1880,8 +1886,29 @@ function registerInternalIpc(): void {
     };
   });
   handleInternal(INTERNAL.newtabHide, ['newtab'], (_e, url: string) => {
-    const origin = originOf(String(url ?? ''));
-    if (origin) settings.update({ hiddenTopSites: [...settings.get().hiddenTopSites, origin] });
+    const s = settings.get();
+    // A shortcut is removed; a most visited site is hidden.
+    if (s.newTabShortcuts.some((x) => x.url === url)) settings.update({ newTabShortcuts: s.newTabShortcuts.filter((x) => x.url !== url) });
+    else {
+      const origin = originOf(String(url ?? ''));
+      if (origin) settings.update({ hiddenTopSites: [...s.hiddenTopSites, origin] });
+    }
+  });
+  // Adds a shortcut, or replaces `previous` (a shortcut, or a most visited site that becomes one).
+  handleInternal(INTERNAL.newtabSaveShortcut, ['newtab'], (_e, previous: unknown, site: { url?: unknown; title?: unknown }) => {
+    const url = shortcutUrl(site?.url);
+    if (!url) return { ok: false };
+    const list = settings.get().newTabShortcuts;
+    const entry = { url, title: typeof site.title === 'string' ? site.title : '' };
+    const at = list.findIndex((x) => x.url === previous);
+    if (at < 0 && list.length >= MAX_NEWTAB_SHORTCUTS) return { ok: false, full: true };
+    const next = at >= 0 ? list.map((x, i) => (i === at ? entry : x)) : [...list.filter((x) => x.url !== url), entry];
+    settings.update({ newTabShortcuts: shortcutList(next) });
+    return { ok: true };
+  });
+  handleInternal(INTERNAL.newtabReopen, ['newtab'], (event, index: number) => {
+    const owner = [...windows].find((w) => w.tabs.idOf(event.sender) !== null);
+    owner?.tabs.reopenClosedAt(Number(index));
   });
   handleInternal(INTERNAL.newtabRestore, ['newtab', 'settings'], () => settings.update({ hiddenTopSites: [] }));
   handleInternal(INTERNAL.newtabSuggest, ['newtab'], (event, input: string) => {

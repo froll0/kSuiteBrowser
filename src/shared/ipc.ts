@@ -177,6 +177,8 @@ export const INTERNAL = {
   newtabHide: 'internal:newtab:hide',
   newtabRestore: 'internal:newtab:restore',
   newtabSuggest: 'internal:newtab:suggest',
+  newtabSaveShortcut: 'internal:newtab:save-shortcut',
+  newtabReopen: 'internal:newtab:reopen',
   searchMeta: 'internal:search:meta',
   searchLocal: 'internal:search:local',
   searchDrive: 'internal:search:drive',

@@ -1,1 +1,3 @@
 .entry .folder-tag { font-size: 11px; color: var(--muted); }
+.folder-empty { margin: 0; padding: 14px 18px; color: var(--muted); font-size: 13px; }
+.no-bookmarks #add, .no-bookmarks .toolbar a.button, .no-bookmarks #export, .no-bookmarks .page-header .search-field { display: none; }

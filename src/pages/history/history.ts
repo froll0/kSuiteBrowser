@@ -55,7 +55,9 @@ function entry(v: HistoryVisit): HTMLElement {
 
 function render(): void {
   if (visits.length === 0) {
-    list.replaceChildren(h('div', { class: 'group' }, emptyState(search.value ? 'search' : 'history', search.value ? tr('Nessuna pagina trovata.') : tr('La cronologia è vuota.'))));
+    list.replaceChildren(h('div', { class: 'group' }, search.value
+      ? emptyState('search', tr('Nessuna pagina trovata.'), tr('Prova con altre parole o con una parte dell’indirizzo.'))
+      : emptyState('history', tr('La cronologia è vuota.'), tr('Le pagine che visiti compaiono qui, raggruppate per giorno. Le finestre private non lasciano tracce.'))));
     return;
   }
   const groups = new Map<string, HistoryVisit[]>();
@@ -82,12 +84,14 @@ search.addEventListener('input', () => {
   timer = window.setTimeout(() => void load(), 150);
 });
 more.addEventListener('click', () => void load(true));
-document.getElementById('clear')!.addEventListener('click', async () => {
-  const select = document.getElementById('range') as HTMLSelectElement;
-  const span = Number(select.value);
-  const label = select.selectedOptions[0].textContent?.toLowerCase() ?? '';
-  if (!confirm(tr('Cancellare la cronologia ({0})?', label))) return;
+const clearDialog = document.getElementById('clear-dialog') as HTMLDialogElement;
+document.getElementById('clear')!.addEventListener('click', () => clearDialog.showModal());
+document.getElementById('clear-cancel')!.addEventListener('click', () => clearDialog.close());
+document.getElementById('clear-form')!.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const span = Number((document.getElementById('range') as HTMLSelectElement).value);
   await internal.history.clearSince(span === 0 ? 0 : Date.now() - span);
+  clearDialog.close();
   status.textContent = tr('Cronologia cancellata.');
   void load();
 });

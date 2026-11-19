@@ -1,9 +1,17 @@
 body { min-height: 100vh; display: grid; place-items: center; background: radial-gradient(1200px 600px at 50% -10%, var(--accent-soft), transparent 70%), var(--bg); }
-.welcome { width: min(680px, 100% - 32px); padding: 40px 0 56px; }
-.brand { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 24px; }
-.dots { display: flex; gap: 8px; list-style: none; padding: 0; margin: 0 0 22px; }
-.dots li { width: 28px; height: 5px; border-radius: 3px; background: var(--surface-3); transition: background .25s; }
-.dots li.done, .dots li.current { background: var(--accent); }
+.welcome { width: min(720px, 100% - 32px); padding: 40px 0 56px; }
+.panel { padding: 32px 36px 28px; background: var(--surface); border: 1px solid var(--border); border-radius: calc(var(--r-lg) + 6px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 18px 48px rgba(15, 23, 42, 0.1); }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 22px; }
+.brand .counter { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.dots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; list-style: none; padding: 0; margin: 0 0 30px; }
+.dots li { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.dots .bar { height: 6px; border-radius: 3px; background: var(--surface-3); transition: background .25s; }
+.dots .label { font-size: 12px; font-weight: 550; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dots li.done .bar { background: color-mix(in srgb, var(--accent) 55%, var(--surface-3)); }
+.dots li.current .bar { background: var(--accent); }
+.dots li.current .label { color: var(--accent); }
+.dots li.done .label { color: var(--text-2); }
+.step .card { box-shadow: none; }
 .step { outline: none; animation: step-in .32s cubic-bezier(.2, .8, .2, 1); }
 .step h1 { font-size: 30px; letter-spacing: -0.02em; margin: 0 0 8px; }
 .step .lead { color: var(--text-2); font-size: 15.5px; margin: 0 0 22px; max-width: 560px; }
@@ -23,3 +31,23 @@ body { min-height: 100vh; display: grid; place-items: center; background: radial
 @keyframes step-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .step { animation: none; } .dots li { transition: none; } }
 :root.reduce-motion .step { animation: none; }
+
+/* Live preview of the chosen look: drawn with the page's own tokens, which follow the settings. */
+.preview { display: flex; flex-direction: column; height: 170px; margin-bottom: 14px; border-radius: var(--r-lg); overflow: hidden; background: var(--backdrop, var(--surface-2)); box-shadow: 0 0 0 1px var(--border); }
+.p-top { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; flex: none; }
+.p-tabs { display: flex; gap: 5px; }
+.preview.layout-top .p-tabs { flex: 1; }
+.p-tab { display: block; height: 18px; width: 64px; border-radius: calc(var(--r-md) * .6); background: color-mix(in srgb, var(--text) 9%, transparent); }
+.p-tab.active { background: var(--surface); box-shadow: var(--shadow-card); }
+.p-bar { display: flex; align-items: center; gap: 6px; flex: 1; }
+.p-dot { width: 10px; height: 10px; border-radius: 50%; background: color-mix(in srgb, var(--text) 25%, transparent); flex: none; }
+.p-url { flex: 1; height: 18px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 75%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
+.p-body { flex: 1; display: flex; gap: 8px; padding: 0 8px 8px; min-height: 0; }
+.p-side { width: 90px; flex: none; display: flex; flex-direction: column; gap: 5px; }
+.p-side .p-tab { width: 100%; height: 16px; }
+.p-canvas { flex: 1; display: flex; flex-direction: column; gap: 9px; padding: 20px; background: var(--surface); border-radius: calc(var(--r-lg) * .7); box-shadow: var(--shadow-card), 0 0 0 1px var(--border); }
+.p-line { display: block; height: 8px; width: 70%; border-radius: 4px; background: var(--surface-3); }
+.p-line.wide { width: 40%; height: 12px; background: var(--accent-soft); }
+.p-line.short { width: 50%; }
+.p-button { display: block; width: 76px; height: 20px; margin-top: auto; border-radius: var(--r-sm); background: var(--accent-fill, var(--accent)); }
+@media (max-width: 560px) { .panel { padding: 22px 18px; } .dots .label { display: none; } }

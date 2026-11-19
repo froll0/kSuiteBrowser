@@ -4,6 +4,18 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 
 ## Prossima versione
 
+### Design
+- Tema scuro corretto nelle pagine interne: i riquadri ora risaltano sullo sfondo invece di sprofondarci.
+- Pagina nuova scheda: scorciatoie ai siti che scegli tu (aggiungi, modifica, rimuovi), schede chiuse di recente,
+  sfondo leggermente tinto di serie.
+- La barra dei preferiti vuota compare solo sulla nuova scheda, con il suggerimento per riempirla.
+- Impostazioni divise in pagine con la navigazione a gruppi; la ricerca trova le impostazioni in tutte le pagine.
+- Preferiti e Cronologia vuoti spiegano cosa fare (con l'importazione dal browser di prima); la cronologia si cancella
+  da una finestra con il periodo da scegliere.
+- Pagina di benvenuto con i passaggi indicati per nome e l'anteprima dal vivo di tema, colore e schede.
+- Pulsanti, intestazioni e larghezze uguali in tutte le pagine; il carattere Inter si carica davvero in tutte le pagine
+  interne.
+
 ## 0.7.0
 
 ### Sicurezza e affidabilità

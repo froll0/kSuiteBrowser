@@ -11,6 +11,7 @@ document.getElementById('logo')!.append(logoMark(30));
 
 const stepEl = document.getElementById('step')!;
 const dots = document.getElementById('dots')!;
+const counter = document.getElementById('counter')!;
 const back = document.getElementById('back') as HTMLButtonElement;
 const next = document.getElementById('next') as HTMLButtonElement;
 const skip = document.getElementById('skip') as HTMLButtonElement;
@@ -52,6 +53,8 @@ function radios<T extends string>(name: string, value: T, options: Array<{ value
 }
 
 interface Step {
+  /** Short name in the progress bar. */
+  short: string;
   title: string;
   lead: string;
   body: () => Node[] | Promise<Node[]>;
@@ -59,6 +62,7 @@ interface Step {
 
 const STEPS: Step[] = [
   {
+    short: tr('Lingua'),
     title: tr('Benvenuto in Velo'),
     lead: tr('Un browser che protegge la tua privacy fin dal primo clic. Bastano pochi passaggi per sceglierne l’aspetto e il livello di protezione: potrai cambiare tutto più tardi nelle impostazioni.'),
     body: () => {
@@ -82,6 +86,7 @@ const STEPS: Step[] = [
     },
   },
   {
+    short: tr('Aspetto'),
     title: tr('Aspetto'),
     lead: tr('Chiaro o scuro, schede in alto o di lato: scegli come preferisci vedere Velo.'),
     body: () => {
@@ -96,16 +101,33 @@ const STEPS: Step[] = [
         return b;
       }));
       renderSwatches();
+      const preview = h('div', { class: 'preview', 'aria-hidden': 'true' });
+      const renderPreview = () => {
+        const side = settings.tabsLayout === 'side';
+        const tabs = h('div', { class: 'p-tabs' }, ...[0, 1, 2].map((i) => h('span', { class: i ? 'p-tab' : 'p-tab active' })));
+        const bar = h('div', { class: 'p-bar' }, h('span', { class: 'p-dot' }), h('span', { class: 'p-dot' }), h('span', { class: 'p-url' }));
+        preview.className = `preview layout-${settings.tabsLayout}`;
+        preview.replaceChildren(
+          ...(settings.tabsLayout === 'top' ? [h('div', { class: 'p-top' }, tabs)] : []),
+          h('div', { class: 'p-top' }, settings.tabsLayout === 'inline' ? tabs : null, bar),
+          h('div', { class: 'p-body' },
+            side ? h('div', { class: 'p-side' }, ...[0, 1, 2, 3].map((i) => h('span', { class: i ? 'p-tab' : 'p-tab active' }))) : null,
+            h('div', { class: 'p-canvas' }, h('span', { class: 'p-line wide' }), h('span', { class: 'p-line' }), h('span', { class: 'p-line short' }), h('span', { class: 'p-button' }))),
+        );
+      };
+      renderPreview();
       return [
+        preview,
         card(
           row(tr('Tema'), null, select<Settings['theme']>(tr('Tema'), settings.theme, [['system', tr('Come il sistema')], ['light', tr('Chiaro')], ['dark', tr('Scuro')]], (v) => void set({ theme: v }))),
-          row(tr('Schede'), null, select<Settings['tabsLayout']>(tr('Schede'), settings.tabsLayout, [['inline', tr('In alto, accanto all’indirizzo')], ['top', tr('In alto, su una riga propria')], ['side', tr('In una colonna laterale')]], (v) => void set({ tabsLayout: v }))),
+          row(tr('Schede'), null, select<Settings['tabsLayout']>(tr('Schede'), settings.tabsLayout, [['inline', tr('In alto, accanto all’indirizzo')], ['top', tr('In alto, su una riga propria')], ['side', tr('In una colonna laterale')]], (v) => void set({ tabsLayout: v }).then(renderPreview))),
           h('div', { class: 'row stack' }, h('div', { class: 'title' }, tr('Colore')), swatches),
         ),
       ];
     },
   },
   {
+    short: tr('Privacy'),
     title: tr('Privacy e sicurezza'),
     lead: tr('Le protezioni sono già attive. Puoi renderle più severe: alcuni siti potrebbero funzionare peggio.'),
     body: () => [
@@ -124,6 +146,7 @@ const STEPS: Step[] = [
     ],
   },
   {
+    short: tr('Importa'),
     title: tr('Importa i tuoi dati'),
     lead: tr('Porta in Velo preferiti, cronologia e password dal browser che usavi finora.'),
     body: async () => {
@@ -153,6 +176,7 @@ const STEPS: Step[] = [
     },
   },
   {
+    short: tr('Account'),
     title: tr('Account cloud (facoltativo)'),
     lead: tr('Velo funziona senza account. Se usi Infomaniak puoi collegare kDrive, Mail, Calendario e la sincronizzazione cifrata tra i tuoi computer.'),
     body: () => [
@@ -169,7 +193,9 @@ async function finish(url = 'velo://newtab/'): Promise<void> {
 async function show(i: number): Promise<void> {
   index = Math.max(0, Math.min(STEPS.length - 1, i));
   const step = STEPS[index];
-  dots.replaceChildren(...STEPS.map((_, n) => h('li', { class: n < index ? 'done' : n === index ? 'current' : '', 'aria-current': n === index ? 'step' : 'false' })));
+  dots.replaceChildren(...STEPS.map((s, n) => h('li', { class: n < index ? 'done' : n === index ? 'current' : '', 'aria-current': n === index ? 'step' : 'false' },
+    h('span', { class: 'bar' }), h('span', { class: 'label' }, s.short))));
+  counter.textContent = tr('Passo {0} di {1}', index + 1, STEPS.length);
   stepEl.replaceChildren(h('h1', {}, step.title), h('p', { class: 'lead' }, step.lead), ...(await step.body()));
   back.hidden = index === 0;
   next.textContent = index === STEPS.length - 1 ? tr('Inizia a navigare') : tr('Avanti');

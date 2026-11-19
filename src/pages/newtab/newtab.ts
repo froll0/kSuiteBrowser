@@ -1,8 +1,9 @@
 import { h } from '../../renderer/dom';
 import { INTERNAL } from '../../shared/ipc';
 import { INFOMANIAK_APPS } from '../../shared/infomaniak-apps';
-import { faviconUrl } from '../../shared/top-sites';
-import type { NewTabData, Settings, Suggestion } from '../../shared/types';
+import { faviconUrl, letterColor } from '../../shared/top-sites';
+import { MAX_NEWTAB_SHORTCUTS } from '../../shared/settings-schema';
+import type { NewTabData, Settings, Suggestion, TopSite } from '../../shared/types';
 import { hydrateIcons, icon, logoMark } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 import { followTheme, refreshTheme } from '../shared/theme';
@@ -97,15 +98,28 @@ async function render(): Promise<void> {
   search.placeholder = tr('Cerca sul web o scrivi un indirizzo');
   if (document.activeElement === document.body) search.focus();
   const grid = document.getElementById('top-sites')!;
-  grid.hidden = !data.showTopSites || data.topSites.length === 0;
-  grid.replaceChildren(
-    ...data.topSites.map((site) =>
-      h('a', { class: 'tile', href: site.url, title: `${site.title}\n${site.url}` },
-        h('span', { class: 'icon' }, h('img', { src: faviconUrl(site.url), alt: '' })),
-        h('span', { class: 'name' }, site.title),
-        removeButton(site),
-      ),
+  grid.hidden = !data.showTopSites || (data.isPrivate && data.topSites.length === 0);
+  const tiles = data.topSites.map((site) =>
+    h('a', { class: site.pinned ? 'tile pinned' : 'tile', href: site.url, title: `${site.title}\n${site.url}` },
+      h('span', { class: 'icon' }, siteIcon(site.url)),
+      h('span', { class: 'name' }, site.title),
+      h('span', { class: 'tile-actions' }, editButton(site), removeButton(site)),
     ),
+  );
+  if (!data.isPrivate && data.topSites.filter((s) => s.pinned).length < MAX_NEWTAB_SHORTCUTS && data.topSites.length < 8) {
+    const add = h('button', { class: 'tile add', type: 'button', onclick: () => openShortcutDialog(null) });
+    add.append(h('span', { class: 'icon' }, icon('plus', 22)), h('span', { class: 'name' }, tr('Aggiungi')));
+    tiles.push(add as unknown as HTMLAnchorElement);
+  }
+  grid.replaceChildren(...tiles);
+  const recent = document.getElementById('recent')!;
+  recent.hidden = data.closed.length === 0;
+  document.getElementById('recent-list')!.replaceChildren(
+    ...data.closed.map((tab) => {
+      const button = h('button', { type: 'button', title: tab.url, onclick: async () => call(INTERNAL.newtabReopen, tab.index) });
+      button.append(h('img', { class: 'favicon', src: faviconUrl(tab.url), alt: '' }), h('span', { class: 'title' }, tab.title), h('span', { class: 'host' }, hostOf(tab.url)));
+      return h('li', {}, button);
+    }),
   );
   // The apps belong to the optional Infomaniak account.
   document.querySelector<HTMLElement>('section[aria-labelledby="apps-title"]')!.classList.toggle('no-account', !data.cloud);
@@ -118,21 +132,85 @@ document.getElementById('restore-btn')!.addEventListener('click', async () => {
   void render();
 });
 
-function removeButton(site: { url: string; title: string }): HTMLButtonElement {
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+/** The favicon, or the first letter of the site while it loads or when there is none. */
+function siteIcon(url: string): HTMLElement {
+  const host = hostOf(url);
+  const letter = h('span', { class: 'letter' }, (host[0] ?? '?').toUpperCase());
+  // Through CSSOM: the page's CSP doesn't allow style attributes.
+  letter.style.background = letterColor(host);
+  const img = h('img', { src: faviconUrl(url), alt: '' }) as HTMLImageElement;
+  img.addEventListener('load', () => letter.replaceWith(img));
+  return letter;
+}
+
+function tileButton(label: string, glyph: 'close' | 'pencil', onclick: () => void): HTMLButtonElement {
   const button = h('button', {
-    class: 'remove',
-    title: tr('Rimuovi'),
-    'aria-label': tr('Rimuovi {0} dai siti più visitati', site.title),
-    onclick: async (e: Event) => {
+    type: 'button',
+    title: label,
+    'aria-label': label,
+    onclick: (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
-      await call(INTERNAL.newtabHide, site.url);
-      void render();
+      onclick();
     },
   });
-  button.append(icon('close', 13));
+  button.append(icon(glyph, 13));
   return button;
 }
+
+function removeButton(site: TopSite): HTMLButtonElement {
+  return tileButton(site.pinned ? tr('Rimuovi la scorciatoia {0}', site.title) : tr('Rimuovi {0} dai siti più visitati', site.title), 'close', async () => {
+    await call(INTERNAL.newtabHide, site.url);
+    void render();
+  });
+}
+
+function editButton(site: TopSite): HTMLButtonElement {
+  return tileButton(tr('Modifica {0}', site.title), 'pencil', () => openShortcutDialog(site));
+}
+
+// ---------- Shortcut dialog ----------
+
+const dialog = document.getElementById('shortcut-dialog') as HTMLDialogElement;
+const nameField = document.getElementById('shortcut-name') as HTMLInputElement;
+const urlField = document.getElementById('shortcut-url') as HTMLInputElement;
+const errorText = document.getElementById('shortcut-error')!;
+let editing: TopSite | null = null;
+
+function openShortcutDialog(site: TopSite | null): void {
+  editing = site;
+  document.getElementById('shortcut-title')!.textContent = site ? tr('Modifica la scorciatoia') : tr('Aggiungi una scorciatoia');
+  nameField.value = site?.title ?? '';
+  urlField.value = site?.url ?? '';
+  errorText.textContent = '';
+  dialog.showModal();
+  (site ? nameField : urlField).focus();
+}
+
+document.getElementById('shortcut-cancel')!.addEventListener('click', () => dialog.close());
+document.getElementById('shortcut-form')!.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const result = await call<{ ok: boolean; full?: boolean }>(INTERNAL.newtabSaveShortcut, editing?.url ?? null, { url: urlField.value, title: nameField.value });
+  if (!result.ok) {
+    errorText.textContent = result.full ? tr('Hai già il numero massimo di scorciatoie.') : tr('Scrivi un indirizzo web valido, ad esempio example.com.');
+    return;
+  }
+  dialog.close();
+  void render();
+});
+
+// Recently closed tabs change while the page is in the background.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void render();
+});
 
 document.getElementById('apps')!.replaceChildren(
   ...INFOMANIAK_APPS.map((app) => {

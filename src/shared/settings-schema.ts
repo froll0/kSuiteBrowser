@@ -1,4 +1,4 @@
-import type { Container, ProfileInfo, TagColor, Workspace, AskablePermission, PermissionDefault, ReaderTheme, ReaderWidth, Settings, SitePermission } from './types';
+import type { Container, ProfileInfo, TopSite, TagColor, Workspace, AskablePermission, PermissionDefault, ReaderTheme, ReaderWidth, Settings, SitePermission } from './types';
 import type { SecureDnsChoice } from './secure-dns';
 import { SEARCH_ENGINES, WEB_SEARCH_ENGINES } from './url';
 import { ZOOM_STEPS } from './zoom';
@@ -67,7 +67,9 @@ export const DEFAULT_SETTINGS: Settings = {
   toolbarStart: ['back', 'forward', 'reload'],
   toolbarEnd: ['shield', 'media', 'downloads', 'tabSearch', 'panel'],
   showFullUrl: false,
-  newTabBackground: 'plain',
+  newTabBackground: 'tint',
+  newTabShortcuts: [],
+  newTabShowRecent: true,
   newTabShowGreeting: true,
   newTabShowApps: true,
   showBookmarksBar: true,
@@ -132,6 +134,37 @@ const oneOf = <T extends string>(value: unknown, allowed: readonly T[], fallback
   allowed.includes(value as T) ? (value as T) : fallback;
 
 const bool = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
+
+export const MAX_NEWTAB_SHORTCUTS = 12;
+
+/** The sites pinned on the new tab page: http(s) addresses with a short name, no duplicates. */
+export function shortcutList(value: unknown): TopSite[] {
+  if (!Array.isArray(value)) return [];
+  const out: TopSite[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const { url, title } = item as { url?: unknown; title?: unknown };
+    const clean = shortcutUrl(url);
+    if (!clean || out.some((x) => x.url === clean)) continue;
+    const name = typeof title === 'string' && title.trim() ? title.trim().slice(0, 60) : new URL(clean).hostname.replace(/^www\./, '');
+    out.push({ url: clean, title: name });
+    if (out.length >= MAX_NEWTAB_SHORTCUTS) break;
+  }
+  return out;
+}
+
+/** An address typed for a shortcut ("example.com" too), or null. */
+export function shortcutUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim() || value.length > 2000) return null;
+  const text = value.trim();
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `https://${text}`);
+    const web = u.protocol === 'https:' || u.protocol === 'http:';
+    return web && (u.hostname.includes('.') || u.hostname === 'localhost') ? u.href : null;
+  } catch {
+    return null;
+  }
+}
 
 function hostList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -242,6 +275,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     newTabBackground: oneOf(s.newTabBackground, ['plain', 'tint', 'gradient'] as const, d.newTabBackground),
     newTabShowGreeting: bool(s.newTabShowGreeting, d.newTabShowGreeting),
     newTabShowApps: bool(s.newTabShowApps, d.newTabShowApps),
+    newTabShortcuts: shortcutList(s.newTabShortcuts),
+    newTabShowRecent: bool(s.newTabShowRecent, d.newTabShowRecent),
     showBookmarksBar: bool(s.showBookmarksBar, d.showBookmarksBar),
     autoHideToolbar: bool(s.autoHideToolbar, d.autoHideToolbar),
     revealToolbarOnScrollUp: bool(s.revealToolbarOnScrollUp, d.revealToolbarOnScrollUp),

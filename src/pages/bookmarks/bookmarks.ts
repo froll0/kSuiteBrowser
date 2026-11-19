@@ -4,7 +4,7 @@ import { faviconUrl } from '../../shared/top-sites';
 import type { Bookmark, BookmarkFolder } from '../../shared/types';
 import { hydrateIcons } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
-import { emptyState, iconButton } from '../shared/ui';
+import { emptyState, iconButton, withIcon } from '../shared/ui';
 import { followTheme } from '../shared/theme';
 import { tr } from '../../shared/i18n';
 
@@ -82,18 +82,24 @@ function row(b: Bookmark, index: number, count: number, filtered: boolean): HTML
 function render(): void {
   const q = search.value.trim().toLowerCase();
   const matches = (b: Bookmark) => !q || `${b.title} ${b.url}`.toLowerCase().includes(q);
+  // Nothing saved yet: the empty state offers the same actions as the toolbar.
+  document.body.classList.toggle('no-bookmarks', bookmarks.length === 0 && !adding);
   list.replaceChildren(
     ...(adding ? [h('section', { class: 'group' }, h('h2', {}, tr('Nuovo preferito')), editor({ title: '', url: 'https://', folder: 'bar' }, async (v) => {
       await internal.bookmarks.add(v);
       say(tr('Preferito aggiunto.'));
     }))] : []),
-    ...FOLDERS.map((f) => {
+    ...(!q && !adding && bookmarks.length === 0 ? [h('div', { class: 'group' }, emptyState('star', tr('Ancora nessun preferito'),
+      tr('Premi la stella nella barra degli indirizzi (o Ctrl+D) per salvare una pagina, oppure porta qui i preferiti del browser che usavi.'),
+      withIcon(h('a', { class: 'button primary', href: 'velo://import/' }, tr('Importa da un altro browser')), 'import'),
+      withIcon(h('button', { onclick: () => { adding = true; render(); } }, tr('Aggiungi preferito')), 'plus'),
+    ))] : FOLDERS.map((f) => {
       const items = bookmarks.filter((b) => b.folder === f.id && matches(b));
       return h('section', { class: 'group' },
         h('h2', {}, `${f.label} (${items.length})`),
-        ...(items.length ? items.map((b, i) => row(b, i, items.length, Boolean(q))) : [emptyState(q ? 'search' : 'star', q ? tr('Nessun risultato.') : tr('Nessun preferito in questa cartella.'))]),
+        ...(items.length ? items.map((b, i) => row(b, i, items.length, Boolean(q))) : [h('p', { class: 'folder-empty' }, q ? tr('Nessun risultato.') : tr('Nessun preferito in questa cartella.'))]),
       );
-    }),
+    })),
   );
 }
 

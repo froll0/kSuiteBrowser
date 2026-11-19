@@ -114,6 +114,20 @@ describe('new tab page', () => {
     expect(topSites(history, ['https://a.example']).map((s) => s.url)).toEqual(['https://b.example/', 'https://c.example/']);
   });
 
+  it('keeps clean, unique shortcuts', async () => {
+    const { shortcutList, shortcutUrl, MAX_NEWTAB_SHORTCUTS } = await import('../src/shared/settings-schema');
+    expect(shortcutUrl('example.com')).toBe('https://example.com/');
+    expect(shortcutUrl('http://localhost:3000')).toBe('http://localhost:3000/');
+    expect(shortcutUrl('javascript:alert(1)')).toBeNull();
+    expect(shortcutUrl('file:///etc/passwd')).toBeNull();
+    expect(shortcutUrl('nonsense')).toBeNull();
+    expect(shortcutList([{ url: 'www.example.com', title: '' }, { url: 'https://www.example.com/', title: 'Dup' }, { url: 'x' }, 'bad', { url: 'a.org', title: ' A ' }])).toEqual([
+      { url: 'https://www.example.com/', title: 'example.com' },
+      { url: 'https://a.org/', title: 'A' },
+    ]);
+    expect(shortcutList(Array.from({ length: 20 }, (_, i) => ({ url: `s${i}.org` })))).toHaveLength(MAX_NEWTAB_SHORTCUTS);
+  });
+
   it('draws a stable, escaped letter icon', async () => {
     const { letterIconSvg, letterColor, faviconUrl } = await import('../src/shared/top-sites');
     expect(letterIconSvg('www.example.org')).toContain('>E</text>');

@@ -1,4 +1,3 @@
-.page.narrow { max-width: 760px; }
 .row select { min-width: 170px; }
 .site-list { list-style: none; margin: 0; padding: 0; }
 .site-list li { border-bottom: 1px solid var(--border); }

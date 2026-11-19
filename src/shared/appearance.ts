@@ -205,8 +205,9 @@ export function tokens(s: AppearanceSettings, dark: boolean, isPrivate = false):
   // Every colour of text and controls must read on all the backgrounds it is drawn on (WCAG AA):
   // 4.5:1 for text, 3:1 for the accent of controls (4.5:1 in high contrast). Adjusted, never chosen blindly.
   const dk = dark || isPrivate;
-  // The page background of internal pages and the address bar (between surface and title bar) too.
-  const pageBg = mix(n.surface2, baseAccent, tint ? 0.025 : 0);
+  // The page background of internal pages. Cards (surface) sit on it: below them in light themes (a light
+  // grey under white cards), and darker than them in dark themes, so cards are raised in both.
+  const pageBg = mix(dk ? mix(n.base, n.surface, 0.45) : n.surface2, baseAccent, tint ? 0.025 : 0);
   const backgrounds = [n.surface, n.surface2, top, pageBg, mix(n.surface, top, 0.3)];
   // The accent is also the colour of links and selected items' text: 4.5:1, also on its own soft tint
   // (selected rows), which follows the accent: a few rounds settle both.

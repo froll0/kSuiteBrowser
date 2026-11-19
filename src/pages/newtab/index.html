@@ -16,13 +16,29 @@
              aria-expanded="false" aria-controls="suggestions" aria-label="Cerca o inserisci un indirizzo" />
       <ul id="suggestions" role="listbox" aria-label="Suggerimenti" hidden></ul>
     </form>
-    <section id="top-sites" aria-label="Siti più visitati"></section>
+    <section id="top-sites" aria-label="Scorciatoie"></section>
     <p id="restore" hidden><button class="link" id="restore-btn" data-icon="refresh" data-size="14">Ripristina i siti rimossi</button></p>
+    <section id="recent" aria-labelledby="recent-title" hidden>
+      <h2 id="recent-title">Chiuse di recente</h2>
+      <ul id="recent-list"></ul>
+    </section>
     <section aria-labelledby="apps-title">
       <h2 id="apps-title">Le tue app</h2>
       <div id="apps" class="apps"></div>
     </section>
   </main>
+  <dialog id="shortcut-dialog" aria-labelledby="shortcut-title">
+    <form method="dialog" id="shortcut-form">
+      <h2 id="shortcut-title">Aggiungi una scorciatoia</h2>
+      <label>Nome<input id="shortcut-name" type="text" maxlength="60" autocomplete="off" /></label>
+      <label>Indirizzo<input id="shortcut-url" type="text" required autocomplete="off" spellcheck="false" placeholder="example.com" /></label>
+      <p id="shortcut-error" class="message error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" id="shortcut-cancel">Annulla</button>
+        <button type="submit" class="primary" id="shortcut-save">Salva</button>
+      </div>
+    </form>
+  </dialog>
   <script src="newtab.js"></script>
 </body>
 </html>

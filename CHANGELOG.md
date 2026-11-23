@@ -4,6 +4,8 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 
 ## Prossima versione
 
+## 0.8.2
+
 ### Correzioni
 - Assistente IA: non partiva («Errore API 404 … /2/ai/undefined/…») perché Velo leggeva male il numero del prodotto
   AI Services; ora usa quello documentato da Infomaniak e propone solo i modelli di chat già disponibili.

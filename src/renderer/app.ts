@@ -820,8 +820,9 @@ omnibox.addEventListener('keydown', (e) => {
       hideSuggestions();
       omnibox.value = typed;
     } else {
-      renderToolbar();
+      // Blurred first: while focused the toolbar leaves the typed text alone.
       omnibox.blur();
+      renderToolbar();
     }
   }
 });

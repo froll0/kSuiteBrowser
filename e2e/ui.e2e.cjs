@@ -156,3 +156,21 @@ test('popup menus are drawn by Velo too: right click on a page, edit actions', a
     await velo.close();
   }
 });
+
+test('Esc in the address bar closes the suggestions, then puts the address back', async () => {
+  const velo = await launchVelo();
+  try {
+    const value = () => velo.win.evaluate(() => document.getElementById('omnibox').value);
+    await velo.win.evaluate(async () => { const t = (await window.velo.tabs.list()).find((x) => x.active); await window.velo.tabs.navigate(t.id, 'velo://history'); });
+    const before = await until(async () => ((await value()).includes('history') ? value() : null));
+    await velo.win.click('#omnibox');
+    await velo.win.keyboard.type('qualcosa');
+    await sleep(600);
+    await velo.win.keyboard.press('Escape');
+    await sleep(200);
+    await velo.win.keyboard.press('Escape');
+    assert.equal(await until(async () => ((await value()) === before ? true : null)), true);
+  } finally {
+    await velo.close();
+  }
+});

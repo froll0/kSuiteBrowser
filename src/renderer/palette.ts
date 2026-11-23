@@ -27,13 +27,24 @@ interface Row {
 const bridge = (window as unknown as { palette: PaletteBridge }).palette;
 const input = document.getElementById('q') as HTMLInputElement;
 const list = document.getElementById('list')!;
-document.getElementById('search-icon')!.append(icon('command', 16));
+document.getElementById('search-icon')!.append(icon('search', 16));
 
 let data: PaletteData = { commands: [], tabs: [], bookmarks: [], sections: [], look: { dark: false, vars: {} } };
 let rows: Row[] = [];
 let selected = 0;
 
 const GROUP_ICONS: Record<string, IconName> = { Schede: 'layers', Finestre: 'monitor', Pagina: 'fileText', Generale: 'settings', Aspetto: 'palette', Cloud: 'cloud' };
+/** Each command with its own picture, so the list reads at a glance; the group icon is the fallback. */
+const COMMAND_ICONS: Record<string, IconName> = {
+  newTab: 'plus', newWindow: 'window', newPrivateWindow: 'eyeOff', closeTab: 'close', reopenClosed: 'undo', duplicateTab: 'copyPlus',
+  pinTab: 'pin', muteTab: 'volumeOff', groupTab: 'tag', newContainerTab: 'box', nextWorkspace: 'arrowRight', previousWorkspace: 'arrowLeft',
+  nextTab: 'arrowRight', previousTab: 'arrowLeft', searchTabs: 'search', commandPalette: 'command', savePageAs: 'save', print: 'printer',
+  savePageToDrive: 'cloud', mailPage: 'mail', openSettings: 'settings', siteSettings: 'lock', customize: 'palette', openPasswords: 'key',
+  clearData: 'trash', find: 'search', cycleFocus: 'keyboard', focusAddress: 'cursor', reload: 'reload', back: 'arrowLeft', forward: 'arrowRight',
+  zoomIn: 'zoomIn', zoomOut: 'zoomOut', zoomReset: 'search', toggleBookmarksBar: 'bookmark', toggleAutoHide: 'panelLeftClose', togglePanel: 'panel',
+  reader: 'bookOpen', pictureInPicture: 'pip', viewSource: 'code', devTools: 'terminal', openHistory: 'history', bookmarkPage: 'star',
+  openBookmarks: 'bookmark', switchProfile: 'user', importData: 'import', checkUpdates: 'refresh', about: 'info',
+};
 
 function glyph(name: IconName): Element {
   const span = h('span', { class: 'icon' });
@@ -70,7 +81,7 @@ function render(): void {
   const query = input.value.trim();
   const matches = (...fields: string[]) => !query || matchesAll(query, ...fields);
   const commands = data.commands.filter((c) => matches(c.label, c.group)).map((c): Row => ({
-    choice: { kind: 'command', id: c.id }, title: c.label, sub: '', icon: glyph(GROUP_ICONS[c.group] ?? 'command'), trail: c.keys, section: tr('Comandi'),
+    choice: { kind: 'command', id: c.id }, title: c.label, sub: '', icon: glyph(COMMAND_ICONS[c.id] ?? GROUP_ICONS[c.group] ?? 'command'), trail: c.keys, section: tr('Comandi'),
   }));
   const tabs = data.tabs.filter((t) => query && matches(t.title, t.url)).sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, 8).map((t): Row => ({
     choice: { kind: 'tab', tabId: t.tabId }, title: t.title || t.url, sub: readableUrl(t.url), icon: siteIcon(t.url, t.favicon), trail: t.active && !t.otherWindow ? tr('Attuale') : '', section: tr('Schede aperte'),

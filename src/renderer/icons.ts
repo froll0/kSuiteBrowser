@@ -4,7 +4,7 @@ import {
   File, FileArchive, FileAudio, FileCode, FileSpreadsheet, FileText, FileVideo, Folder, FolderOpen, Globe, History, Image,
   Inbox, Info, KeyRound, LayoutGrid, Lock, Mail, MapPin, MessagesSquare, Monitor, Moon, PanelRight, Pencil, Pin, Plus,
   RefreshCw, RotateCw, Search, Send, Settings, Shield, ShieldCheck, ShieldOff, Sparkles, Star, Sun, TriangleAlert, Trash2,
-  Upload, User, Video, Volume2, VolumeX, X, House, PanelLeft, PanelLeftClose, PanelLeftOpen, Palette, GripVertical, Puzzle, Layers, Box, Users, Command, Keyboard, CreditCard, Timer, Import, Tag, Minus, createElement, type IconNode,
+  Upload, User, Video, Volume2, VolumeX, X, House, PanelLeft, PanelLeftClose, PanelLeftOpen, Palette, GripVertical, Puzzle, Layers, Box, Users, Command, Keyboard, CreditCard, Timer, Import, Tag, Minus, Printer, Save, ZoomIn, ZoomOut, Code, PictureInPicture2, Terminal, AppWindow, CopyPlus, Undo2, TextCursorInput, createElement, type IconNode,
 } from 'lucide';
 
 /** Icons used by the browser UI and the internal pages (Lucide, ISC license). */
@@ -22,6 +22,8 @@ export const ICONS = {
   user: User, video: Video, volume: Volume2, volumeOff: VolumeX, close: X, home: House, panelLeft: PanelLeft,
   panelLeftClose: PanelLeftClose, panelLeftOpen: PanelLeftOpen, palette: Palette, grip: GripVertical, puzzle: Puzzle,
   layers: Layers, box: Box, users: Users, command: Command, keyboard: Keyboard, card: CreditCard, timer: Timer, import: Import, tag: Tag, minus: Minus,
+  printer: Printer, save: Save, zoomIn: ZoomIn, zoomOut: ZoomOut, code: Code, pip: PictureInPicture2, terminal: Terminal,
+  window: AppWindow, copyPlus: CopyPlus, undo: Undo2, cursor: TextCursorInput,
 } satisfies Record<string, IconNode>;
 
 export type IconName = keyof typeof ICONS;

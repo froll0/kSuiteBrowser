@@ -20,6 +20,9 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
   il pannello; le app su una riga; tutto sta nello schermo senza scorrere.
 - **Richieste dei siti** (fotocamera, microfono, posizione, notifiche, aprire un programma esterno) in una barra di
   Velo sopra la pagina, con «Ricorda per questo sito», invece della finestra di sistema.
+- **Tavolozza dei comandi** con un'icona per ogni comando (prima tutti uguali per gruppo) e la lente al posto del
+  simbolo ⌘ del Mac.
+- **Barra degli indirizzi**: il secondo Esc rimette l'indirizzo della pagina invece di lasciare il testo digitato.
 
 ### Correzioni
 - Calendario: le date si inviano nell'ora del fuso del profilo Infomaniak, come fa il client ufficiale di Infomaniak.

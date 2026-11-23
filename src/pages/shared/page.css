@@ -217,7 +217,7 @@ section h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; margin:
 .entry { display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 8px 12px 8px 18px; border-bottom: 1px solid var(--border); min-width: 0; transition: background .1s; }
 .entry:last-child { border-bottom: none; }
 .entry:hover { background: var(--hover); }
-.entry .time { width: 44px; flex: none; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.entry .time { width: 44px; flex: none; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; padding-top: 2px; }
 .entry .site-icon { width: 22px; height: 22px; flex: none; border-radius: 5px; }
 .entry .letter { display: grid; place-items: center; width: 22px; height: 22px; flex: none; border-radius: 6px; background: var(--surface-2); color: var(--muted); }
 .entry .main { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: baseline; }

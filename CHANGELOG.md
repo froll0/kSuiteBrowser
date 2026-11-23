@@ -4,6 +4,8 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 
 ## Prossima versione
 
+## 0.8.3
+
 ### Rifinitura
 - **Errori in parole semplici**: «Il calendario non ha accettato la richiesta», «Nessuna connessione con Infomaniak»…
   con *Riprova* e i dettagli tecnici in *Dettagli*, da copiare per una segnalazione.

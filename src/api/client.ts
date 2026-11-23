@@ -8,9 +8,12 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
 export class InfomaniakApiError extends Error {
   constructor(
+    /** What happened, for anyone: shown in the interface. */
     message: string,
     readonly status: number,
     readonly code: string | null = null,
+    /** The technical side (endpoint, API code and description), behind "Details". */
+    readonly detail: string | null = null,
   ) {
     super(message);
     this.name = 'InfomaniakApiError';
@@ -47,7 +50,7 @@ export class InfomaniakClient {
     if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
     headers.set('Accept', 'application/json');
 
-    const res = await this.fetchImpl(url, { ...init, headers });
+    const res = await this.call(url, { ...init, headers });
     const text = await res.text();
     let body: Envelope<T> | null = null;
     try {
@@ -74,9 +77,19 @@ export class InfomaniakClient {
   async raw(url: string, init: RequestInit = {}): Promise<Response> {
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${this.token}`);
-    const res = await this.fetchImpl(url, { ...init, headers });
+    const res = await this.call(url, { ...init, headers });
     if (!res.ok) throw apiError(url, res, await res.text().catch(() => ''));
     return res;
+  }
+
+  /** fetch, with "no connection" as a readable error (aborts stay aborts). */
+  private async call(url: string, init: RequestInit): Promise<Response> {
+    try {
+      return await this.fetchImpl(url, init);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') throw err;
+      throw new InfomaniakApiError(tr('Nessuna connessione con Infomaniak: controlla la rete e riprova.'), 0, 'network', `${endpointOf(url)}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 }
 
@@ -100,7 +113,29 @@ export function apiError(url: string, res: Pick<Response, 'status' | 'statusText
   // A refused request without any detail: the request and the whole answer, to find out what it wants.
   if (res.status === 422 && !details.length) details.push(tr('richiesta: {0}', queryOf(url)), tr('risposta: {0}', text.slice(0, 400)));
   const description = [error?.description ?? (text.slice(0, 200) || res.statusText), ...details].join(' — ');
-  return new InfomaniakApiError(describeError(res.status, code, description, endpointOf(url)), res.status, code);
+  const technical = tr('Errore API {0}{1} su {2}: {3}', res.status, code ? ` [${code}]` : '', endpointOf(url), description);
+  return new InfomaniakApiError(humanError(res.status, serviceOf(url)), res.status, code, technical);
+}
+
+/** The service an endpoint belongs to, as a subject for the messages. */
+function serviceOf(url: string): string {
+  const path = endpointOf(url);
+  if (/\/calendar\//.test(path)) return tr('Il calendario');
+  if (/mail/.test(path)) return tr('La posta');
+  if (/\/drive\//.test(path)) return 'kDrive';
+  if (/\/ai\b/.test(path)) return tr('L’assistente IA');
+  if (/\/profile/.test(path)) return tr('Il profilo Infomaniak');
+  return 'Infomaniak';
+}
+
+/** What a failed call means for the user, without codes. */
+export function humanError(status: number, service: string): string {
+  if (status === 401) return tr('Il collegamento con Infomaniak è scaduto: inserisci di nuovo il token in Impostazioni › Account cloud.');
+  if (status === 403) return tr('{0}: il token non ha il permesso necessario. Crea un token con questo servizio in Impostazioni › Account cloud.', service);
+  if (status === 404) return tr('{0}: non trovato. Forse il servizio non è attivo sul tuo account.', service);
+  if (status === 429) return tr('Troppe richieste a Infomaniak in poco tempo: riprova tra un minuto.');
+  if (status >= 500) return tr('{0} non risponde in questo momento: riprova tra poco.', service);
+  return tr('{0} non ha accettato la richiesta.', service);
 }
 
 function queryOf(url: string): string {
@@ -120,8 +155,3 @@ function endpointOf(url: string): string {
   }
 }
 
-function describeError(status: number, code: string | null, description: string, endpoint: string): string {
-  if (status === 401) return tr('Token non valido o scaduto (401). Controlla il token API nelle impostazioni.');
-  if (status === 403) return tr('Accesso negato (403) su {0}: il token non ha lo scope necessario. {1}', endpoint, description);
-  return tr('Errore API {0}{1} su {2}: {3}', status, code ? ` [${code}]` : '', endpoint, description);
-}

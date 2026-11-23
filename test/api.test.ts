@@ -36,7 +36,14 @@ describe('InfomaniakClient', () => {
     const fetchImpl = vi.fn(async () => new Response('{"result":"error","error":{"code":"not_authorized"}}', { status: 401 }));
     const client = new InfomaniakClient('bad', fetchImpl);
     await expect(client.get('https://api.infomaniak.com/2/profile')).rejects.toBeInstanceOf(InfomaniakApiError);
-    await expect(client.get('https://api.infomaniak.com/2/profile')).rejects.toThrow(/Token non valido/);
+    await expect(client.get('https://api.infomaniak.com/2/profile')).rejects.toThrow(/collegamento con Infomaniak è scaduto/);
+  });
+
+  it('says plainly when there is no connection', async () => {
+    const client = new InfomaniakClient('t', async () => { throw new TypeError('fetch failed'); });
+    const err = (await client.get('https://api.infomaniak.com/2/profile').catch((e: unknown) => e)) as InfomaniakApiError;
+    expect(err.message).toMatch(/Nessuna connessione con Infomaniak/);
+    expect(err.detail).toBe('api.infomaniak.com/2/profile: fetch failed');
   });
 
   it('names the endpoint and the rejected fields on validation errors', async () => {
@@ -49,9 +56,10 @@ describe('InfomaniakClient', () => {
       },
     };
     const client = new InfomaniakClient('t', async () => new Response(JSON.stringify(body), { status: 422 }));
-    await expect(client.get('https://api.infomaniak.com/3/drive/1/files/1/files?order_by=x')).rejects.toThrow(
-      'Errore API 422 [validation_failed] su api.infomaniak.com/3/drive/1/files/1/files: Validation failed — order_by: The selected order by is invalid.',
-    );
+    const err = (await client.get('https://api.infomaniak.com/3/drive/1/files/1/files?order_by=x').catch((e: unknown) => e)) as InfomaniakApiError;
+    // Plain words for the interface, the technical side behind "Details".
+    expect(err.message).toBe('kDrive non ha accettato la richiesta.');
+    expect(err.detail).toBe('Errore API 422 [validation_failed] su api.infomaniak.com/3/drive/1/files/1/files: Validation failed — order_by: The selected order by is invalid.');
   });
 });
 
@@ -191,12 +199,15 @@ describe('Calendar', () => {
 
   it('shows the request and the answer of a 422 without details', async () => {
     const fetchImpl: FetchLike = async () => new Response(JSON.stringify({ result: 'error', error: { code: 'validation_failed', description: 'Validation failed' } }), { status: 422 });
-    await expect(new InfomaniakClient('t', fetchImpl).get('https://api.infomaniak.com/1/x?from=2026-01-01+00:00:00')).rejects.toThrow(/richiesta: \?from=2026-01-01 00:00:00 — risposta: \{"result":"error"/);
+    const err = (await new InfomaniakClient('t', fetchImpl).get('https://api.infomaniak.com/1/calendar/pim/event?from=2026-01-01+00:00:00').catch((e: unknown) => e)) as InfomaniakApiError;
+    expect(err.message).toBe('Il calendario non ha accettato la richiesta.');
+    expect(err.detail).toMatch(/richiesta: \?from=2026-01-01 00:00:00 — risposta: \{"result":"error"/);
   });
 
   it('shows what the API says about a refused request', async () => {
     const fetchImpl: FetchLike = async () => new Response(JSON.stringify({ result: 'error', error: { code: 'validation_failed', description: 'Validation failed', context: { to: 'must be after from' } } }), { status: 422 });
-    await expect(new InfomaniakClient('t', fetchImpl).get('https://api.infomaniak.com/1/x')).rejects.toThrow(/Validation failed — \{"to":"must be after from"\}/);
+    const err = (await new InfomaniakClient('t', fetchImpl).get('https://api.infomaniak.com/1/x').catch((e: unknown) => e)) as InfomaniakApiError;
+    expect(err.detail).toMatch(/Validation failed — \{"to":"must be after from"\}/);
   });
 
   it('skips calendars that refuse the query', async () => {

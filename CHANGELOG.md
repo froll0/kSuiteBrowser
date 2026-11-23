@@ -4,6 +4,17 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 
 ## Prossima versione
 
+### Rifinitura
+- **Errori in parole semplici**: «Il calendario non ha accettato la richiesta», «Nessuna connessione con Infomaniak»…
+  con *Riprova* e i dettagli tecnici in *Dettagli*, da copiare per una segnalazione.
+- **Pannello cloud**: posta ed eventi in cima, i moduli «Scrivi» e «Nuovo evento» si aprono quando servono; kDrive
+  con icone colorate per tipo di file, data di modifica, dimensioni in formato italiano e la cartella dei salvataggi
+  indicata chiaramente; download con uno stato vuoto che spiega cosa comparirà.
+- **Suggerimenti della barra degli indirizzi** larghi quanto la barra (prima erano una finestrella tagliata).
+- **Pagine d'errore** con i colori e il tema di Velo (prima sempre chiare), testi più semplici e il codice tecnico in
+  *Dettagli*.
+- **Barra di caricamento** sottile sotto le barre mentre la pagina si carica.
+
 ### Correzioni
 - Calendario: le date si inviano nell'ora del fuso del profilo Infomaniak, come fa il client ufficiale di Infomaniak.
   Gli eventi creati da Velo non risultano più spostati di una o due ore; se l'elenco degli eventi viene ancora

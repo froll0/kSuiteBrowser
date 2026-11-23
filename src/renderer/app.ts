@@ -614,6 +614,7 @@ function renderToolbar(): void {
   if (document.activeElement !== omnibox) omnibox.value = tab && tab.url !== 'about:blank' && !tab.url.startsWith('velo://newtab') ? displayUrl(tab.url) : '';
   renderShield(tab);
   updateBookmarksBar();
+  $('load-bar').classList.toggle('on', Boolean(tab?.loading));
 
   const bookmarkable = Boolean(tab && /^(https?|file|velo):/i.test(tab.url) && !tab.url.startsWith('velo://newtab'));
   // Media controls: shown while a tab of this window plays (or played) sound.
@@ -727,8 +728,11 @@ let suggestSeq = 0;
 
 function showSuggestions(): void {
   if (suggestions.length === 0) return hideSuggestions();
-  const r = omnibox.getBoundingClientRect();
-  void ks.suggest.show(suggestions, { x: r.left, y: r.top, width: r.width, height: r.height }, selected);
+  // Under the whole address bar (not just its text field), at least wide enough to read the results.
+  const r = $('omnibox-form').getBoundingClientRect();
+  const width = Math.min(window.innerWidth - 16, Math.max(r.width, 520));
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+  void ks.suggest.show(suggestions, { x: left, y: r.top, width, height: r.height }, selected);
   omnibox.setAttribute('aria-expanded', 'true');
 }
 

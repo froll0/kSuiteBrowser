@@ -51,6 +51,7 @@ import { CloudServices } from './services';
 import { SettingsStore } from './settings';
 import { BookmarksStore } from './stores/bookmarks';
 import { cleanPath, folderEntries } from '../shared/bookmark-folders';
+import { InfomaniakApiError } from '../api/client';
 import { popupMenu, runPopupItem } from './popup-menu';
 import { FaviconStore } from './stores/favicons';
 import { HistoryStore } from './stores/history';
@@ -1522,7 +1523,8 @@ async function wrap<T>(fn: () => Promise<T> | T): Promise<ApiResult<T>> {
   try {
     return { ok: true, data: await fn() };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const detail = err instanceof InfomaniakApiError ? err.detail : null;
+    return { ok: false, error: err instanceof Error ? err.message : String(err), ...(detail ? { detail } : {}) };
   }
 }
 

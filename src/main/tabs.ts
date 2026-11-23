@@ -56,6 +56,8 @@ export interface TabManagerHooks {
   newTabUrl(): string;
   /** Page to show instead of the generic error page (e.g. the HTTPS-only warning), with the URL to display. */
   failurePage?(contents: WebContents, url: string, code: number): { load: string; display: string } | null;
+  /** Colours of the browser (theme, accent) for the error and crash pages. */
+  pageLook?(): { dark: boolean; vars: Record<string, string> };
 }
 
 export interface TabManagerOptions {
@@ -206,14 +208,14 @@ export class TabManager {
       if (!isMainFrame || code === -3) return; // -3 = aborted (e.g. new navigation)
       const special = tab.owner.hooks.failurePage?.(wc, validatedUrl, code);
       tab.failedUrl = special ? special.display : validatedUrl;
-      void wc.loadURL(special ? special.load : errorPage(validatedUrl, code, description));
+      void wc.loadURL(special ? special.load : errorPage(validatedUrl, code, description, tab.owner.hooks.pageLook?.()));
     });
     wc.on('render-process-gone', (_e, details) => {
       if (wc.isDestroyed() || details.reason === 'clean-exit') return;
       if (tab.owner.fullscreenId === tab.id) tab.owner.leaveFullscreen();
       const url = tab.failedUrl ?? wc.getURL();
       tab.failedUrl = url;
-      void wc.loadURL(crashPage(url, details.reason));
+      void wc.loadURL(crashPage(url, details.reason, tab.owner.hooks.pageLook?.()));
     });
     let askingUnresponsive = false;
     wc.on('unresponsive', async () => {
@@ -798,6 +800,7 @@ export function describeError(code: number): ErrorText {
   if (code === -310) return { title: tr('Troppi reindirizzamenti'), hint: tr('Il sito rimanda continuamente a sé stesso. Prova a cancellare i cookie del sito.') };
   if (code <= -200 && code > -300) return { title: tr('La connessione non è sicura'), hint: tr('Il certificato di sicurezza del sito non è valido: qualcuno potrebbe cercare di intercettare i tuoi dati. La pagina non è stata aperta.') };
   if (code === -20) return { title: tr('Pagina bloccata'), hint: tr('Questa pagina è stata bloccata.') };
+  if (code === -312 || code === -301) return { title: tr('Indirizzo non consentito'), hint: tr('Per sicurezza Velo non apre questo indirizzo (porta o protocollo riservati ad altri servizi).') };
   return { title: tr('Impossibile caricare la pagina'), hint: tr('Si è verificato un errore di rete.') };
 }
 
@@ -810,21 +813,34 @@ const CRASH_REASONS: Record<string, string> = {
   'abnormal-exit': tr('La pagina si è chiusa in modo anomalo.'),
 };
 
-function shellPage(title: string, heading: string, hint: string, url: string, glyph: string): string {
+type PageLook = { dark: boolean; vars: Record<string, string> };
+
+/** Error and crash pages: the browser's own colours (theme and accent), the technical side folded away. */
+function shellPage(title: string, heading: string, hint: string, url: string, glyph: string, detail: string, look?: PageLook): string {
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+  const v = look?.vars ?? {};
+  const color = (name: string, light: string, dark: string) => (/^[#a-z0-9(),.\s%-]+$/i.test(v[name] ?? '') ? v[name] : look?.dark ? dark : light);
+  const css = `--bg:${color('--bg', '#f1f3f6', '#141518')};--text:${color('--text', '#15181d', '#ececef')};--muted:${color('--muted', '#5b6270', '#9aa0ab')};`
+    + `--accent:${color('--accent', '#0860cc', '#7aa7ff')};--fill:${color('--accent-fill', '#0860cc', '#7aa7ff')};--on:${color('--on-accent', '#ffffff', '#111318')};`
+    + `--soft:${color('--accent-soft', 'rgba(8,96,204,.1)', 'rgba(122,167,255,.18)')};--border:${color('--border', '#e2e5e9', '#2a2c32')};--hover:${color('--surface-2', '#f3f4f6', '#232429')}`;
   const retry = /^(https?|file):/i.test(url) ? `<a class="btn" href="${esc(url)}">${esc(tr('Riprova'))}</a>` : '';
   const html = `<!doctype html><html lang="${locale()}"><meta charset="utf-8"><title>${esc(title)}</title>
 <style>
-:root{color-scheme:light dark;--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#5f6878;--accent:#0f6fff;--soft:#e8f0ff}
-@media (prefers-color-scheme:dark){:root{--bg:#15171b;--card:#1d2026;--text:#e7e9ee;--muted:#9aa3b2;--accent:#5b9dff;--soft:#1c2a44}}
-body{font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;color:var(--text);background:var(--bg)}
-main{max-width:540px;padding:32px}
-.glyph{display:grid;place-items:center;width:56px;height:56px;border-radius:16px;background:var(--soft);color:var(--accent);margin-bottom:18px}
-h1{font-size:22px;margin:0 0 8px}p{margin:0 0 14px;color:var(--muted)}
-code{display:block;word-break:break-all;color:var(--muted);font-size:12.5px;margin-bottom:22px}
-.btn{display:inline-flex;align-items:center;height:36px;padding:0 18px;border-radius:9px;background:var(--accent);color:#fff;text-decoration:none;font-weight:600}
+:root{color-scheme:${look?.dark ? 'dark' : 'light'};${css}}
+body{font:15px/1.55 'Inter Variable',system-ui,-apple-system,"Segoe UI",sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+main{width:min(560px,100% - 48px);padding:24px 0;animation:in .25s ease-out}
+.glyph{display:grid;place-items:center;width:60px;height:60px;border-radius:18px;background:var(--soft);color:var(--accent);margin-bottom:20px}
+h1{font-size:24px;font-weight:700;letter-spacing:-.01em;margin:0 0 8px}p{margin:0 0 18px;color:var(--muted)}
+.url{display:block;word-break:break-all;color:var(--muted);font-size:13px;margin:0 0 22px;padding:8px 12px;border:1px solid var(--border);border-radius:10px}
+.actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;height:38px;padding:0 20px;border-radius:10px;background:var(--fill);color:var(--on);text-decoration:none;font-weight:600}
+.btn:hover{filter:brightness(1.08)}.btn:focus-visible{outline:3px solid var(--soft);outline-offset:2px}
+details{color:var(--muted);font-size:13px}summary{cursor:default}details code{display:block;margin-top:6px;font:12px ui-monospace,monospace}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){main{animation:none}}
 </style>
-<main><div class="glyph">${glyph}</div><h1>${esc(heading)}</h1><p>${esc(hint)}</p><code>${esc(url)}</code>${retry}</main></html>`;
+<main><div class="glyph">${glyph}</div><h1>${esc(heading)}</h1><p>${esc(hint)}</p><span class="url">${esc(url)}</span>
+<div class="actions">${retry}${detail ? `<details><summary>${esc(tr('Dettagli'))}</summary><code>${esc(detail)}</code></details>` : ''}</div></main></html>`;
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
@@ -834,12 +850,12 @@ const GLYPH_WARNING = svg('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 
 const GLYPH_LOCK = svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m14.5 9.5-5 5"/><path d="m9.5 9.5 5 5"/>');
 const GLYPH_CRASH = svg('<circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><path d="M9 9h.01"/><path d="M15 9h.01"/>');
 
-function errorPage(url: string, code: number, description: string): string {
+function errorPage(url: string, code: number, description: string, look?: PageLook): string {
   const text = describeError(code);
   const glyph = code === -106 ? GLYPH_OFFLINE : code <= -200 && code > -300 ? GLYPH_LOCK : GLYPH_WARNING;
-  return shellPage(tr('Pagina non disponibile'), text.title, `${text.hint} (${description || code})`, url, glyph);
+  return shellPage(tr('Pagina non disponibile'), text.title, text.hint, url, glyph, `${description || 'ERR'} (${code})`, look);
 }
 
-function crashPage(url: string, reason: string): string {
-  return shellPage(tr('Scheda bloccata'), tr('Questa scheda si è bloccata'), tr('{0} Ricaricala per riprovare.', CRASH_REASONS[reason] ?? tr('Si è verificato un problema.')), url, GLYPH_CRASH);
+function crashPage(url: string, reason: string, look?: PageLook): string {
+  return shellPage(tr('Scheda bloccata'), tr('Questa scheda si è bloccata'), tr('{0} Ricaricala per riprovare.', CRASH_REASONS[reason] ?? tr('Si è verificato un problema.')), url, GLYPH_CRASH, reason, look);
 }

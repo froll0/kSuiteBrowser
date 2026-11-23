@@ -24,6 +24,9 @@ export class Panel {
   private view: PanelView = 'home';
   private driveStack: Array<{ id: number; name: string }> = [{ id: 1, name: 'kDrive' }];
   private draft: OutgoingMail = { to: '', subject: '', body: '' };
+  /** The message form and the new event form, opened on request. */
+  private composeOpen = false;
+  private eventFormOpen = false;
   private downloads: DownloadItemState[] = [];
   /** Incremented on every render so late API answers for an old view are dropped. */
   private renderSeq = 0;
@@ -142,7 +145,7 @@ export class Panel {
         ),
       );
     } else {
-      nodes.push(errorBox(profile.error));
+      nodes.push(errorBox(profile.error, profile.detail, () => void this.render()));
     }
 
     nodes.push(
@@ -159,14 +162,14 @@ export class Panel {
       const next = events.data.filter((e) => Date.parse(e.end) >= Date.now()).slice(0, 4);
       nodes.push(next.length ? h('ul', { class: 'list' }, ...next.map(eventItem)) : h('p', { class: 'muted' }, tr('Nessun evento nei prossimi 7 giorni.')));
     } else {
-      nodes.push(errorBox(events.error));
+      nodes.push(errorBox(events.error, events.detail, () => void this.render()));
     }
 
     nodes.push(h('h3', {}, tr('Ultime email')));
     if (mail.ok) {
       nodes.push(h('ul', { class: 'list' }, ...mail.data.threads.slice(0, 5).map((t) => mailItem(t))));
     } else {
-      nodes.push(errorBox(mail.error));
+      nodes.push(errorBox(mail.error, mail.detail, () => void this.render()));
     }
 
     nodes.push(
@@ -209,23 +212,23 @@ export class Panel {
       ]),
     );
 
+    // Where "Save to kDrive", PDFs and copied downloads go: shown as a fact, changed with a link.
+    const isTarget = settings.driveUploadFolderId === folder.id;
     const toolbar = h(
       'div',
-      { class: 'actions' },
-      h('button', { onclick: () => void this.upload(folder.id) }, tr('Carica file…')),
-      h(
-        'button',
-        {
-          disabled: settings.driveUploadFolderId === folder.id,
-          title: tr('Usa questa cartella per "Salva su kDrive", PDF e download'),
-          onclick: async () => {
-            await ks.settings.set({ driveUploadFolderId: folder.id, driveUploadFolderName: folder.name });
-            this.notify('success', tr('Destinazione impostata: {0}', folder.name));
-            void this.render();
-          },
-        },
-        settings.driveUploadFolderId === folder.id ? tr('Cartella di destinazione ✓') : tr('Usa come destinazione'),
-      ),
+      { class: 'drive-toolbar' },
+      withIcon(h('button', { class: 'small', onclick: () => void this.upload(folder.id) }, tr('Carica file…')), 'upload', 14),
+      isTarget
+        ? withIcon(h('span', { class: 'target-badge', title: tr('Qui finiscono «Salva su kDrive», i PDF e le copie dei download') }, tr('Destinazione dei salvataggi')), 'check', 13)
+        : h('button', {
+            class: 'plain-link',
+            title: tr('Qui finiranno «Salva su kDrive», i PDF e le copie dei download'),
+            onclick: async () => {
+              await ks.settings.set({ driveUploadFolderId: folder.id, driveUploadFolderName: folder.name });
+              this.notify('success', tr('Destinazione impostata: {0}', folder.name));
+              void this.render();
+            },
+          }, tr('Salva qui da Velo')),
     );
 
     let listing: ApiResult<{ files: DriveFile[]; hasMore: boolean }>;
@@ -237,14 +240,15 @@ export class Panel {
     }
 
     const nodes: Node[] = [searchForm];
-    if (!searchQuery) nodes.push(crumbs, toolbar);
+    // The path only inside a folder (at the root it would just say "kDrive").
+    if (!searchQuery) nodes.push(...(this.driveStack.length > 1 ? [crumbs] : []), toolbar);
     else nodes.push(h('p', {}, h('button', { class: 'link', onclick: () => void this.render() }, tr('← Torna alla cartella')), tr(' Risultati per "{0}"', searchQuery)));
 
     if (!listing.ok) {
-      nodes.push(errorBox(listing.error));
+      nodes.push(errorBox(listing.error, listing.detail, () => void this.render()));
       return nodes;
     }
-    if (listing.data.files.length === 0) nodes.push(h('p', { class: 'muted' }, searchQuery ? tr('Nessun risultato.') : tr('Cartella vuota.')));
+    if (listing.data.files.length === 0) nodes.push(h('div', { class: 'empty-state' }, withIcon(h('span', { class: 'big-icon' }), searchQuery ? 'search' : 'folderOpen', 26), h('p', {}, searchQuery ? tr('Nessun file trovato.') : tr('Questa cartella è vuota.'))));
     nodes.push(h('ul', { class: 'list files' }, ...listing.data.files.map((f) => this.fileItem(f))));
     if (listing.data.hasMore) nodes.push(h('p', { class: 'muted' }, tr('Altri elementi disponibili: apri la cartella nell’app web per vederli tutti.')));
     return nodes;
@@ -264,9 +268,10 @@ export class Panel {
       'li',
       { class: 'file' },
       h('button', { class: 'file-main', onclick: open, title: isDir ? tr('Apri cartella') : tr('Apri in kDrive') },
-        withIcon(h('span', { class: `file-icon ${isDir ? 'dir' : 'doc'}` }), fileIcon(file), 18),
-        h('span', { class: 'file-name' }, file.name),
-        h('span', { class: 'muted small' }, isDir ? '' : formatBytes(file.size)),
+        withIcon(h('span', { class: `file-icon kind-${/\.(docx?|odt|rtf|pages)$/i.test(file.name) ? 'doc' : fileIcon(file)}` }), fileIcon(file), 18),
+        h('span', { class: 'file-text' },
+          h('span', { class: 'file-name' }, file.name),
+          h('span', { class: 'file-meta' }, [isDir ? '' : formatBytes(file.size), file.lastModified ? fileDate(file.lastModified) : ''].filter(Boolean).join(' · '))),
       ),
       isDir
         ? withIcon(h('button', { class: 'icon-btn small', title: tr('Apri nell’app web'), 'aria-label': tr('Apri {0} nell’app web', file.name), onclick: () => void ks.api.driveOpenWeb(file) }), 'external', 15)
@@ -326,7 +331,7 @@ export class Panel {
           },
         }, tr('Scrivi con l’IA')), 'sparkles', 15)
       : null;
-    const form = h('form', { class: 'compose' }, to, subject, body, h('div', { class: 'actions' }, sendBtn, aiBtn, h('button', { type: 'button', onclick: () => { this.draft = { to: '', subject: '', body: '' }; void this.render(); } }, tr('Svuota'))));
+    const form = h('form', { class: 'compose' }, to, subject, body, h('div', { class: 'actions' }, sendBtn, aiBtn));
     const syncDraft = () => (this.draft = { to: to.value, subject: subject.value, body: body.value });
     form.addEventListener('input', syncDraft);
     form.addEventListener('submit', async (e) => {
@@ -338,6 +343,7 @@ export class Panel {
       if (res.ok) {
         this.notify('success', tr('Email inviata'));
         this.draft = { to: '', subject: '', body: '' };
+        this.composeOpen = false;
         void this.render();
       } else {
         this.notify('error', res.error);
@@ -346,9 +352,17 @@ export class Panel {
 
     const overview = await ks.api.mailOverview();
     this.onUnreadChange(overview.ok ? overview.data.inboxUnread : null);
-    const nodes: Node[] = [h('h3', {}, tr('Scrivi')), form, h('h3', {}, tr('Posta in arrivo'))];
+    // The inbox first; the message form opens on request (and stays open while a draft has text).
+    const composing = this.composeOpen || Boolean(this.draft.to || this.draft.subject || this.draft.body);
+    const nodes: Node[] = [
+      sectionHead(tr('Posta in arrivo'), composing ? null : withIcon(h('button', { class: 'primary small', onclick: () => { this.composeOpen = true; void this.render().then(() => this.bodyEl.querySelector<HTMLInputElement>('.compose input')?.focus()); } }, tr('Scrivi')), 'pencil', 14)),
+    ];
+    if (composing) {
+      form.querySelector('.actions')!.append(h('button', { type: 'button', class: 'plain-link', onclick: () => { this.composeOpen = false; this.draft = { to: '', subject: '', body: '' }; void this.render(); } }, tr('Annulla')));
+      nodes.splice(0, 0, sectionHead(tr('Nuovo messaggio'), null), form);
+    }
     if (!overview.ok) {
-      nodes.push(errorBox(overview.error));
+      nodes.push(errorBox(overview.error, overview.detail, () => void this.render()));
     } else {
       nodes.push(
         h('p', { class: 'muted' }, tr('{0} · {1} non lette', overview.data.mailbox.email, overview.data.inboxUnread)),
@@ -380,6 +394,7 @@ export class Panel {
       const res = await ks.api.calendarCreate({ title: title.value.trim(), start: startAt.toISOString(), end: endAt.toISOString() });
       if (res.ok) {
         this.notify('success', tr('Evento creato'));
+        this.eventFormOpen = false;
         void this.render();
       } else {
         this.notify('error', res.error);
@@ -387,11 +402,14 @@ export class Panel {
     });
 
     const events = await ks.api.calendarUpcoming();
-    const nodes: Node[] = [h('h3', {}, tr('Nuovo evento')), form, h('h3', {}, tr('Prossimi 7 giorni'))];
+    form.append(h('button', { type: 'button', class: 'plain-link', onclick: () => { this.eventFormOpen = false; void this.render(); } }, tr('Annulla')));
+    const nodes: Node[] = this.eventFormOpen
+      ? [sectionHead(tr('Nuovo evento'), null), form, sectionHead(tr('Prossimi 7 giorni'), null)]
+      : [sectionHead(tr('Prossimi 7 giorni'), withIcon(h('button', { class: 'primary small', onclick: () => { this.eventFormOpen = true; void this.render().then(() => this.bodyEl.querySelector<HTMLInputElement>('.compose input')?.focus()); } }, tr('Nuovo evento')), 'plus', 14))];
     if (!events.ok) {
-      nodes.push(errorBox(events.error));
+      nodes.push(errorBox(events.error, events.detail, () => void this.render()));
     } else if (events.data.length === 0) {
-      nodes.push(h('p', { class: 'muted' }, tr('Nessun evento.')));
+      nodes.push(h('div', { class: 'empty-state' }, withIcon(h('span', { class: 'big-icon' }), 'calendar', 26), h('p', {}, tr('Nessun evento nei prossimi 7 giorni.'))));
     } else {
       const byDay = new Map<string, typeof events.data>();
       for (const e of events.data) {
@@ -411,13 +429,12 @@ export class Panel {
     const toggle = h('input', { type: 'checkbox', checked: settings.uploadDownloadsToDrive });
     toggle.addEventListener('change', () => void ks.settings.set({ uploadDownloadsToDrive: toggle.checked }));
 
-    const nodes: Node[] = [
-      h('label', { class: 'check' }, toggle, tr(' Carica automaticamente i download su kDrive ({0})', settings.driveUploadFolderName)),
-      h('button', { class: 'link', onclick: () => void ks.openSettingsPage('general') }, tr('Cartella dei download…')),
-    ];
+    const folder = settings.driveUploadFolderName && settings.driveUploadFolderName !== 'kDrive' ? settings.driveUploadFolderName : null;
+    const nodes: Node[] = [sectionHead('Download', h('button', { class: 'plain-link', onclick: () => void ks.openSettingsPage('general') }, tr('Cartella…')))];
     if (this.downloads.length === 0) {
-      nodes.push(h('div', { class: 'empty-state' }, withIcon(h('span', { class: 'big-icon' }), 'download', 26), h('p', {}, tr('Nessun download in questa sessione.'))));
+      nodes.push(h('div', { class: 'empty-state' }, withIcon(h('span', { class: 'big-icon' }), 'download', 26), h('p', {}, tr('Nessun download per ora.')), h('p', { class: 'muted small' }, tr('I file che scarichi compaiono qui, con l’avanzamento.'))));
     }
+    const options = h('label', { class: 'check option-card' }, toggle, h('span', {}, folder ? tr('Copia i download anche su kDrive, nella cartella «{0}»', folder) : tr('Copia i download anche su kDrive')));
     nodes.push(
       h('div', { class: 'compose' }, ...this.downloads.map((d) =>
         h('div', { class: `dl-item${d.state === 'completed' ? ' done' : ''}` },
@@ -437,9 +454,25 @@ export class Panel {
           ),
         ),
       )),
+      options,
     );
     return nodes;
   }
+}
+
+/** When a file changed: "oggi", "ieri", else the day (with the year when it isn't this one). */
+function fileDate(seconds: number): string {
+  const date = new Date(seconds * 1000);
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diff = Math.round((day(new Date()) - day(date)) / 86_400_000);
+  if (diff === 0) return tr('oggi');
+  if (diff === 1) return tr('ieri');
+  return date.toLocaleDateString(localeTag(), { day: 'numeric', month: 'short', ...(date.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) });
+}
+
+/** A section title with an optional action on the right. */
+function sectionHead(title: string, action: HTMLElement | null): HTMLElement {
+  return h('div', { class: 'section-head' }, h('h3', {}, title), action);
 }
 
 function withIcon<T extends HTMLElement>(el: T, name: IconName, size = 16): T {
@@ -447,8 +480,13 @@ function withIcon<T extends HTMLElement>(el: T, name: IconName, size = 16): T {
   return el;
 }
 
-function errorBox(message: string): HTMLElement {
-  return h('div', { class: 'error', role: 'alert' }, icon('alert', 16), h('span', {}, message));
+/** A failure in plain words, with the technical message folded away (to report or search). */
+function errorBox(message: string, detail?: string, retry?: () => void): HTMLElement {
+  return h('div', { class: 'error', role: 'alert' }, icon('alert', 16),
+    h('div', { class: 'error-text' }, h('span', {}, message),
+      retry || detail ? h('div', { class: 'error-actions' },
+        retry ? h('button', { class: 'link', onclick: retry }, tr('Riprova')) : null,
+        detail ? h('details', {}, h('summary', {}, tr('Dettagli')), h('code', {}, detail)) : null) : null));
 }
 
 function initials(name: string): string {

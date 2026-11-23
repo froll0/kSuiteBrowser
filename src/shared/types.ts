@@ -590,7 +590,8 @@ export interface DownloadItemState {
 }
 
 /** Result envelope used by every API call exposed to the renderer. */
-export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
+/** `error` is for anyone; `detail` (optional) is the technical side, shown behind "Details". */
+export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string; detail?: string };
 
 /** An open tab in the tab search popup. */
 export interface TabSearchItem {

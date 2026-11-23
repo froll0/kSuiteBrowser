@@ -151,6 +151,7 @@ export class BrowserWindowController {
           bookmarked: /^(https?|file|velo):/i.test(url) && Boolean(ctx.bookmarks.find(url)),
           readerable: contents ? readerableIds.has(contents.id) : false,
         }),
+        pageLook: () => popupLook(ctx.settings.get(), isPrivate),
         failurePage: (contents, url) => {
           const guard = guardOf(contents);
           if (!guard) return null;

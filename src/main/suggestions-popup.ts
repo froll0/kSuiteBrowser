@@ -1,8 +1,8 @@
 import { WebContentsView, type BrowserWindow } from 'electron';
 import type { PopupLook, Rect, Suggestion } from '../shared/types';
 
-const ROW_HEIGHT = 36;
-const PADDING = 8;
+const ROW_HEIGHT = 40;
+const PADDING = 12;
 
 /**
  * Address bar suggestions. Page views are native layers above the browser UI, so a dropdown drawn
@@ -36,7 +36,7 @@ export class SuggestionsPopup {
     if (items.length === 0) return this.hide();
     this.view.setBounds({
       x: Math.round(anchor.x),
-      y: Math.round(anchor.y + anchor.height + 2),
+      y: Math.round(anchor.y + anchor.height + 4),
       width: Math.round(anchor.width),
       height: items.length * ROW_HEIGHT + PADDING,
     });

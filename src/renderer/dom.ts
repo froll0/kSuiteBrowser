@@ -26,14 +26,16 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs = 
 
 export function formatBytes(bytes: number | null): string {
   if (bytes === null || bytes === undefined) return '';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const units = ['B', 'kB', 'MB', 'GB', 'TB'];
   let value = bytes;
   let unit = 0;
   while (value >= 1024 && unit < units.length - 1) {
     value /= 1024;
     unit++;
   }
-  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+  // In the interface language: "239,3 kB" in Italian.
+  const number = new Intl.NumberFormat(localeTag(), { maximumFractionDigits: unit === 0 || value >= 100 ? 0 : 1 }).format(value);
+  return `${number} ${units[unit]}`;
 }
 
 export function formatDateTime(value: string | number | null, withTime = true): string {

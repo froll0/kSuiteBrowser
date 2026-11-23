@@ -66,6 +66,7 @@ export const IPC = {
   updateStatus: 'ui:update-status',
   passwordAnswer: 'ui:password-answer',
   authAnswer: 'ui:auth-answer',
+  permissionAnswer: 'ui:permission-answer',
   passwordUnlock: 'ui:password-unlock',
 
   settingsGet: 'settings:get',
@@ -103,6 +104,7 @@ export const IPC = {
   evFindResult: 'ev:find-result',
   evPasswordPrompt: 'ev:password-prompt',
   evAuthPrompt: 'ev:auth-prompt',
+  evPermissionPrompt: 'ev:permission-prompt',
   evPasswordUnlock: 'ev:password-unlock',
   evUnread: 'ev:unread',
   evUpdate: 'ev:update',

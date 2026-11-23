@@ -991,6 +991,36 @@ ks.events.onAuthPrompt((prompt) => {
   user.focus();
 });
 
+// ---------- Site permissions (camera, location…) ----------
+
+let permissionPrompt: string | null = null;
+ks.events.onPermissionPrompt((prompt) => {
+  if (prompt.cancelled) {
+    if (permissionPrompt === prompt.id) {
+      permissionPrompt = null;
+      hideInfobar();
+    }
+    return;
+  }
+  permissionPrompt = prompt.id;
+  const remember = h('input', { type: 'checkbox', checked: prompt.remember !== false });
+  const answer = (allowed: boolean) => {
+    permissionPrompt = null;
+    hideInfobar();
+    void ks.auth.permission(prompt.id, allowed, remember.checked);
+  };
+  const allow = h('button', { class: 'primary', onclick: () => answer(true) }, prompt.allowLabel || tr('Consenti'));
+  infobar.replaceChildren(
+    barIcon(prompt.glyph as IconName),
+    h('span', { class: 'msg' }, h('strong', {}, prompt.host), ` ${tr('vuole {0}.', prompt.what)}`),
+    h('label', { class: 'bar-check' }, remember, tr('Ricorda per questo sito')),
+    h('button', { onclick: () => answer(false) }, tr('Blocca')),
+    allow,
+  );
+  infobar.hidden = false;
+  allow.focus();
+});
+
 // ---------- Updates ----------
 
 let announcedUpdate: string | null = null;

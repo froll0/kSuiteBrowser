@@ -1410,4 +1410,7 @@ export const en: Record<string, string> = {
   'Domani': 'Tomorrow',
   '{0}, tutto il giorno': '{0}, all day',
   '{0} alle {1}': '{0} at {1}',
+  'vuole {0}.': 'wants to {0}.',
+  'Ricorda per questo sito': 'Remember for this site',
+  'aprire {0}': 'open {0}',
 };

@@ -87,6 +87,7 @@ export class BrowserWindowController {
   private lastActive: number | null = null;
   /** HTTP authentication requests waiting for the user. */
   private readonly authRequests = new Map<string, { contents: WebContents; callback: (username?: string, password?: string) => void; cleanup: () => void }>();
+  private readonly permissionRequests = new Map<string, (allowed: boolean, remember: boolean) => void>();
 
   constructor(
     private readonly ctx: WindowContext,
@@ -369,6 +370,33 @@ export class BrowserWindowController {
     contents.once('destroyed', withdraw);
     const host = info.port && ![80, 443].includes(info.port) ? `${info.host}:${info.port}` : info.host;
     this.send(IPC.evAuthPrompt, { id, tabId: this.tabs.idOf(contents), host, realm: info.realm ?? '', isProxy: info.isProxy });
+  }
+
+  /** Asks for a site permission in the bar under the address (withdrawn by a new page or a closed tab). */
+  requestPermission(contents: WebContents, host: string, what: string, glyph: string, options: { remember?: boolean; allowLabel?: string } = {}): Promise<{ allowed: boolean; remember: boolean }> {
+    return new Promise((resolve) => {
+      const id = randomUUID();
+      const onNavigation = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
+        if (details.isMainFrame && !details.isSameDocument) finish(false, false);
+      };
+      const finish = (allowed: boolean, remember: boolean) => {
+        if (!this.permissionRequests.has(id)) return;
+        this.permissionRequests.delete(id);
+        contents.off('did-start-navigation', onNavigation);
+        contents.off('destroyed', withdrawn);
+        this.send(IPC.evPermissionPrompt, { id, host, what, glyph, cancelled: true });
+        resolve({ allowed, remember });
+      };
+      const withdrawn = () => finish(false, false);
+      this.permissionRequests.set(id, finish);
+      contents.on('did-start-navigation', onNavigation);
+      contents.once('destroyed', withdrawn);
+      this.send(IPC.evPermissionPrompt, { id, host, what, glyph, remember: options.remember ?? true, allowLabel: options.allowLabel ?? null });
+    });
+  }
+
+  answerPermission(id: string, allowed: boolean, remember: boolean): void {
+    this.permissionRequests.get(id)?.(allowed === true, remember === true);
   }
 
   answerAuth(id: string, credentials: { username: string; password: string } | null): void {

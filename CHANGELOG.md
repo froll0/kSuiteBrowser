@@ -18,6 +18,8 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
   barra.
 - **Nuova scheda**: con l'account Infomaniak, la giornata a colpo d'occhio (email da leggere, prossimo impegno) che apre
   il pannello; le app su una riga; tutto sta nello schermo senza scorrere.
+- **Richieste dei siti** (fotocamera, microfono, posizione, notifiche, aprire un programma esterno) in una barra di
+  Velo sopra la pagina, con «Ricorda per questo sito», invece della finestra di sistema.
 
 ### Correzioni
 - Calendario: le date si inviano nell'ora del fuso del profilo Infomaniak, come fa il client ufficiale di Infomaniak.

@@ -104,3 +104,26 @@ test('after a crash Velo offers an anonymous report, sent only by the user', asy
     await velo.close();
   }
 });
+
+test('site permissions are asked in Velo’s bar and remembered', async () => {
+  const server = await serve((req, res) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.end('<title>Mappe</title><script>navigator.geolocation.getCurrentPosition(() => {}, () => {})</script>');
+  });
+  const velo = await launchVelo({ settings: { onboarded: true, httpsOnly: false } });
+  try {
+    await velo.openTab(`http://127.0.0.1:${server.port}/`, `127.0.0.1:${server.port}`);
+    const bar = await until(() => velo.win.evaluate(() => (document.getElementById('infobar').hidden ? null : document.getElementById('infobar').textContent)));
+    assert.match(bar, /127\.0\.0\.1 vuole conoscere la tua posizione/);
+    await velo.win.click('#infobar button:has-text("Blocca")');
+    const s = await until(async () => {
+      const x = await velo.settings();
+      return x.sitePermissions.length ? x : null;
+    });
+    assert.deepEqual(s.sitePermissions, [{ host: '127.0.0.1', permission: 'geolocation', allowed: false }]);
+    assert.equal(await velo.win.evaluate(() => document.getElementById('infobar').hidden), true);
+  } finally {
+    await velo.close();
+    server.close();
+  }
+});

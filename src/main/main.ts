@@ -378,7 +378,11 @@ function setupSession(ses: Session, isPrivate: boolean, container?: string): voi
   guard.install();
   guards.set(ses, guard);
   downloads.attach(ses, { isPrivate });
-  configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings, container), () => lastFocused?.win ?? null, (contents) => offerDrm(contents));
+  configurePermissions(ses, settings, isPrivate ? memoryOnly() : persistentMemory(settings, container), () => lastFocused?.win ?? null, (contents) => offerDrm(contents), (contents, host, what, permission, options) => {
+    const owner = [...windows].find((w) => w.tabs.idOf(contents) !== null);
+    const glyph = permission === 'media' ? 'video' : permission === 'geolocation' ? 'mapPin' : permission === 'notifications' ? 'bell' : permission.startsWith('external:') ? 'external' : 'lock';
+    return owner ? owner.requestPermission(contents, host, what, glyph, options) : null;
+  });
   serveInternalPages(ses, PATHS.pages, faviconFor);
   ses.registerPreloadScript({ type: 'frame', id: 'velo-adblock', filePath: PATHS.adblockPreload });
   ses.registerPreloadScript({ type: 'frame', id: 'velo-passwords', filePath: PATHS.passwordsPreload });
@@ -1729,6 +1733,7 @@ function registerChromeIpc(): void {
   handle(IPC.aiCancel, (_w, id: string) => ai.cancel(String(id)));
   handle(IPC.updateStatus, () => updates.get());
   handle(IPC.updateInstall, () => updates.install());
+  handle(IPC.permissionAnswer, (w, id: string, allowed: boolean, remember: boolean) => w.answerPermission(String(id), allowed === true, remember === true));
   handle(IPC.authAnswer, (w, id: string, credentials: { username: string; password: string } | null) => w.answerAuth(String(id), credentials));
   handle(IPC.passwordAnswer, (w, id: string, action: 'save' | 'never' | 'dismiss', username?: string) => passwords.answer(w, String(id), action, username));
   handle(IPC.passwordUnlock, (w, primary: string) => wrap(() => passwords.unlock(w, String(primary ?? ''))));

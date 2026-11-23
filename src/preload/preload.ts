@@ -92,6 +92,8 @@ const api = {
   },
   auth: {
     answer: (id: string, credentials: { username: string; password: string } | null) => invoke<void>(IPC.authAnswer, id, credentials),
+    /** A site permission asked in the bar (camera, location…). */
+    permission: (id: string, allowed: boolean, remember: boolean) => invoke<void>(IPC.permissionAnswer, id, allowed, remember),
   },
   passwords: {
     answer: (id: string, action: 'save' | 'never' | 'dismiss', username?: string) => invoke<void>(IPC.passwordAnswer, id, action, username),
@@ -146,6 +148,7 @@ const api = {
     onFindResult: (fn: (result: FindResult) => void) => on(IPC.evFindResult, fn),
     onPasswordPrompt: (fn: (prompt: PasswordPrompt) => void) => on(IPC.evPasswordPrompt, fn),
     onAuthPrompt: (fn: (prompt: AuthPrompt) => void) => on(IPC.evAuthPrompt, fn),
+    onPermissionPrompt: (fn: (prompt: { id: string; host: string; what: string; glyph: string; remember?: boolean; allowLabel?: string | null; cancelled?: boolean }) => void) => on(IPC.evPermissionPrompt, fn),
     onPasswordUnlock: (fn: (info: { reason: string }) => void) => on(IPC.evPasswordUnlock, fn),
     onUnread: (fn: (count: number | null) => void) => on(IPC.evUnread, fn),
     onUpdate: (fn: (status: UpdateStatus) => void) => on(IPC.evUpdate, fn),

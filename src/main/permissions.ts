@@ -57,7 +57,10 @@ const isAskable = (p: string): p is AskablePermission => (ASKABLE_PERMISSIONS as
  * Infomaniak apps (kMeet, kChat, Mail…) get camera, microphone and notifications directly.
  * Other sites follow the remembered decision, then the default chosen in the settings (ask or block).
  */
-export function configurePermissions(session: Session, settings: SettingsStore, memory: PermissionMemory, getWindow: () => BrowserWindow | null, onDrmWanted?: (contents: WebContents) => void): void {
+/** Asks in Velo's own bar; null when the page has no window to ask in (then a dialog is used). */
+export type PermissionAsker = (contents: WebContents, host: string, what: string, permission: string, options?: { remember?: boolean; allowLabel?: string }) => Promise<{ allowed: boolean; remember: boolean }> | null;
+
+export function configurePermissions(session: Session, settings: SettingsStore, memory: PermissionMemory, getWindow: () => BrowserWindow | null, onDrmWanted?: (contents: WebContents) => void, askInBar?: PermissionAsker): void {
   const decide = (host: string, permission: string): boolean | 'ask' => {
     if (ALWAYS_ALLOWED.has(permission)) return true;
     // Protected content (Widevine): on/off from the privacy settings, no question per site.
@@ -75,12 +78,20 @@ export function configurePermissions(session: Session, settings: SettingsStore, 
     // A site wants protected content while Widevine is off: offer to turn it on.
     if (permission === 'mediaKeySystem' && !settings.get().drmOptIn) onDrmWanted?.(contents);
     if (permission === 'openExternal') {
-      void confirmExternal(host, 'externalURL' in details ? String(details.externalURL ?? '') : '').then(callback);
+      void confirmExternal(contents, host, 'externalURL' in details ? String(details.externalURL ?? '') : '').then(callback);
       return;
     }
     const decision = decide(host, permission);
     if (decision !== 'ask') return callback(decision);
 
+    const inBar = askInBar?.(contents, host || tr('Questo sito'), DESCRIPTIONS[permission], permission);
+    if (inBar) {
+      void inBar.then(({ allowed, remember }) => {
+        if (remember && host) memory.set(host, permission, allowed);
+        callback(allowed);
+      });
+      return;
+    }
     const win = getWindow();
     const options = {
       type: 'question' as const,
@@ -100,7 +111,7 @@ export function configurePermissions(session: Session, settings: SettingsStore, 
   });
 
   /** Links to other programs: dangerous schemes never open, the others after a question (remembered per site). */
-  async function confirmExternal(host: string, url: string): Promise<boolean> {
+  async function confirmExternal(contents: WebContents, host: string, url: string): Promise<boolean> {
     const scheme = externalScheme(url);
     if (!scheme || externalVerdict(url) === 'blocked') {
       console.warn('[sicurezza] link a programma esterno bloccato:', url.slice(0, 200));
@@ -109,6 +120,13 @@ export function configurePermissions(session: Session, settings: SettingsStore, 
     const key = `external:${scheme}`;
     const remembered = host ? memory.get(host, key) : undefined;
     if (remembered !== undefined) return remembered;
+    // In the bar too, but not remembered unless asked (a link to an app can be a one-off).
+    const inBar = askInBar?.(contents, host || tr('Questa pagina'), tr('aprire {0}', externalAppName(scheme)), key, { remember: false, allowLabel: tr('Apri') });
+    if (inBar) {
+      const { allowed, remember } = await inBar;
+      if (remember && host) memory.set(host, key, allowed);
+      return allowed;
+    }
     const win = getWindow();
     const options = {
       type: 'question' as const,

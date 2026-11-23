@@ -129,15 +129,18 @@ const activeTab = () => tabs.find((t) => t.active);
 
 let toastTimer: number | undefined;
 const TOAST_ICONS: Record<'info' | 'success' | 'error', IconName> = { info: 'info', success: 'check', error: 'alert' };
+/**
+ * Shown by the main process at the bottom of the page (where it covers no button); #toast keeps the
+ * text for screen readers only.
+ */
 function toast(kind: 'info' | 'success' | 'error', message: string): void {
   toastEl.hidden = false;
   toastEl.className = `toast-${kind}`;
   toastEl.replaceChildren(icon(TOAST_ICONS[kind], 16), h('span', {}, message));
-  toastEl.title = message;
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => (toastEl.hidden = true), kind === 'error' ? 8000 : 4000);
+  void ks.showToast(kind, message);
 }
-toastEl.addEventListener('click', () => (toastEl.hidden = true));
 
 // ---------- Panel ----------
 
@@ -1126,6 +1129,7 @@ downloadsBtn.addEventListener('click', () => {
   else void setPanelOpen(true).then(() => panel.show('downloads'));
 });
 ks.events.onOpenDownloads(() => void setPanelOpen(true).then(() => panel.show('downloads')));
+ks.events.onOpenPanel((view) => void setPanelOpen(true).then(() => panel.show(view)));
 ks.events.onDownloads((items) => {
   downloadsBtn.querySelector<HTMLElement>('.dot')!.hidden = !items.some((d) => d.state === 'progressing' || d.drive === 'uploading');
 });

@@ -106,6 +106,13 @@ export interface NewTabData {
   closed: Array<{ index: number; title: string; url: string }>;
 }
 
+/** The day at a glance on the new tab page (with an Infomaniak account). */
+export interface NewTabToday {
+  unread: number | null;
+  /** The next events of today and tomorrow (at most 2). */
+  events: Array<{ title: string; start: string; end: string; fullday: boolean }>;
+}
+
 export interface HistoryVisit {
   id: string;
   url: string;

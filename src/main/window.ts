@@ -19,6 +19,7 @@ import { StatusBubble } from './status-bubble';
 import { TabSearchPopup } from './tab-search-popup';
 import { CommandPalette } from './command-palette';
 import { MainMenuPopup } from './main-menu';
+import { ToastPopup } from './toast-popup';
 import { registerMenuHost, popupMenu } from './popup-menu';
 import { SuggestionsPopup } from './suggestions-popup';
 import { TabManager } from './tabs';
@@ -77,6 +78,7 @@ export class BrowserWindowController {
   readonly tabs: TabManager;
   readonly suggestions: SuggestionsPopup;
   readonly statusBubble: StatusBubble;
+  readonly toast: ToastPopup;
   readonly tabSearch: TabSearchPopup;
   readonly palette: CommandPalette;
   readonly mainMenu: MainMenuPopup;
@@ -182,6 +184,7 @@ export class BrowserWindowController {
     const look = () => popupLook(ctx.settings.get(), isPrivate);
     registerMenuHost(this.win, { popup: this.mainMenu, look });
     this.statusBubble = new StatusBubble(this.win, () => this.tabs.pageArea(), look);
+    this.toast = new ToastPopup(this.win, () => this.tabs.pageArea(), look);
     this.hoverCard = new HoverCard(this.win, look, () => ctx.settings.get().tabsLayout === 'side');
 
     const initialLook = JSON.stringify(popupLook(ctx.settings.get(), isPrivate));
@@ -207,6 +210,7 @@ export class BrowserWindowController {
       if (this.refreshTimer) clearTimeout(this.refreshTimer);
       this.suggestions.destroy();
       this.statusBubble.destroy();
+      this.toast.destroy();
       this.tabSearch.destroy();
       this.palette.destroy();
       this.mainMenu.destroy();

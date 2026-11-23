@@ -3,11 +3,11 @@ import { INTERNAL } from '../../shared/ipc';
 import { INFOMANIAK_APPS } from '../../shared/infomaniak-apps';
 import { faviconUrl, letterColor } from '../../shared/top-sites';
 import { MAX_NEWTAB_SHORTCUTS } from '../../shared/settings-schema';
-import type { NewTabData, Settings, Suggestion, TopSite } from '../../shared/types';
+import type { NewTabData, NewTabToday, Settings, Suggestion, TopSite } from '../../shared/types';
 import { hydrateIcons, icon, logoMark } from '../../renderer/icons';
 import { internal } from '../shared/bridge';
 import { followTheme, refreshTheme } from '../shared/theme';
-import { tr } from '../../shared/i18n';
+import { localeTag, tr } from '../../shared/i18n';
 
 followTheme();
 hydrateIcons();
@@ -125,6 +125,7 @@ async function render(): Promise<void> {
   document.querySelector<HTMLElement>('section[aria-labelledby="apps-title"]')!.classList.toggle('no-account', !data.cloud);
   const restore = document.getElementById('restore')!;
   restore.hidden = data.hiddenCount === 0 || !data.showTopSites;
+  void renderToday(data.cloud && !data.isPrivate);
 }
 
 document.getElementById('restore-btn')!.addEventListener('click', async () => {
@@ -206,6 +207,37 @@ document.getElementById('shortcut-form')!.addEventListener('submit', async (e) =
   dialog.close();
   void render();
 });
+
+// ---------- The day at a glance (Infomaniak account) ----------
+
+async function renderToday(show: boolean): Promise<void> {
+  const box = document.getElementById('today')!;
+  const today = show ? await call<NewTabToday | null>(INTERNAL.newtabToday).catch(() => null) : null;
+  const cards: HTMLElement[] = [];
+  if (today?.unread !== null && today?.unread !== undefined) {
+    cards.push(todayCard('mail', today.unread === 0 ? tr('Nessuna email da leggere') : today.unread === 1 ? tr('1 email da leggere') : tr('{0} email da leggere', today.unread), tr('Posta in arrivo'), 'mail'));
+  }
+  const next = today?.events[0];
+  if (next) cards.push(todayCard('calendar', next.title, eventWhen(next), 'calendar'));
+  else if (today) cards.push(todayCard('calendar', tr('Nessun impegno'), tr('Oggi e domani'), 'calendar'));
+  box.hidden = cards.length === 0;
+  box.replaceChildren(...cards);
+}
+
+function todayCard(glyph: 'mail' | 'calendar', title: string, sub: string, view: 'mail' | 'calendar'): HTMLElement {
+  const button = h('button', { type: 'button', class: 'today-card', onclick: () => void call(INTERNAL.newtabOpenPanel, view) },
+    h('span', { class: `today-icon ${glyph}` }), h('span', { class: 'today-text' }, h('strong', {}, title), h('span', {}, sub)));
+  button.querySelector('.today-icon')!.append(icon(glyph, 18));
+  return button;
+}
+
+/** "Oggi alle 15:00", "Domani, tutto il giorno"… */
+function eventWhen(e: { start: string; fullday: boolean }): string {
+  const start = new Date(e.start);
+  const isToday = start.toDateString() === new Date().toDateString();
+  const day = isToday ? tr('Oggi') : tr('Domani');
+  return e.fullday ? tr('{0}, tutto il giorno', day) : tr('{0} alle {1}', day, start.toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' }));
+}
 
 // Recently closed tabs change while the page is in the background.
 document.addEventListener('visibilitychange', () => {

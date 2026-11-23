@@ -16,7 +16,7 @@ import { siteOf } from '../shared/privacy-rules';
 import { matchesAll } from '../shared/search-match';
 import { buildSuggestions } from '../shared/suggest';
 import type {
-  AutofillAddress, AutofillCard, ImportReport, TabGroup, TagColor, TabLayout, MainMenuData, MainMenuEntry, PaletteChoice, PaletteData, SiteSettingsPatch, AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
+  AutofillAddress, AutofillCard, ImportReport, TabGroup, TagColor, TabLayout, MainMenuData, MainMenuEntry, NewTabToday, PaletteChoice, PaletteData, SiteSettingsPatch, AboutInfo, AiChatRequest, ApiResult, BookmarkFolder, HistoryVisit, BrowsingDataSelection, DriveFile, NewEvent, OutgoingMail, Rect, Settings, Suggestion, TabSearchData, TabState,
 } from '../shared/types';
 import { TOOLBAR_ITEMS, TOOLBAR_ITEM_IDS, type ToolbarItem } from '../shared/appearance';
 import { searchAnswerMessages } from '../shared/ai-prompts';
@@ -1647,6 +1647,9 @@ function registerChromeIpc(): void {
     } else if (action === 'close') w.win.close();
   });
   handle(IPC.chromeVisible, (w, visible: boolean) => w.setChromeVisible(Boolean(visible)));
+  handle(IPC.showToast, (w, kind: unknown, message: unknown) => {
+    if ((kind === 'info' || kind === 'success' || kind === 'error') && typeof message === 'string') w.toast.show(kind, message.slice(0, 300));
+  });
   handle(IPC.showAppMenu, (w, anchor?: Rect) => toggleMainMenu(w, anchor && typeof anchor === 'object' ? anchor : null));
   handle(IPC.showShieldMenu, (w, tabId: number) => showShieldMenu(w, tabId));
   handle(IPC.tabSearch, (w, anchor?: Rect) => toggleTabSearch(w, anchor && typeof anchor.x === 'number' ? anchor : undefined));
@@ -2045,6 +2048,20 @@ function registerInternalIpc(): void {
     const next = at >= 0 ? list.map((x, i) => (i === at ? entry : x)) : [...list.filter((x) => x.url !== url), entry];
     settings.update({ newTabShortcuts: shortcutList(next) });
     return { ok: true };
+  });
+  // Unread mail and the next events, for the new tab page; whatever fails is simply left out.
+  handleInternal(INTERNAL.newtabToday, ['newtab'], async (event): Promise<NewTabToday | null> => {
+    if (!settings.tokenStatus().configured || !event.sender.session.isPersistent()) return null;
+    const [mail, events] = await Promise.allSettled([services.mailOverview(), services.upcomingEvents(2)]);
+    const now = Date.now();
+    return {
+      unread: mail.status === 'fulfilled' ? mail.value.inboxUnread : null,
+      events: events.status === 'fulfilled' ? events.value.filter((e) => Date.parse(e.end) > now).slice(0, 2).map(({ title, start, end, fullday }) => ({ title, start, end, fullday })) : [],
+    };
+  });
+  handleInternal(INTERNAL.newtabOpenPanel, ['newtab'], (event, view: unknown) => {
+    const owner = [...windows].find((w) => w.tabs.idOf(event.sender) !== null);
+    if (owner && (view === 'mail' || view === 'calendar')) owner.send(IPC.evOpenPanel, view);
   });
   handleInternal(INTERNAL.newtabReopen, ['newtab'], (event, index: number) => {
     const owner = [...windows].find((w) => w.tabs.idOf(event.sender) !== null);

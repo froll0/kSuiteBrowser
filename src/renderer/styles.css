@@ -342,20 +342,8 @@ body.layout-side #tabstrip { display: none; }
 .shield.off { color: var(--muted); }
 #btn-downloads .dot { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--titlebar); }
 
-#toast {
-  position: absolute; right: calc(var(--controls-right) + 64px); top: calc((var(--row-h) - 32px) / 2);
-  display: flex; align-items: center; gap: 8px;
-  max-width: min(460px, 50vw); height: 32px; padding: 0 14px 0 10px;
-  border-radius: var(--r-pill);
-  background: var(--text); color: var(--surface);
-  box-shadow: var(--shadow-pop);
-  font-weight: 500; white-space: nowrap; z-index: 5;
-  animation: toast-in .18s ease-out;
-  -webkit-app-region: no-drag;
-}
-#toast span { overflow: hidden; text-overflow: ellipsis; }
-#toast.toast-error { background: var(--danger); color: #fff; }
-#toast.toast-success { background: var(--success); color: #fff; }
+/* Read by screen readers; drawn by the main process at the bottom of the page. */
+#toast { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } }
 
 /* ---------- Bookmarks bar ---------- */

@@ -60,6 +60,8 @@ const api = {
   /** Turns protected content (Widevine) on and restarts the browser. */
   enableDrm: () => invoke<void>(IPC.drmEnable),
   /** The main menu (⋮), under the button at `anchor`. */
+  /** A short confirmation floating at the bottom of the page. */
+  showToast: (kind: 'info' | 'success' | 'error', message: string) => invoke<void>(IPC.showToast, kind, message),
   showAppMenu: (anchor?: { x: number; y: number; width: number; height: number }) => invoke<void>(IPC.showAppMenu, anchor),
   showShieldMenu: (tabId: number) => invoke<void>(IPC.showShieldMenu, tabId),
   showSiteMenu: (tabId: number) => invoke<void>(IPC.showSiteMenu, tabId),
@@ -160,6 +162,7 @@ const api = {
     /** F6: move the keyboard focus to the next part of the window. */
     onCycleFocus: (fn: () => void) => on(IPC.evCycleFocus, fn),
     onOpenDownloads: (fn: () => void) => on(IPC.evOpenDownloads, fn),
+    onOpenPanel: (fn: (view: 'mail' | 'calendar') => void) => on(IPC.evOpenPanel, fn),
     /** The page was scrolled up (true) or down, for the auto-hiding bar. */
     onScrollReveal: (fn: (up: boolean) => void) => on(IPC.evScrollReveal, fn),
     onWindowState: (fn: (state: { maximized: boolean; fullscreen: boolean }) => void) => on(IPC.evWindowState, fn),

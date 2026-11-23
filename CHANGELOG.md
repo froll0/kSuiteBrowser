@@ -14,6 +14,10 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 - **Pagine d'errore** con i colori e il tema di Velo (prima sempre chiare), testi più semplici e il codice tecnico in
   *Dettagli*.
 - **Barra di caricamento** sottile sotto le barre mentre la pagina si carica.
+- **Conferme** («Aggiunto ai preferiti», «Email inviata»…) in basso sopra la pagina: prima coprivano i pulsanti della
+  barra.
+- **Nuova scheda**: con l'account Infomaniak, la giornata a colpo d'occhio (email da leggere, prossimo impegno) che apre
+  il pannello; le app su una riga; tutto sta nello schermo senza scorrere.
 
 ### Correzioni
 - Calendario: le date si inviano nell'ora del fuso del profilo Infomaniak, come fa il client ufficiale di Infomaniak.

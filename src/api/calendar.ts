@@ -17,9 +17,22 @@ interface RawEvent {
   location?: string | null;
 }
 
-/** The PIM API expects "YYYY-MM-DD HH:mm:ss" in UTC. */
+/** "YYYY-MM-DD HH:mm:ss" in UTC. */
 export function toApiDate(date: Date): string {
   return date.toISOString().replace('T', ' ').slice(0, 19);
+}
+
+/** "YYYY-MM-DD HH:mm:ss" on the wall clock of `timezone`, as Infomaniak's own calendar client sends it. */
+export function toWallClock(date: Date, timezone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(date);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '00';
+    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
+  } catch {
+    return toApiDate(date);
+  }
 }
 
 export async function listCalendars(client: InfomaniakClient): Promise<RawCalendar[]> {
@@ -31,7 +44,8 @@ export async function listCalendars(client: InfomaniakClient): Promise<RawCalend
  * Ways of writing the from/to of an event query. The calendar API isn't publicly documented: when it
  * refuses one (422), the next is tried, and the one that worked is kept for the next queries.
  */
-const RANGE_FORMATS: Array<(d: Date) => string> = [
+const RANGE_FORMATS: Array<(d: Date, tz: string) => string> = [
+  toWallClock,
   toApiDate,
   (d) => d.toISOString().replace(/\.\d{3}Z$/, '+00:00'),
   (d) => d.toISOString().slice(0, 10),
@@ -43,11 +57,11 @@ export function resetRangeFormat(): void {
   rangeFormat = 0;
 }
 
-async function eventsOf(client: InfomaniakClient, calendarId: string, from: Date, to: Date): Promise<RawEvent[]> {
+async function eventsOf(client: InfomaniakClient, calendarId: string, from: Date, to: Date, timezone: string): Promise<RawEvent[]> {
   let firstError: unknown = null;
   for (let i = 0; i < RANGE_FORMATS.length; i++) {
     const n = (rangeFormat + i) % RANGE_FORMATS.length;
-    const params = new URLSearchParams({ calendar_id: calendarId, from: RANGE_FORMATS[n](from), to: RANGE_FORMATS[n](to) });
+    const params = new URLSearchParams({ calendar_id: calendarId, from: RANGE_FORMATS[n](from, timezone), to: RANGE_FORMATS[n](to, timezone) });
     try {
       const list = (await client.get<RawEvent[] | { events?: RawEvent[] }>(`${API_BASE}/1/calendar/pim/event?${params}`)) ?? [];
       rangeFormat = n;
@@ -60,10 +74,11 @@ async function eventsOf(client: InfomaniakClient, calendarId: string, from: Date
   throw firstError;
 }
 
-export async function upcomingEvents(client: InfomaniakClient, from: Date, to: Date): Promise<CalendarEvent[]> {
+export async function upcomingEvents(client: InfomaniakClient, from: Date, to: Date, timezone: string | null = null): Promise<CalendarEvent[]> {
+  const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const calendars = await listCalendars(client);
   // Some calendars (subscriptions, shared ones) can refuse the query: skip them unless all fail.
-  const results = await Promise.allSettled(calendars.map((cal) => eventsOf(client, String(cal.id), from, to)));
+  const results = await Promise.allSettled(calendars.map((cal) => eventsOf(client, String(cal.id), from, to, tz)));
   const lists = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
   const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
   if (lists.length === 0 && firstFailure) throw firstFailure.reason;
@@ -97,8 +112,8 @@ export async function createEvent(client: InfomaniakClient, event: NewEvent, tim
   const tz = timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   await client.send('POST', `${API_BASE}/1/calendar/pim/event`, {
     title: event.title,
-    start: toApiDate(start),
-    end: toApiDate(end),
+    start: toWallClock(start, tz),
+    end: toWallClock(end, tz),
     description: event.description ?? '',
     freebusy: 'busy',
     type: 'event',

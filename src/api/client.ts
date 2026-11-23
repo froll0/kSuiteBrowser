@@ -97,8 +97,18 @@ export function apiError(url: string, res: Pick<Response, 'status' | 'statusText
     .filter(Boolean);
   // Without a list of fields, whatever the API says about the request (e.g. which parameter).
   if (!details.length && error?.context && Object.keys(error.context).length) details.push(JSON.stringify(error.context).slice(0, 200));
+  // A refused request without any detail: the request and the whole answer, to find out what it wants.
+  if (res.status === 422 && !details.length) details.push(tr('richiesta: {0}', queryOf(url)), tr('risposta: {0}', text.slice(0, 400)));
   const description = [error?.description ?? (text.slice(0, 200) || res.statusText), ...details].join(' — ');
   return new InfomaniakApiError(describeError(res.status, code, description, endpointOf(url)), res.status, code);
+}
+
+function queryOf(url: string): string {
+  try {
+    return decodeURIComponent(new URL(url).search.replace(/\+/g, ' ')) || '—';
+  } catch {
+    return '—';
+  }
 }
 
 function endpointOf(url: string): string {

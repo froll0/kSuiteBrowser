@@ -1382,4 +1382,6 @@ export const en: Record<string, string> = {
   'Guida e domande frequenti': 'Guide and FAQ',
   'Zoom {0}%, ripristina': 'Zoom {0}%, reset',
   'Prodotto AI Services non valido: sceglilo in Impostazioni › Intelligenza artificiale.': 'Invalid AI Services product: choose it in Settings › Artificial intelligence.',
+  'richiesta: {0}': 'request: {0}',
+  'risposta: {0}': 'response: {0}',
 };

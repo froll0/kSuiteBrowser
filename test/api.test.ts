@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { upcomingEvents, toApiDate, resetRangeFormat } from '../src/api/calendar';
+import { upcomingEvents, toApiDate, toWallClock, resetRangeFormat } from '../src/api/calendar';
 import { chatCompletionsUrl, listAiModels, listAiProducts } from '../src/api/ai';
 import { InfomaniakApiError, InfomaniakClient, type FetchLike } from '../src/api/client';
 import { listDirectory, listDrives, uploadFile } from '../src/api/drive';
@@ -172,14 +172,26 @@ describe('Calendar', () => {
       return new Response(JSON.stringify({ result: 'success', data: [{ id: 'a', title: 'Ok', start: '2026-09-23T09:00:00+02:00', end: '2026-09-23T10:00:00+02:00' }] }));
     };
     const client = new InfomaniakClient('t', fetchImpl);
-    const events = await upcomingEvents(client, new Date('2026-09-23T00:00:00Z'), new Date('2026-09-30T00:00:00Z'));
+    const events = await upcomingEvents(client, new Date('2026-09-23T00:00:00Z'), new Date('2026-09-30T00:00:00Z'), 'Europe/Rome');
     expect(events.map((e) => e.title)).toEqual(['Ok']);
-    expect(seen).toEqual(['2026-09-23 00:00:00', '2026-09-23T00:00:00+00:00']);
+    // Wall clock of the profile's time zone first (as Infomaniak's own client), then UTC, then ISO.
+    expect(seen).toEqual(['2026-09-23 02:00:00', '2026-09-23 00:00:00', '2026-09-23T00:00:00+00:00']);
     // The format that worked is used first next time.
-    await upcomingEvents(client, new Date('2026-09-23T00:00:00Z'), new Date('2026-09-30T00:00:00Z'));
+    await upcomingEvents(client, new Date('2026-09-23T00:00:00Z'), new Date('2026-09-30T00:00:00Z'), 'Europe/Rome');
     expect(seen.at(-1)).toBe('2026-09-23T00:00:00+00:00');
-    expect(seen).toHaveLength(3);
+    expect(seen).toHaveLength(4);
     resetRangeFormat();
+  });
+
+  it('writes dates on the clock of the profile', () => {
+    expect(toWallClock(new Date('2026-01-15T08:30:00Z'), 'Europe/Zurich')).toBe('2026-01-15 09:30:00');
+    expect(toWallClock(new Date('2026-07-15T08:30:00Z'), 'Europe/Zurich')).toBe('2026-07-15 10:30:00');
+    expect(toWallClock(new Date('2026-07-15T08:30:00Z'), 'Not/AZone')).toBe('2026-07-15 08:30:00');
+  });
+
+  it('shows the request and the answer of a 422 without details', async () => {
+    const fetchImpl: FetchLike = async () => new Response(JSON.stringify({ result: 'error', error: { code: 'validation_failed', description: 'Validation failed' } }), { status: 422 });
+    await expect(new InfomaniakClient('t', fetchImpl).get('https://api.infomaniak.com/1/x?from=2026-01-01+00:00:00')).rejects.toThrow(/richiesta: \?from=2026-01-01 00:00:00 — risposta: \{"result":"error"/);
   });
 
   it('shows what the API says about a refused request', async () => {

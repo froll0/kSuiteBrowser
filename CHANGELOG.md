@@ -4,6 +4,11 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 
 ## Prossima versione
 
+### Correzioni
+- Calendario: le date si inviano nell'ora del fuso del profilo Infomaniak, come fa il client ufficiale di Infomaniak.
+  Gli eventi creati da Velo non risultano più spostati di una o due ore; se l'elenco degli eventi viene ancora
+  rifiutato, il messaggio mostra la richiesta e la risposta complete.
+
 ## 0.8.2
 
 ### Correzioni

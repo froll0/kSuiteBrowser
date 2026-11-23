@@ -134,7 +134,7 @@ export class CloudServices {
     if (!this.eventsCache || Date.now() - this.eventsCache.at > CloudServices.CACHE_MS) {
       const from = new Date(Date.now() - 30 * 86_400_000);
       const to = new Date(Date.now() + 182 * 86_400_000);
-      this.eventsCache = { at: Date.now(), list: await calendar.upcomingEvents(this.client(), from, to) };
+      this.eventsCache = { at: Date.now(), list: await calendar.upcomingEvents(this.client(), from, to, await this.timezone()) };
     }
     const now = Date.now();
     const hits = this.eventsCache.list.filter((e) => matchesAll(query, e.title, e.location));
@@ -151,11 +151,16 @@ export class CloudServices {
     return mail.sendMail(this.client(), message);
   }
 
-  upcomingEvents(days = 7): Promise<CalendarEvent[]> {
+  async upcomingEvents(days = 7): Promise<CalendarEvent[]> {
     const from = new Date();
     from.setHours(0, 0, 0, 0);
     const to = new Date(from.getTime() + days * 24 * 3600 * 1000);
-    return calendar.upcomingEvents(this.client(), from, to);
+    return calendar.upcomingEvents(this.client(), from, to, await this.timezone());
+  }
+
+  /** The time zone of the Infomaniak profile (the calendar API reads dates on that clock). */
+  private timezone(): Promise<string | null> {
+    return this.profile().then((p) => p.timezone, () => null);
   }
 
   async createEvent(event: NewEvent): Promise<void> {

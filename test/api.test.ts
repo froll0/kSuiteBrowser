@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { upcomingEvents, toApiDate } from '../src/api/calendar';
+import { upcomingEvents, toApiDate, resetRangeFormat } from '../src/api/calendar';
+import { chatCompletionsUrl, listAiModels, listAiProducts } from '../src/api/ai';
 import { InfomaniakApiError, InfomaniakClient, type FetchLike } from '../src/api/client';
 import { listDirectory, listDrives, uploadFile } from '../src/api/drive';
 import { findFolderByRole, getMailOverview, sendMail, textToHtml } from '../src/api/mail';
@@ -159,6 +160,33 @@ describe('Calendar', () => {
     expect(events.map((e) => e.title)).toEqual(['Prima', 'Dopo']);
   });
 
+  it('tries another date format when the API refuses one (422)', async () => {
+    resetRangeFormat();
+    const seen: string[] = [];
+    const fetchImpl: FetchLike = async (input) => {
+      const url = new URL(input);
+      if (url.pathname.endsWith('/calendar')) return new Response(JSON.stringify({ result: 'success', data: { calendars: [{ id: 1 }] } }));
+      const from = url.searchParams.get('from')!;
+      seen.push(from);
+      if (from.includes(' ')) return new Response(JSON.stringify({ result: 'error', error: { code: 'validation_failed', description: 'Validation failed', context: { from: 'invalid' } } }), { status: 422 });
+      return new Response(JSON.stringify({ result: 'success', data: [{ id: 'a', title: 'Ok', start: '2026-09-23T09:00:00+02:00', end: '2026-09-23T10:00:00+02:00' }] }));
+    };
+    const client = new InfomaniakClient('t', fetchImpl);
+    const events = await upcomingEvents(client, new Date('2026-09-23T00:00:00Z'), new Date('2026-09-30T00:00:00Z'));
+    expect(events.map((e) => e.title)).toEqual(['Ok']);
+    expect(seen).toEqual(['2026-09-23 00:00:00', '2026-09-23T00:00:00+00:00']);
+    // The format that worked is used first next time.
+    await upcomingEvents(client, new Date('2026-09-23T00:00:00Z'), new Date('2026-09-30T00:00:00Z'));
+    expect(seen.at(-1)).toBe('2026-09-23T00:00:00+00:00');
+    expect(seen).toHaveLength(3);
+    resetRangeFormat();
+  });
+
+  it('shows what the API says about a refused request', async () => {
+    const fetchImpl: FetchLike = async () => new Response(JSON.stringify({ result: 'error', error: { code: 'validation_failed', description: 'Validation failed', context: { to: 'must be after from' } } }), { status: 422 });
+    await expect(new InfomaniakClient('t', fetchImpl).get('https://api.infomaniak.com/1/x')).rejects.toThrow(/Validation failed — \{"to":"must be after from"\}/);
+  });
+
   it('skips calendars that refuse the query', async () => {
     const { client } = fakeApi({
       'GET api.infomaniak.com/1/calendar/pim/calendar': () => ({ data: { calendars: [{ id: 1 }, { id: 2 }] } }),
@@ -169,5 +197,27 @@ describe('Calendar', () => {
     });
     const events = await upcomingEvents(client, new Date('2026-09-23'), new Date('2026-09-30'));
     expect(events.map((e) => e.title)).toEqual(['Ok']);
+  });
+});
+
+describe('AI Services', () => {
+  it('reads the product id from product_id (and skips products without one)', async () => {
+    const { client } = fakeApi({
+      'GET api.infomaniak.com/1/ai': () => ({ data: [{ product_id: 1234, product_name: 'LLM API', account_name: 'Studio', status: 'ok' }, { product_name: 'broken' }] }),
+    });
+    expect(await listAiProducts(client)).toEqual([{ id: 1234, name: 'Studio · LLM API' }]);
+    expect(chatCompletionsUrl(1234)).toBe('https://api.infomaniak.com/2/ai/1234/openai/v1/chat/completions');
+    expect(() => chatCompletionsUrl(undefined as unknown as number)).toThrow(/non valido/);
+  });
+
+  it('keeps the chat models that can be used now', async () => {
+    const { client } = fakeApi({
+      'GET api.infomaniak.com/1/ai/models': () => ({ data: [
+        { name: 'qwen3', type: 'llm', info_status: 'ready', endpoints: ['post/2/ai/{product_id}/openai/v1/chat/completions'] },
+        { name: 'whisper', type: 'stt', info_status: 'ready', endpoints: ['post/1/ai/{product_id}/openai/audio/transcriptions'] },
+        { name: 'future', type: 'llm', info_status: 'coming_soon', endpoints: ['post/2/ai/{product_id}/openai/v1/chat/completions'] },
+      ] }),
+    });
+    expect((await listAiModels(client)).map((m) => m.name)).toEqual(['qwen3']);
   });
 });

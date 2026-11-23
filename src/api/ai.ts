@@ -14,17 +14,37 @@ export interface AiModel {
   description: string | null;
 }
 
+interface RawAiProduct {
+  /** The id used in /2/ai/{product_id}/… (the documented field). */
+  product_id?: number;
+  product_name?: string;
+  account_name?: string;
+  status?: string;
+  // Older answers.
+  id?: number;
+  name?: string;
+  customer_name?: string;
+  service_name?: string;
+}
+
 /** AI Services products of the account (empty when AI Services is not active). */
 export async function listAiProducts(client: InfomaniakClient): Promise<AiProduct[]> {
-  const raw = (await client.get<Array<{ id: number; name?: string; customer_name?: string; service_name?: string }>>(`${API_BASE}/1/ai`)) ?? [];
-  return raw.map((p) => ({ id: p.id, name: p.customer_name || p.name || p.service_name || `AI #${p.id}` }));
+  const raw = (await client.get<RawAiProduct[]>(`${API_BASE}/1/ai`)) ?? [];
+  return (Array.isArray(raw) ? raw : []).flatMap((p) => {
+    const id = Number(p.product_id ?? p.id);
+    if (!Number.isInteger(id) || id <= 0) return [];
+    const name = [p.account_name || p.customer_name, p.product_name || p.name || p.service_name].filter(Boolean).join(' · ');
+    return [{ id, name: name || `AI #${id}` }];
+  });
 }
 
 /** Public catalogue of the models; only chat (LLM) models are kept. */
 export async function listAiModels(client: InfomaniakClient): Promise<AiModel[]> {
-  const raw = (await client.get<Array<{ name: string; type?: string; description?: string; info_status?: string }>>(`${API_BASE}/1/ai/models`)) ?? [];
+  const raw = (await client.get<Array<{ name: string; type?: string; description?: string; info_status?: string; endpoints?: string[] }>>(`${API_BASE}/1/ai/models`)) ?? [];
   return raw
-    .filter((m) => m.name && (!m.type || /llm|chat|text/i.test(m.type)))
+    // Usable now (not "coming soon"), and answering on the chat endpoint Velo calls when the API says so.
+    .filter((m) => m.name && m.info_status !== 'coming_soon')
+    .filter((m) => (Array.isArray(m.endpoints) && m.endpoints.length ? m.endpoints.some((e) => /chat\/completions/.test(e)) : !m.type || /llm|chat|text/i.test(m.type)))
     .map((m) => ({ name: m.name, type: m.type ?? null, description: m.description ?? null }));
 }
 
@@ -38,6 +58,7 @@ export function pickDefaultModel(models: AiModel[]): string | null {
 }
 
 export function chatCompletionsUrl(productId: number): string {
+  if (!Number.isInteger(productId) || productId <= 0) throw new InfomaniakApiError(tr('Prodotto AI Services non valido: sceglilo in Impostazioni › Intelligenza artificiale.'), 400);
   return `${API_BASE}/2/ai/${productId}/openai/v1/chat/completions`;
 }
 

@@ -27,15 +27,43 @@ export async function listCalendars(client: InfomaniakClient): Promise<RawCalend
   return data?.calendars ?? [];
 }
 
+/**
+ * Ways of writing the from/to of an event query. The calendar API isn't publicly documented: when it
+ * refuses one (422), the next is tried, and the one that worked is kept for the next queries.
+ */
+const RANGE_FORMATS: Array<(d: Date) => string> = [
+  toApiDate,
+  (d) => d.toISOString().replace(/\.\d{3}Z$/, '+00:00'),
+  (d) => d.toISOString().slice(0, 10),
+];
+let rangeFormat = 0;
+
+/** Back to the first format (tests). */
+export function resetRangeFormat(): void {
+  rangeFormat = 0;
+}
+
+async function eventsOf(client: InfomaniakClient, calendarId: string, from: Date, to: Date): Promise<RawEvent[]> {
+  let firstError: unknown = null;
+  for (let i = 0; i < RANGE_FORMATS.length; i++) {
+    const n = (rangeFormat + i) % RANGE_FORMATS.length;
+    const params = new URLSearchParams({ calendar_id: calendarId, from: RANGE_FORMATS[n](from), to: RANGE_FORMATS[n](to) });
+    try {
+      const list = (await client.get<RawEvent[] | { events?: RawEvent[] }>(`${API_BASE}/1/calendar/pim/event?${params}`)) ?? [];
+      rangeFormat = n;
+      return Array.isArray(list) ? list : (list.events ?? []);
+    } catch (err) {
+      firstError ??= err;
+      if (!(err instanceof InfomaniakApiError) || err.status !== 422) throw err;
+    }
+  }
+  throw firstError;
+}
+
 export async function upcomingEvents(client: InfomaniakClient, from: Date, to: Date): Promise<CalendarEvent[]> {
   const calendars = await listCalendars(client);
   // Some calendars (subscriptions, shared ones) can refuse the query: skip them unless all fail.
-  const results = await Promise.allSettled(
-    calendars.map(async (cal) => {
-      const params = new URLSearchParams({ calendar_id: String(cal.id), from: toApiDate(from), to: toApiDate(to) });
-      return (await client.get<RawEvent[]>(`${API_BASE}/1/calendar/pim/event?${params}`)) ?? [];
-    }),
-  );
+  const results = await Promise.allSettled(calendars.map((cal) => eventsOf(client, String(cal.id), from, to)));
   const lists = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
   const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
   if (lists.length === 0 && firstFailure) throw firstFailure.reason;

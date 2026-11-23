@@ -5,6 +5,10 @@ Le note di ogni versione. La sezione di una versione diventa il testo della sua 
 ## Prossima versione
 
 ### Correzioni
+- Assistente IA: non partiva («Errore API 404 … /2/ai/undefined/…») perché Velo leggeva male il numero del prodotto
+  AI Services; ora usa quello documentato da Infomaniak e propone solo i modelli di chat già disponibili.
+- Eventi del calendario: se l'API rifiuta il formato delle date (errore 422) Velo prova gli altri formati, e i messaggi
+  di errore dicono cosa l'API ha contestato.
 - «Dimentica i siti alla chiusura» cancella i dati anche di una scheda chiusa mentre stava ancora caricando la prima
   pagina del sito.
 

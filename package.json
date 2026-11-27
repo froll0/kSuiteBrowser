@@ -27,17 +27,17 @@
     "@mozilla/readability": "^0.6.0",
     "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^22.20.4",
-    "axe-core": "4.10.3",
+    "axe-core": "4.14.1",
     "electron": "github:castlabs/electron-releases#v44.10.1+wvcus",
     "electron-builder": "^26.15.3",
     "electron-updater": "^6.8.9",
     "esbuild": "^0.28.2",
     "fflate": "^0.8.3",
-    "lucide": "^1.47.0",
-    "playwright-core": "1.64.1",
-    "tldts": "^7.4.15",
+    "lucide": "^1.78.0",
+    "playwright-core": "1.65.1",
+    "tldts": "^7.5.5",
     "typescript": "^5.9.3",
-    "vitest": "^5.0.1"
+    "vitest": "^5.1.1"
   },
   "build": {
     "appId": "io.github.froll0.velo",
